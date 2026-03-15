@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.user
+*.suo
+*.sln
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Outputs
+outputs/
+runs/
+*.mp4
+*.avi
+*.mov
+*.json
+*.csv
