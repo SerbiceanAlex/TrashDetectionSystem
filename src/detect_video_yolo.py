@@ -21,7 +21,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    source = int(args.source) if args.source.isdigit() else args.source
+    source = int(args.source) if str(args.source).isdigit() else args.source
 
     model = YOLO(args.model)
 
@@ -47,11 +47,9 @@ def main():
         if not ok:
             break
 
-        # YOLO inference on this frame
         results = model.predict(frame, conf=args.conf, imgsz=args.imgsz, verbose=False)
-        annotated = results[0].plot()  # returns an annotated BGR image
+        annotated = results[0].plot()
 
-        # FPS overlay
         now = time.time()
         fps = 1.0 / max(now - prev, 1e-6)
         prev = now

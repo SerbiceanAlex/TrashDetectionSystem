@@ -27,3 +27,19 @@ runs/
 *.mov
 *.json
 *.csv
+
+# datasets / big files
+datasets/
+TACO/
+UAVVaste/
+
+# videos and model weights
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.pt
+
+# outputs
+outputs/
+run
