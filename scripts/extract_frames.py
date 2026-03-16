@@ -91,7 +91,7 @@ def extract_video(
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     records: list[dict] = []
-    frame_pos = 0   # position in the video stream
+    current_frame_index = 0   # position in the video stream
     saved_count = 0       # number of frames written
 
     t0 = time.time()
@@ -100,7 +100,7 @@ def extract_video(
         if not ok:
             break
 
-        if frame_pos % frame_interval == 0:
+        if current_frame_index % frame_interval == 0:
             filename = f"frame_{saved_count:06d}.jpg"
             out_path = out_dir / filename
             cv2.imwrite(str(out_path), frame)
@@ -109,7 +109,7 @@ def extract_video(
                 {
                     "video_id": video_id,
                     "frame_index": saved_count,
-                    "timestamp_s": round(frame_pos / fps, 3),
+                    "timestamp_s": round(current_frame_index / fps, 3),
                     "path": str(out_path),
                 }
             )
@@ -118,7 +118,7 @@ def extract_video(
             if max_frames is not None and saved_count >= max_frames:
                 break
 
-        frame_pos += 1
+        current_frame_index += 1
 
     cap.release()
     elapsed = time.time() - t0

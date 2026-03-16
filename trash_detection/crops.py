@@ -13,9 +13,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from trash_detection.io import IMAGE_EXTENSIONS
 from trash_detection.yolo import read_yolo_label, yolo_to_bbox
-
-IMAGE_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".webp"})
 
 
 def generate_crop(
@@ -60,6 +59,10 @@ def generate_crop(
     crop = image[y1p:y2p, x1p:x2p]
     if crop.size == 0:
         # Bounding box is degenerate (zero area); return a blank crop
+        print(
+            f"  [WARN] Degenerate bounding box ({x1},{y1},{x2},{y2}) – "
+            "returning blank crop. Check your annotations."
+        )
         return np.zeros((target_size[1], target_size[0], 3), dtype=np.uint8)
 
     return cv2.resize(crop, target_size)
