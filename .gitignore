@@ -43,3 +43,9 @@ UAVVaste/
 # outputs
 outputs/
 run
+
+# Allow dataset metadata documentation
+!datasets/
+!datasets/raw/
+!datasets/raw/metadata/
+!datasets/raw/metadata/**
