@@ -1,7 +1,0 @@
-path: C:/datasets/trash_yolo/final
-train: images/train
-val: images/val
-test: images/test
-
-names:
-  0: trash
