@@ -1,0 +1,16 @@
+{
+  "split": "test",
+  "model": "runs\\detect\\parks-trash-A22\\weights\\best.pt",
+  "data": "datasets\\parks_detect\\parks_detect.yaml",
+  "metrics": {
+    "metrics/precision(B)": 0.7068425534940375,
+    "metrics/recall(B)": 0.2857142857142857,
+    "metrics/mAP50(B)": 0.3928492625063363,
+    "metrics/mAP50-95(B)": 0.2812530909206015,
+    "fitness": 0.2812530909206015
+  },
+  "map50": 0.3928492625063363,
+  "map50_95": 0.2812530909206015,
+  "precision": 0.7068425534940375,
+  "recall": 0.2857142857142857
+}
