@@ -1,0 +1,17 @@
+{
+  "exp": "C2",
+  "label": "C2 - A3-final (yolov8s) + B2",
+  "test_images": 227,
+  "imgs_with_det": 219,
+  "detection_rate": 0.9648,
+  "total_detections": 739,
+  "avg_det_per_img": 3.26,
+  "avg_ms_per_img": 53.6,
+  "material_dist": {
+    "metal": 267,
+    "plastic": 77,
+    "paper": 276,
+    "glass": 94,
+    "other": 25
+  }
+}

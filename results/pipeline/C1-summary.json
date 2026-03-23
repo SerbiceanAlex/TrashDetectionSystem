@@ -1,0 +1,15 @@
+{
+  "exp": "C1",
+  "label": "C1 - A22 (yolov8n) + B2",
+  "test_images": 227,
+  "imgs_with_det": 9,
+  "detection_rate": 0.0396,
+  "total_detections": 10,
+  "avg_det_per_img": 0.04,
+  "avg_ms_per_img": 23.7,
+  "material_dist": {
+    "metal": 5,
+    "paper": 2,
+    "plastic": 3
+  }
+}
