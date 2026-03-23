@@ -4,8 +4,8 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-
-DEFAULT_OUTPUT_DIR = Path("runs/detect_eval")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "runs" / "detect_eval"
 
 
 def parse_args():
@@ -18,6 +18,7 @@ def parse_args():
     parser.add_argument("--conf", type=float, default=0.25, help="Confidence threshold")
     parser.add_argument("--iou", type=float, default=0.6, help="IoU threshold")
     parser.add_argument("--device", default=None, help="Device to use: cpu, 0, 0,1, ...")
+    parser.add_argument("--workers", type=int, default=0, help="Number of dataloader workers (0=safe on Windows)")
     parser.add_argument("--project", default=str(DEFAULT_OUTPUT_DIR), help="Directory for evaluation artifacts")
     parser.add_argument("--name", default="parks-trash-yolov8", help="Evaluation run name")
     parser.add_argument("--save-json", action="store_true", help="Save COCO-style JSON when supported")
@@ -55,6 +56,7 @@ def main():
         "project": args.project,
         "name": args.name,
         "save_json": args.save_json,
+        "workers": args.workers,
         "plots": False,
         "verbose": False,
     }

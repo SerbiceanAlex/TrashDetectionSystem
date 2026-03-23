@@ -6,10 +6,10 @@ from pathlib import Path
 from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
 from ultralytics import YOLO
 
-
+REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CLASSES = ["glass", "metal", "other", "paper", "plastic"]
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-DEFAULT_OUTPUT_DIR = Path("runs/classify_eval")
+DEFAULT_OUTPUT_DIR = REPO_ROOT / "runs" / "classify_eval"
 
 
 def parse_args():
@@ -19,6 +19,7 @@ def parse_args():
     parser.add_argument("--split", choices=("train", "val", "test"), default="test", help="Dataset split to evaluate")
     parser.add_argument("--imgsz", type=int, default=224, help="Inference image size")
     parser.add_argument("--device", default=None, help="Device to use: cpu, 0, 0,1, ...")
+    parser.add_argument("--workers", type=int, default=0, help="Number of dataloader workers (0=safe on Windows)")
     parser.add_argument("--project", default=str(DEFAULT_OUTPUT_DIR), help="Directory for evaluation artifacts")
     parser.add_argument("--name", default="parks-trash-material-cls", help="Evaluation run name")
     parser.add_argument(

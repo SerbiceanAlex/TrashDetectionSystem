@@ -4,8 +4,9 @@ from pathlib import Path
 from ultralytics import YOLO
 
 
-DEFAULT_DATASET = Path("datasets/parks_cls")
-DEFAULT_PROJECT_DIR = Path("runs/classify")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_DATASET = REPO_ROOT / "datasets" / "parks_cls"
+DEFAULT_PROJECT_DIR = REPO_ROOT / "runs" / "classify"
 
 
 def parse_args():
