@@ -1,0 +1,78 @@
+"""Pydantic v2 schemas for request/response validation."""
+
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
+
+
+# ── Detection record (single bounding box) ──────────────────────────────────
+
+class DetectionRecordOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    material: str
+    det_score: float
+    cls_score: float
+    box_x1: int
+    box_y1: int
+    box_x2: int
+    box_y2: int
+
+
+# ── Session (one uploaded image) ────────────────────────────────────────────
+
+class DetectionSessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    filename: str
+    upload_time: datetime
+    total_objects: int
+    inference_ms: float
+    annotated_path: Optional[str] = None
+
+
+class DetectionSessionDetail(DetectionSessionOut):
+    records: list[DetectionRecordOut] = []
+
+
+# ── Detect endpoint response ─────────────────────────────────────────────────
+
+class DetectResponse(BaseModel):
+    session_id: int
+    filename: str
+    total_objects: int
+    inference_ms: float
+    annotated_url: str
+    detections: list[DetectionRecordOut]
+
+
+# ── Stats ────────────────────────────────────────────────────────────────────
+
+class MaterialStat(BaseModel):
+    material: str
+    count: int
+
+
+class TimelinePoint(BaseModel):
+    day: str
+    total: int
+
+
+class GlobalStats(BaseModel):
+    total_sessions: int
+    total_objects: int
+    avg_inference_ms: float
+    material_distribution: list[MaterialStat]
+    timeline: list[TimelinePoint]
+
+
+# ── Sessions list (paginated) ────────────────────────────────────────────────
+
+class SessionsPage(BaseModel):
+    total: int
+    skip: int
+    limit: int
+    items: list[DetectionSessionOut]

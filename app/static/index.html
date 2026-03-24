@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ro" x-data="app()" x-init="init()">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trash Detection System</title>
+
+  <!-- Tailwind CSS v3 (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Alpine.js v3 (CDN) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <!-- Chart.js v4 (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#16a34a', light: '#4ade80', dark: '#15803d' }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    [x-cloak] { display: none !important; }
+    .drop-zone-active { border-color: #16a34a !important; background-color: #f0fdf4 !important; }
+    .tab-active { border-bottom: 3px solid #16a34a; color: #16a34a; font-weight: 600; }
+    .loader { border-top-color: #16a34a; }
+  </style>
+</head>
+
+<body class="bg-gray-50 text-gray-800 min-h-screen">
+
+<!-- ── Navbar ──────────────────────────────────────────────────────────── -->
+<nav class="bg-white shadow-sm sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+    <span class="text-2xl">🗑️</span>
+    <span class="font-bold text-lg text-brand">Trash Detection System</span>
+    <span class="ml-auto text-xs text-gray-400">YOLOv8 · FastAPI · SQLite</span>
+  </div>
+</nav>
+
+<!-- ── Tab bar ─────────────────────────────────────────────────────────── -->
+<div class="bg-white border-b shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 flex gap-6">
+    <template x-for="tab in tabs" :key="tab.id">
+      <button
+        @click="activeTab = tab.id"
+        :class="activeTab === tab.id ? 'tab-active' : 'text-gray-500 hover:text-gray-700'"
+        class="py-3 text-sm transition-colors duration-150"
+        x-text="tab.label">
+      </button>
+    </template>
+  </div>
+</div>
+
+<!-- ── Main content ────────────────────────────────────────────────────── -->
+<main class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- ===== TAB 1: DETECTARE ===== -->
+  <div x-show="activeTab === 'detect'" x-cloak>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Upload panel -->
+      <div class="bg-white rounded-xl shadow p-6 flex flex-col gap-4">
+        <h2 class="font-semibold text-lg">Încarcă o imagine</h2>
+
+        <!-- Drop zone -->
+        <div
+          id="dropZone"
+          @dragover.prevent="$el.classList.add('drop-zone-active')"
+          @dragleave.prevent="$el.classList.remove('drop-zone-active')"
+          @drop.prevent="handleDrop($event)"
+          @click="$refs.fileInput.click()"
+          class="border-2 border-dashed border-gray-300 rounded-lg h-44 flex flex-col items-center justify-center cursor-pointer hover:border-brand transition-colors"
+        >
+          <svg class="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
+          </svg>
+          <p class="text-sm text-gray-500">Trage o imagine aici sau <span class="text-brand font-medium">click pentru upload</span></p>
+          <p class="text-xs text-gray-400 mt-1">JPEG · PNG · WEBP · BMP</p>
+        </div>
+        <input x-ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleFileSelect($event)" />
+
+        <!-- Preview of selected file -->
+        <div x-show="previewSrc" class="rounded-lg overflow-hidden border border-gray-200">
+          <img :src="previewSrc" class="w-full max-h-48 object-contain bg-gray-100" />
+        </div>
+
+        <!-- Confidence threshold slider -->
+        <div>
+          <label class="text-sm font-medium text-gray-600">
+            Prag de detecție (conf): <span class="text-brand font-bold" x-text="detConf.toFixed(2)"></span>
+          </label>
+          <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="detConf" class="w-full accent-brand mt-1" />
+        </div>
+
+        <!-- Run button -->
+        <button
+          @click="runDetection()"
+          :disabled="!selectedFile || loading"
+          class="w-full py-2.5 bg-brand text-white rounded-lg font-medium hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+        >
+          <template x-if="loading">
+            <svg class="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+          </template>
+          <span x-text="loading ? 'Se procesează…' : 'Rulează detectarea'"></span>
+        </button>
+
+        <!-- Error -->
+        <div x-show="error" x-cloak class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3" x-text="error"></div>
+      </div>
+
+      <!-- Result panel -->
+      <div class="bg-white rounded-xl shadow p-6 flex flex-col gap-4">
+        <h2 class="font-semibold text-lg">Rezultat</h2>
+
+        <template x-if="!result">
+          <div class="h-48 flex items-center justify-center text-gray-300 text-sm">
+            Rezultatul va apărea aici după upload
+          </div>
+        </template>
+
+        <template x-if="result">
+          <div class="flex flex-col gap-4">
+            <!-- Annotated image -->
+            <img :src="result.annotated_url" class="rounded-lg border border-gray-200 w-full max-h-64 object-contain bg-gray-100" />
+
+            <!-- Summary badges -->
+            <div class="flex gap-3 flex-wrap">
+              <span class="bg-green-100 text-green-700 text-sm font-semibold px-3 py-1 rounded-full"
+                x-text="result.total_objects + ' obiecte'"></span>
+              <span class="bg-blue-100 text-blue-700 text-sm font-semibold px-3 py-1 rounded-full"
+                x-text="result.inference_ms.toFixed(1) + ' ms'"></span>
+            </div>
+
+            <!-- Detections table -->
+            <template x-if="result.detections.length > 0">
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                  <thead>
+                    <tr class="bg-gray-50 text-gray-500 uppercase text-left">
+                      <th class="px-3 py-2 rounded-tl-lg">Material</th>
+                      <th class="px-3 py-2">Det. conf</th>
+                      <th class="px-3 py-2">Cls. conf</th>
+                      <th class="px-3 py-2 rounded-tr-lg">Bounding box</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="d in result.detections" :key="d.id">
+                      <tr class="border-t border-gray-100 hover:bg-gray-50">
+                        <td class="px-3 py-2 font-medium">
+                          <span :class="materialColor(d.material)" class="px-2 py-0.5 rounded-full text-xs" x-text="d.material"></span>
+                        </td>
+                        <td class="px-3 py-2" x-text="(d.det_score * 100).toFixed(1) + '%'"></td>
+                        <td class="px-3 py-2" x-text="(d.cls_score * 100).toFixed(1) + '%'"></td>
+                        <td class="px-3 py-2 text-gray-400 font-mono"
+                          x-text="`(${d.box_x1}, ${d.box_y1}) → (${d.box_x2}, ${d.box_y2})`"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+
+            <template x-if="result.detections.length === 0">
+              <p class="text-sm text-gray-400 italic">Nu au fost detectate obiecte.</p>
+            </template>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB 2: ISTORIC ===== -->
+  <div x-show="activeTab === 'history'" x-cloak>
+    <div class="bg-white rounded-xl shadow p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-semibold text-lg">Sesiuni anterioare</h2>
+        <span class="text-sm text-gray-400" x-text="history.total + ' total'"></span>
+      </div>
+
+      <template x-if="history.items.length === 0">
+        <p class="text-gray-400 text-sm py-8 text-center">Nu există sesiuni salvate încă.</p>
+      </template>
+
+      <template x-if="history.items.length > 0">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-gray-50 text-gray-500 uppercase text-xs text-left">
+                <th class="px-4 py-3 rounded-tl-lg">#</th>
+                <th class="px-4 py-3">Fișier</th>
+                <th class="px-4 py-3">Data</th>
+                <th class="px-4 py-3">Obiecte</th>
+                <th class="px-4 py-3">Timp (ms)</th>
+                <th class="px-4 py-3 rounded-tr-lg">Acțiuni</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="s in history.items" :key="s.id">
+                <tr class="border-t border-gray-100 hover:bg-gray-50 cursor-pointer" @click="openSessionDetail(s.id)">
+                  <td class="px-4 py-3 text-gray-400 font-mono" x-text="s.id"></td>
+                  <td class="px-4 py-3 font-medium truncate max-w-xs" x-text="s.filename"></td>
+                  <td class="px-4 py-3 text-gray-500" x-text="formatDate(s.upload_time)"></td>
+                  <td class="px-4 py-3">
+                    <span class="bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full text-xs"
+                      x-text="s.total_objects"></span>
+                  </td>
+                  <td class="px-4 py-3 text-gray-500" x-text="s.inference_ms.toFixed(1)"></td>
+                  <td class="px-4 py-3">
+                    <button
+                      @click.stop="deleteSession(s.id)"
+                      class="text-red-400 hover:text-red-600 transition-colors"
+                      title="Șterge">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
+
+      <!-- Pagination -->
+      <div class="flex items-center justify-between mt-4">
+        <button
+          @click="historyPage > 0 && (historyPage--, loadHistory())"
+          :disabled="historyPage === 0"
+          class="px-4 py-2 bg-gray-100 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-200">
+          ← Anterior
+        </button>
+        <span class="text-sm text-gray-500"
+          x-text="`Pagina ${historyPage + 1} din ${Math.ceil(history.total / historyLimit) || 1}`"></span>
+        <button
+          @click="(historyPage + 1) * historyLimit < history.total && (historyPage++, loadHistory())"
+          :disabled="(historyPage + 1) * historyLimit >= history.total"
+          class="px-4 py-2 bg-gray-100 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-200">
+          Următor →
+        </button>
+      </div>
+    </div>
+
+    <!-- Session detail modal -->
+    <div x-show="sessionDetail" x-cloak
+      class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+      @click.self="sessionDetail = null">
+      <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6" @click.stop>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-lg" x-text="'Sesiunea #' + (sessionDetail && sessionDetail.id)"></h3>
+          <button @click="sessionDetail = null" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <template x-if="sessionDetail">
+          <div class="flex flex-col gap-3 text-sm">
+            <p><span class="text-gray-500">Fișier:</span> <strong x-text="sessionDetail.filename"></strong></p>
+            <p><span class="text-gray-500">Data:</span> <span x-text="formatDate(sessionDetail.upload_time)"></span></p>
+            <p><span class="text-gray-500">Obiecte detectate:</span> <strong x-text="sessionDetail.total_objects"></strong></p>
+            <p><span class="text-gray-500">Timp inferență:</span> <span x-text="sessionDetail.inference_ms.toFixed(1) + ' ms'"></span></p>
+
+            <template x-if="sessionDetail.annotated_path">
+              <div>
+                <p class="text-gray-500 mb-1">Imagine adnotată:</p>
+                <img :src="getAnnotatedUrl(sessionDetail.annotated_path)"
+                  class="rounded-lg border border-gray-200 w-full max-h-72 object-contain bg-gray-100"
+                  @error="$el.style.display='none'" />
+              </div>
+            </template>
+
+            <template x-if="sessionDetail.records && sessionDetail.records.length > 0">
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs mt-2">
+                  <thead>
+                    <tr class="bg-gray-50 text-gray-500 uppercase text-left">
+                      <th class="px-3 py-2">Material</th>
+                      <th class="px-3 py-2">Det. conf</th>
+                      <th class="px-3 py-2">Cls. conf</th>
+                      <th class="px-3 py-2">Box</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="r in sessionDetail.records" :key="r.id">
+                      <tr class="border-t border-gray-100">
+                        <td class="px-3 py-2">
+                          <span :class="materialColor(r.material)" class="px-2 py-0.5 rounded-full text-xs" x-text="r.material"></span>
+                        </td>
+                        <td class="px-3 py-2" x-text="(r.det_score * 100).toFixed(1) + '%'"></td>
+                        <td class="px-3 py-2" x-text="(r.cls_score * 100).toFixed(1) + '%'"></td>
+                        <td class="px-3 py-2 text-gray-400 font-mono text-[10px]"
+                          x-text="`(${r.box_x1},${r.box_y1})→(${r.box_x2},${r.box_y2})`"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB 3: STATISTICI ===== -->
+  <div x-show="activeTab === 'stats'" x-cloak>
+    <!-- Summary cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white rounded-xl shadow p-5 flex flex-col items-center">
+        <span class="text-3xl font-bold text-brand" x-text="stats.total_sessions ?? '—'"></span>
+        <span class="text-sm text-gray-500 mt-1">Sesiuni totale</span>
+      </div>
+      <div class="bg-white rounded-xl shadow p-5 flex flex-col items-center">
+        <span class="text-3xl font-bold text-brand" x-text="stats.total_objects ?? '—'"></span>
+        <span class="text-sm text-gray-500 mt-1">Obiecte detectate</span>
+      </div>
+      <div class="bg-white rounded-xl shadow p-5 flex flex-col items-center">
+        <span class="text-3xl font-bold text-brand"
+          x-text="stats.avg_inference_ms != null ? stats.avg_inference_ms.toFixed(1) + ' ms' : '—'"></span>
+        <span class="text-sm text-gray-500 mt-1">Timp mediu inferență</span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Pie chart — material distribution -->
+      <div class="bg-white rounded-xl shadow p-6">
+        <h3 class="font-semibold mb-4">Distribuție materiale</h3>
+        <div class="relative h-64">
+          <canvas id="pieChart"></canvas>
+        </div>
+        <template x-if="!stats.material_distribution || stats.material_distribution.length === 0">
+          <p class="text-center text-gray-400 text-sm mt-4">Nu există date încă.</p>
+        </template>
+      </div>
+
+      <!-- Bar chart — timeline -->
+      <div class="bg-white rounded-xl shadow p-6">
+        <h3 class="font-semibold mb-4">Obiecte detectate pe zi</h3>
+        <div class="relative h-64">
+          <canvas id="barChart"></canvas>
+        </div>
+        <template x-if="!stats.timeline || stats.timeline.length === 0">
+          <p class="text-center text-gray-400 text-sm mt-4">Nu există date încă.</p>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB 4: EXPORT ===== -->
+  <div x-show="activeTab === 'export'" x-cloak>
+    <div class="bg-white rounded-xl shadow p-8 max-w-xl mx-auto text-center flex flex-col items-center gap-6">
+      <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+        <svg class="w-8 h-8 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-3-3m3 3l3-3" />
+        </svg>
+      </div>
+      <div>
+        <h2 class="font-semibold text-xl mb-2">Export date</h2>
+        <p class="text-gray-500 text-sm">
+          Descarcă toate sesiunile și detecțiile individuale într-un fișier CSV,
+          compatibil cu Excel, Google Sheets sau orice instrument de analiză.
+        </p>
+      </div>
+      <a href="/api/export/csv"
+        class="inline-flex items-center gap-2 bg-brand text-white px-6 py-3 rounded-lg font-medium hover:bg-brand-dark transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-3-3m3 3l3-3" />
+        </svg>
+        Descarcă CSV
+      </a>
+      <p class="text-xs text-gray-400">
+        Coloane: session_id, filename, upload_time, inference_ms, material, det_score, cls_score, box_x1…y2
+      </p>
+
+      <!-- API docs link -->
+      <div class="border-t border-gray-100 w-full pt-4">
+        <p class="text-sm text-gray-500 mb-2">Documentație API interactivă:</p>
+        <a href="/docs" target="_blank"
+          class="text-brand text-sm font-medium hover:underline">
+          /docs — Swagger UI →
+        </a>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── Alpine.js app logic ──────────────────────────────────────────────── -->
+<script>
+function app() {
+  return {
+    // Tab navigation
+    tabs: [
+      { id: 'detect',  label: '🔍 Detectare'  },
+      { id: 'history', label: '📋 Istoric'    },
+      { id: 'stats',   label: '📊 Statistici' },
+      { id: 'export',  label: '📥 Export'     },
+    ],
+    activeTab: 'detect',
+
+    // Detect tab state
+    selectedFile: null,
+    previewSrc: null,
+    detConf: 0.25,
+    loading: false,
+    error: null,
+    result: null,
+
+    // History tab state
+    history: { total: 0, skip: 0, limit: 20, items: [] },
+    historyPage: 0,
+    historyLimit: 10,
+    sessionDetail: null,
+
+    // Stats state
+    stats: {},
+    pieChart: null,
+    barChart: null,
+
+    // ── Init ──────────────────────────────────────────────────────────────
+    async init() {
+      await this.loadStats();
+      await this.loadHistory();
+
+      // Reload data when switching tabs
+      this.$watch('activeTab', async (tab) => {
+        if (tab === 'stats') { await this.loadStats(); this.$nextTick(() => this.renderCharts()); }
+        if (tab === 'history') await this.loadHistory();
+      });
+    },
+
+    // ── File handling ─────────────────────────────────────────────────────
+    handleDrop(event) {
+      document.getElementById('dropZone').classList.remove('drop-zone-active');
+      const file = event.dataTransfer.files[0];
+      if (file) this.setFile(file);
+    },
+
+    handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (file) this.setFile(file);
+    },
+
+    setFile(file) {
+      this.selectedFile = file;
+      this.result = null;
+      this.error = null;
+      const reader = new FileReader();
+      reader.onload = (e) => this.previewSrc = e.target.result;
+      reader.readAsDataURL(file);
+    },
+
+    // ── Run detection ─────────────────────────────────────────────────────
+    async runDetection() {
+      if (!this.selectedFile) return;
+      this.loading = true;
+      this.error = null;
+      this.result = null;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', this.selectedFile);
+
+        const resp = await fetch(`/api/detect?det_conf=${this.detConf}`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.detail || 'Eroare server');
+        }
+
+        this.result = await resp.json();
+        // Refresh stats + history in background
+        this.loadStats();
+        this.loadHistory();
+      } catch (e) {
+        this.error = e.message;
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // ── History ───────────────────────────────────────────────────────────
+    async loadHistory() {
+      const skip = this.historyPage * this.historyLimit;
+      const resp = await fetch(`/api/sessions?skip=${skip}&limit=${this.historyLimit}`);
+      if (resp.ok) this.history = await resp.json();
+    },
+
+    async openSessionDetail(id) {
+      const resp = await fetch(`/api/sessions/${id}`);
+      if (resp.ok) this.sessionDetail = await resp.json();
+    },
+
+    async deleteSession(id) {
+      if (!confirm('Ștergi sesiunea #' + id + '?')) return;
+      const resp = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+      if (resp.ok) {
+        await this.loadHistory();
+        await this.loadStats();
+      }
+    },
+
+    getAnnotatedUrl(path) {
+      // path is absolute disk path; derive URL from filename
+      const fname = path.split(/[\\/]/).pop();
+      return `/annotated/${fname}`;
+    },
+
+    // ── Stats ─────────────────────────────────────────────────────────────
+    async loadStats() {
+      const resp = await fetch('/api/stats');
+      if (resp.ok) {
+        this.stats = await resp.json();
+        if (this.activeTab === 'stats') {
+          this.$nextTick(() => this.renderCharts());
+        }
+      }
+    },
+
+    renderCharts() {
+      this.renderPie();
+      this.renderBar();
+    },
+
+    renderPie() {
+      const ctx = document.getElementById('pieChart');
+      if (!ctx) return;
+      if (this.pieChart) this.pieChart.destroy();
+
+      const dist = this.stats.material_distribution || [];
+      if (dist.length === 0) return;
+
+      const palette = ['#16a34a','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899'];
+      this.pieChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: dist.map(d => d.material),
+          datasets: [{ data: dist.map(d => d.count), backgroundColor: palette, borderWidth: 2 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { font: { size: 11 } } }
+          }
+        }
+      });
+    },
+
+    renderBar() {
+      const ctx = document.getElementById('barChart');
+      if (!ctx) return;
+      if (this.barChart) this.barChart.destroy();
+
+      const tl = this.stats.timeline || [];
+      if (tl.length === 0) return;
+
+      this.barChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: tl.map(t => t.day),
+          datasets: [{
+            label: 'Obiecte detectate',
+            data: tl.map(t => t.total),
+            backgroundColor: '#4ade80',
+            borderColor: '#16a34a',
+            borderWidth: 1,
+            borderRadius: 4,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 } },
+            x: { ticks: { font: { size: 10 } } }
+          }
+        }
+      });
+    },
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+    formatDate(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString('ro-RO', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    },
+
+    materialColor(material) {
+      const map = {
+        plastic: 'bg-blue-100 text-blue-700',
+        glass:   'bg-cyan-100 text-cyan-700',
+        metal:   'bg-yellow-100 text-yellow-700',
+        paper:   'bg-orange-100 text-orange-700',
+        other:   'bg-gray-100 text-gray-600',
+      };
+      return map[material?.toLowerCase()] || 'bg-gray-100 text-gray-600';
+    },
+  };
+}
+</script>
+
+</body>
+</html>
