@@ -1,8 +1,0 @@
-<View>
-  <Header value="Trash Detection Annotation" />
-  <Text name="instructions" value="Draw one box per visible waste object and label it as trash." />
-  <Image name="image" value="$image" zoom="true" rotateControl="true" grid="true" />
-  <RectangleLabels name="label" toName="image">
-    <Label value="trash" background="#2D6A4F" />
-  </RectangleLabels>
-</View>
