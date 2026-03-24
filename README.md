@@ -119,6 +119,27 @@ TrashDetectionSystem/
 
 ---
 
+## Aplicație Web
+
+Interfață web cu bază de date SQLite pentru detecție interactivă și monitorizare.
+
+**Stack:** FastAPI · SQLAlchemy 2.0 · SQLite · Alpine.js 3 · Tailwind CSS 3 · Chart.js 4
+
+```bash
+.venv\Scripts\uvicorn app.main:app --reload --port 8000
+```
+
+Deschide `http://127.0.0.1:8000` în browser.
+
+**Funcționalități:**
+- **Detectare** — upload imagine (drag & drop), slider confidence, rezultat adnotat instant
+- **Istoric** — toate sesiunile din DB, paginare, detalii per sesiune cu imagine adnotată
+- **Statistici** — pie chart distribuție materiale, bar chart obiecte pe zi, carduri sumar
+- **Export** — descarcă CSV cu toate detecțiile (compatibil Excel)
+- **API docs** — Swagger UI la `/docs`
+
+---
+
 ## Setup
 
 ```bash
