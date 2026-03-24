@@ -40,8 +40,8 @@ Imagine/Video → [Stage 1: Detector YOLO] → bounding boxes (clasa: trash)
 
 | Experiment | Detector | Clasificator | Imagini cu detecții | **Rată detecție** | Total detecții | Viteză |
 |------------|----------|--------------|---------------------|-------------------|----------------|--------|
-| C1 (baseline) | A22 | B2 | 9 / 227 | 3.96% | 10 | 26.3 ms/img |
-| **C2** ✅ best | **A3-final** | **B2** | **219 / 227** | **96.5%** | **739** | 74.7 ms/img |
+| C1 (baseline) | A22 | B2 | 9 / 225 | 4.0% | 10 | 21.4 ms/img |
+| **C2** ✅ best | **A3-final** | **B2** | **219 / 225** | **97.3%** | **739** | 60.7 ms/img |
 
 **Distribuție materiale detectate (C2, 739 detecții):**
 
