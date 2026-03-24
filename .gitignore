@@ -43,3 +43,8 @@ UAVVaste/
 # outputs
 outputs/
 run
+
+# Web app runtime artifacts
+app/trash_detection.db
+app/uploads/
+app/annotated/
