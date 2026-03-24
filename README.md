@@ -1,24 +1,84 @@
 # Trash Detection System
 
-## Goal
-Build a two-stage system for park and urban green-space waste analysis.
+Sistem two-stage de detecție și clasificare a deșeurilor în spații verzi urbane (parcuri), implementat cu YOLOv8.
 
-Stage 1:
-- single-class object detection with YOLO for `trash`
+Lucrare de licență — Universitatea Politehnica București, 2026.
 
-Stage 2:
-- crop-based image classification for:
-	- glass
-	- metal
-	- other
-	- paper
-	- plastic
+---
 
-Current implementation focus:
-- stage-1 detector dataset preparation
-- stage-1 detector training and validation
-- video inference for `trash` localization
-- stage-2 classifier dataset preparation and training
+## Arhitectură
+
+```
+Imagine → [Stage 1: Detector YOLO] → bounding boxes (trash)
+                                           ↓
+                               [Stage 2: Clasificator YOLO]
+                                           ↓
+                               material: glass / metal / paper / plastic / other
+```
+
+**Stage 1 — Detecție** (`src/detect_two_stage.py`):
+- Model: YOLOv8s, imgsz=640, clasă unică `trash`
+- Dataset: `parks_detect_full` (adnotat manual din videoclipuri de parc)
+
+**Stage 2 — Clasificare** (`src/detect_two_stage.py`):
+- Model: YOLOv8n-cls, imgsz=224
+- Dataset: `parks_cls` (TrashNet + crops din parcuri)
+
+---
+
+## Rezultate Finale
+
+### Detector — Experiment A (detecție trash)
+
+| Experiment | Model | imgsz | Precision | Recall | **mAP50** | mAP50-95 |
+|------------|-------|-------|-----------|--------|-----------|----------|
+| A22 (baseline) | YOLOv8n | 416 | 0.707 | 0.286 | 0.393 | 0.281 |
+| **A3-final** ✅ | **YOLOv8s** | **640** | **0.623** | **0.406** | **0.443** | **0.321** |
+
+### Clasificator — Experiment B (clasificare material)
+
+| Experiment | Model | Dataset | **Acc Top-1 (val)** |
+|------------|-------|---------|---------------------|
+| **B2** ✅ | YOLOv8n-cls | TrashNet + parks crops | **95.2%** |
+
+### Pipeline End-to-End — Experiment C
+
+| Experiment | Detector | Clasif. | Imagini cu detecții | **Rată detecție** | Total detecții | Viteză |
+|------------|----------|---------|---------------------|-------------------|----------------|--------|
+| C1 (baseline) | A22 | B2 | 9 / 227 | 3.96% | 10 | 26.3 ms/img |
+| **C2** ✅ | **A3-final** | **B2** | **219 / 227** | **96.5%** | **739** | 74.7 ms/img |
+
+**Distribuție materiale detectate (C2, 739 detecții):**
+- paper: 276 (37.3%)
+- metal: 267 (36.1%)
+- glass: 94 (12.7%)
+- plastic: 77 (10.4%)
+- other: 25 (3.4%)
+
+---
+
+## Notebook-uri
+
+Toată pipeline-ul este documentat în notebook-uri Jupyter:
+
+| Notebook | Scop |
+|----------|------|
+| `notebooks/training/01_train_detector.ipynb` | Antrenare detectori (Exp A) |
+| `notebooks/training/02_train_classifier.ipynb` | Antrenare clasificatori (Exp B) |
+| `notebooks/evaluation/03_inference_demo.ipynb` | Demo vizual two-stage pe test set |
+| `notebooks/evaluation/04_pipeline_C1_C2.ipynb` | Pipeline end-to-end C1 vs C2 |
+| `notebooks/evaluation/05_thesis_figures.ipynb` | Generare figuri și tabele pentru teză |
+
+---
+
+## Modele antrenate (cele mai bune)
+
+| Model | Fișier | Rol |
+|-------|--------|-----|
+| Detector A3-final | `runs/detect/parks-trash-A3-final/weights/best.pt` | Stage 1 — detecție trash |
+| Clasificator B2 | `runs/classify/parks-cls-B2/weights/best.pt` | Stage 2 — clasificare material |
+
+---
 
 ## Setup
 ```bash
