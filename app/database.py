@@ -134,3 +134,52 @@ async def get_global_stats(db: AsyncSession):
         )
     )
     return result.one()
+
+
+async def get_material_per_day_stats(db: AsyncSession):
+    """Returns list of (day, material, count) for stacked bar chart."""
+    result = await db.execute(
+        select(
+            func.strftime("%Y-%m-%d", DetectionSession.upload_time).label("day"),
+            DetectionRecord.material,
+            func.count(DetectionRecord.id).label("cnt"),
+        )
+        .join(DetectionSession, DetectionRecord.session_id == DetectionSession.id)
+        .group_by(
+            func.strftime("%Y-%m-%d", DetectionSession.upload_time),
+            DetectionRecord.material,
+        )
+        .order_by(func.strftime("%Y-%m-%d", DetectionSession.upload_time))
+    )
+    return result.all()
+
+
+async def search_sessions(
+    db: AsyncSession,
+    skip: int,
+    limit: int,
+    q: str | None = None,
+    material: str | None = None,
+    min_objects: int | None = None,
+):
+    """Paginated + filtered sessions query."""
+    from sqlalchemy import distinct
+
+    stmt = select(DetectionSession).order_by(DetectionSession.upload_time.desc())
+
+    if q:
+        stmt = stmt.where(DetectionSession.filename.ilike(f"%{q}%"))
+    if min_objects is not None:
+        stmt = stmt.where(DetectionSession.total_objects >= min_objects)
+    if material:
+        # sessions that contain at least one record with this material
+        sub = select(distinct(DetectionRecord.session_id)).where(
+            DetectionRecord.material.ilike(material)
+        )
+        stmt = stmt.where(DetectionSession.id.in_(sub))
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar_one()
+
+    items = (await db.execute(stmt.offset(skip).limit(limit))).scalars().all()
+    return items, total

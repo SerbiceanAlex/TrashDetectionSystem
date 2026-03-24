@@ -67,6 +67,7 @@ class GlobalStats(BaseModel):
     avg_inference_ms: float
     material_distribution: list[MaterialStat]
     timeline: list[TimelinePoint]
+    material_per_day: list[dict] = []   # [{day, material, count}, ...]
 
 
 # ── Sessions list (paginated) ────────────────────────────────────────────────
@@ -76,3 +77,12 @@ class SessionsPage(BaseModel):
     skip: int
     limit: int
     items: list[DetectionSessionOut]
+
+
+# ── Batch detect response ────────────────────────────────────────────────────
+
+class BatchDetectResponse(BaseModel):
+    results: list[DetectResponse]
+    total_files: int
+    total_objects: int
+    total_ms: float

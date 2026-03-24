@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -144,10 +144,12 @@ async def detect(
 async def list_sessions(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
+    q: str = Query(default=None, description="Search by filename"),
+    material: str = Query(default=None, description="Filter by material type"),
+    min_objects: int = Query(default=None, ge=0, description="Min objects detected"),
     session: AsyncSession = Depends(db.get_db),
 ):
-    total = await db.count_sessions(session)
-    items = await db.get_sessions_paginated(session, skip, limit)
+    items, total = await db.search_sessions(session, skip, limit, q, material, min_objects)
     return schemas.SessionsPage(total=total, skip=skip, limit=limit, items=items)
 
 
@@ -196,6 +198,7 @@ async def global_stats(session: AsyncSession = Depends(db.get_db)):
     total_s, total_o, avg_ms = await db.get_global_stats(session)
     materials = await db.get_material_stats(session)
     timeline = await db.get_timeline_stats(session)
+    mpd = await db.get_material_per_day_stats(session)
 
     return schemas.GlobalStats(
         total_sessions=total_s,
@@ -208,6 +211,10 @@ async def global_stats(session: AsyncSession = Depends(db.get_db)):
         timeline=[
             schemas.TimelinePoint(day=row.day, total=int(row.total or 0))
             for row in timeline
+        ],
+        material_per_day=[
+            {"day": row.day, "material": row.material, "count": row.cnt}
+            for row in mpd
         ],
     )
 
@@ -245,4 +252,253 @@ async def export_csv(session: AsyncSession = Depends(db.get_db)):
         content=content,
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=detections.csv"},
+    )
+
+
+# ── Rerun detection on saved image with new confidence ───────────────────────
+
+@app.post("/api/sessions/{session_id}/rerun", response_model=schemas.DetectResponse,
+          summary="Re-run detection on a saved image with a new confidence threshold")
+async def rerun_detection(
+    session_id: int,
+    background_tasks: BackgroundTasks,
+    det_conf: float = Query(default=0.25, ge=0.05, le=0.95),
+    session: AsyncSession = Depends(db.get_db),
+):
+    det_session = await db.get_session_by_id(session, session_id)
+    if det_session is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    img_path = Path(det_session.image_path)
+    if not img_path.exists():
+        raise HTTPException(status_code=410,
+                            detail="Original image has been deleted from disk.")
+
+    image_bytes = img_path.read_bytes()
+
+    try:
+        detections, annotated_bytes, elapsed_ms = infer.run_pipeline(
+            image_bytes, det_conf=det_conf
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    # Delete old records
+    from sqlalchemy import delete as sa_delete
+    await session.execute(
+        sa_delete(db.DetectionRecord).where(db.DetectionRecord.session_id == session_id)
+    )
+
+    # Update session stats
+    det_session.total_objects = len(detections)
+    det_session.inference_ms = round(elapsed_ms, 2)
+
+    # New annotated stem (reuse original stem)
+    stem = img_path.stem  # e.g. "<uuid>"
+    ann_path = ANNOTATED_DIR / f"{stem}_annotated.jpg"
+
+    records = []
+    for det in detections:
+        x1, y1, x2, y2 = det["box"]
+        rec = db.DetectionRecord(
+            session_id=session_id,
+            material=det["material_name"],
+            det_score=round(det["det_score"], 4),
+            cls_score=round(det["material_score"], 4),
+            box_x1=x1, box_y1=y1, box_x2=x2, box_y2=y2,
+        )
+        session.add(rec)
+        records.append(rec)
+
+    await session.commit()
+    await session.refresh(det_session)
+    for rec in records:
+        await session.refresh(rec)
+
+    # Overwrite annotated image
+    background_tasks.add_task(ann_path.write_bytes, annotated_bytes)
+
+    return schemas.DetectResponse(
+        session_id=det_session.id,
+        filename=det_session.filename,
+        total_objects=det_session.total_objects,
+        inference_ms=det_session.inference_ms,
+        annotated_url=f"/annotated/{stem}_annotated.jpg",
+        detections=[schemas.DetectionRecordOut.model_validate(r) for r in records],
+    )
+
+
+# ── Batch detect — multiple images ──────────────────────────────────────────
+
+from typing import List
+
+@app.post("/api/detect/batch", response_model=schemas.BatchDetectResponse,
+          summary="Upload multiple images for detection")
+async def detect_batch(
+    background_tasks: BackgroundTasks,
+    files: List[UploadFile] = File(...),
+    det_conf: float = Query(default=0.25, ge=0.05, le=0.95),
+    session: AsyncSession = Depends(db.get_db),
+):
+    if len(files) > 20:
+        raise HTTPException(status_code=400, detail="Maximum 20 files per batch.")
+
+    allowed = {"image/jpeg", "image/png", "image/webp", "image/bmp"}
+    results = []
+    total_objects = 0
+    total_ms = 0.0
+
+    for file in files:
+        if file.content_type not in allowed:
+            continue  # skip non-image files silently
+
+        image_bytes = await file.read()
+        if not image_bytes:
+            continue
+
+        try:
+            detections, annotated_bytes, elapsed_ms = infer.run_pipeline(
+                image_bytes, det_conf=det_conf
+            )
+        except ValueError:
+            continue
+
+        stem = uuid.uuid4().hex
+        det_session = db.DetectionSession(
+            filename=file.filename or "upload.jpg",
+            image_path=str(UPLOADS_DIR / f"{stem}.jpg"),
+            annotated_path=str(ANNOTATED_DIR / f"{stem}_annotated.jpg"),
+            total_objects=len(detections),
+            inference_ms=round(elapsed_ms, 2),
+        )
+        session.add(det_session)
+        await session.flush()
+
+        records = []
+        for det in detections:
+            x1, y1, x2, y2 = det["box"]
+            rec = db.DetectionRecord(
+                session_id=det_session.id,
+                material=det["material_name"],
+                det_score=round(det["det_score"], 4),
+                cls_score=round(det["material_score"], 4),
+                box_x1=x1, box_y1=y1, box_x2=x2, box_y2=y2,
+            )
+            session.add(rec)
+            records.append(rec)
+
+        await session.flush()
+        for rec in records:
+            await session.refresh(rec)
+
+        background_tasks.add_task(_save_files, image_bytes, annotated_bytes, stem)
+
+        results.append(schemas.DetectResponse(
+            session_id=det_session.id,
+            filename=det_session.filename,
+            total_objects=det_session.total_objects,
+            inference_ms=det_session.inference_ms,
+            annotated_url=f"/annotated/{stem}_annotated.jpg",
+            detections=[schemas.DetectionRecordOut.model_validate(r) for r in records],
+        ))
+        total_objects += len(detections)
+        total_ms += elapsed_ms
+
+    await session.commit()
+
+    return schemas.BatchDetectResponse(
+        results=results,
+        total_files=len(results),
+        total_objects=total_objects,
+        total_ms=round(total_ms, 1),
+    )
+
+
+# ── Serve original uploaded image ────────────────────────────────────────────
+
+@app.get("/api/sessions/{session_id}/original", summary="Get the original uploaded image")
+async def get_original_image(
+    session_id: int,
+    session: AsyncSession = Depends(db.get_db),
+):
+    det_session = await db.get_session_by_id(session, session_id)
+    if det_session is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    img_path = Path(det_session.image_path)
+    if not img_path.exists():
+        raise HTTPException(status_code=410, detail="Original image deleted from disk.")
+
+    return FileResponse(img_path, media_type="image/jpeg")
+
+
+# ── PDF export ────────────────────────────────────────────────────────────────
+
+@app.get("/api/export/pdf", summary="Download a PDF report with statistics")
+async def export_pdf(session: AsyncSession = Depends(db.get_db)):
+    total_s, total_o, avg_ms = await db.get_global_stats(session)
+    materials = await db.get_material_stats(session)
+    timeline = await db.get_timeline_stats(session)
+
+    # Build a simple HTML report to serve as downloadable HTML
+    # (avoids heavy wkhtmltopdf/weasyprint dependency, users can print-to-PDF)
+    mat_rows = ""
+    for row in materials:
+        pct = (row.cnt / total_o * 100) if total_o > 0 else 0
+        mat_rows += f"<tr><td style='padding:6px 12px'>{row.material}</td><td style='padding:6px 12px;text-align:right'>{row.cnt}</td><td style='padding:6px 12px;text-align:right'>{pct:.1f}%</td></tr>"
+
+    tl_rows = ""
+    for row in timeline:
+        tl_rows += f"<tr><td style='padding:6px 12px'>{row.day}</td><td style='padding:6px 12px;text-align:right'>{int(row.total or 0)}</td></tr>"
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset='UTF-8'/>
+<title>Raport Trash Detection System</title>
+<style>
+  body {{ font-family: 'Segoe UI', sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #1f2937; }}
+  h1 {{ color: #16a34a; border-bottom: 3px solid #16a34a; padding-bottom: 8px; }}
+  h2 {{ color: #374151; margin-top: 32px; }}
+  .card {{ display: inline-block; background: #f9fafb; border-radius: 12px; padding: 16px 28px; margin: 8px 8px 8px 0; text-align: center; }}
+  .card .num {{ font-size: 2em; font-weight: 700; color: #16a34a; }}
+  .card .label {{ font-size: 0.85em; color: #6b7280; }}
+  table {{ border-collapse: collapse; width: 100%; margin: 12px 0; }}
+  th, td {{ border-bottom: 1px solid #e5e7eb; }}
+  th {{ background: #f3f4f6; padding: 8px 12px; text-align: left; font-size: 0.8em; text-transform: uppercase; color: #6b7280; }}
+  .footer {{ margin-top: 40px; font-size: 0.75em; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 12px; }}
+  @media print {{ body {{ margin: 0; }} }}
+</style>
+</head><body>
+<h1>🗑️ Raport — Trash Detection System</h1>
+<p style='color:#6b7280'>Generat automat · {__import__('datetime').datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+
+<div>
+  <div class='card'><div class='num'>{total_s}</div><div class='label'>Sesiuni</div></div>
+  <div class='card'><div class='num'>{total_o}</div><div class='label'>Obiecte detectate</div></div>
+  <div class='card'><div class='num'>{avg_ms:.1f} ms</div><div class='label'>Timp mediu inferență</div></div>
+</div>
+
+<h2>Distribuție materiale</h2>
+<table>
+  <thead><tr><th>Material</th><th style='text-align:right'>Detecții</th><th style='text-align:right'>Procent</th></tr></thead>
+  <tbody>{mat_rows}</tbody>
+</table>
+
+<h2>Obiecte pe zi</h2>
+<table>
+  <thead><tr><th>Data</th><th style='text-align:right'>Obiecte</th></tr></thead>
+  <tbody>{tl_rows}</tbody>
+</table>
+
+<div class='footer'>
+  Trash Detection System · YOLOv8 · FastAPI · SQLite<br>
+  Proiect licență — Detectarea automată a deșeurilor în zone urbane
+</div>
+</body></html>"""
+
+    return Response(
+        content=html,
+        media_type="text/html",
+        headers={
+            "Content-Disposition": "attachment; filename=raport_trash_detection.html",
+        },
     )

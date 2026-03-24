@@ -1,19 +1,15 @@
 <!DOCTYPE html>
-<html lang="ro" x-data="app()" x-init="init()">
+<html lang="ro" x-data="app()" x-init="init()" :class="darkMode ? 'dark' : ''">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trash Detection System</title>
-
-  <!-- Tailwind CSS v3 (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Alpine.js v3 (CDN) -->
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <!-- Chart.js v4 (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
@@ -23,7 +19,6 @@
       }
     }
   </script>
-
   <style>
     [x-cloak] { display: none !important; }
     .tab-active { border-bottom: 3px solid #16a34a; color: #16a34a; font-weight: 600; }
@@ -32,20 +27,20 @@
       background-size: 200% 100%;
       animation: shimmer 1.4s infinite;
     }
-    @keyframes shimmer {
-      0%   { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
+    .dark .skeleton {
+      background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+      background-size: 200% 100%;
     }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
   </style>
 </head>
 
-<body class="bg-gray-50 text-gray-800 min-h-screen">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen transition-colors duration-200">
 
-<!-- ── Toast container ────────────────────────────────────────────────────── -->
+<!-- ── Toast container ──────────────────────────────────────────────────── -->
 <div class="fixed top-4 right-4 z-[100] flex flex-col gap-2" style="pointer-events:none">
   <template x-for="toast in toasts" :key="toast.id">
-    <div
-      x-show="toast.visible"
+    <div x-show="toast.visible"
       x-transition:enter="transition ease-out duration-300"
       x-transition:enter-start="opacity-0 translate-x-10"
       x-transition:enter-end="opacity-100 translate-x-0"
@@ -54,94 +49,89 @@
       x-transition:leave-end="opacity-0 translate-x-10"
       :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
       class="text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium max-w-xs flex items-center gap-2"
-      style="pointer-events:auto"
-    >
+      style="pointer-events:auto">
       <span x-text="toast.type === 'error' ? '✕' : '✓'" class="font-bold text-base w-5 shrink-0 text-center"></span>
       <span x-text="toast.message"></span>
     </div>
   </template>
 </div>
 
-<!-- ── Lightbox ────────────────────────────────────────────────────────────── -->
-<div
-  x-show="lightboxSrc" x-cloak
-  x-transition:enter="transition ease-out duration-200"
-  x-transition:enter-start="opacity-0"
-  x-transition:enter-end="opacity-100"
-  x-transition:leave="transition ease-in duration-150"
-  x-transition:leave-start="opacity-100"
-  x-transition:leave-end="opacity-0"
-  @click="lightboxSrc = null"
-  @keydown.escape.window="lightboxSrc = null"
-  class="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4"
-  style="cursor:zoom-out"
->
+<!-- ── Lightbox ──────────────────────────────────────────────────────────── -->
+<div x-show="lightboxSrc" x-cloak
+  x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+  x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+  @click="lightboxSrc=null" @keydown.escape.window="lightboxSrc=null"
+  class="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4" style="cursor:zoom-out">
   <img :src="lightboxSrc" class="max-w-full max-h-full object-contain rounded-lg shadow-2xl" @click.stop />
-  <button
-    @click="lightboxSrc = null"
-    class="absolute top-4 right-4 bg-black/40 hover:bg-black/70 text-white rounded-full p-2 transition-colors"
-  >
-    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-    </svg>
+  <button @click="lightboxSrc=null" class="absolute top-4 right-4 bg-black/40 hover:bg-black/70 text-white rounded-full p-2 transition-colors">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
   </button>
 </div>
 
-<!-- ── Navbar ──────────────────────────────────────────────────────────────── -->
-<nav class="bg-white shadow-sm sticky top-0 z-40">
+<!-- ── Navbar ────────────────────────────────────────────────────────────── -->
+<nav class="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-40 transition-colors">
   <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
     <span class="text-2xl">🗑️</span>
     <span class="font-bold text-lg text-brand">Trash Detection System</span>
-    <span class="ml-auto text-xs text-gray-400 hidden sm:block">YOLOv8 · FastAPI · SQLite</span>
+    <span class="ml-auto text-xs text-gray-400 dark:text-gray-500 hidden sm:block">YOLOv8 · FastAPI · SQLite</span>
+    <!-- Dark mode toggle -->
+    <button @click="toggleDark()" class="ml-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Dark mode">
+      <svg x-show="!darkMode" class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+      </svg>
+      <svg x-show="darkMode" x-cloak class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+      </svg>
+    </button>
   </div>
 </nav>
 
-<!-- ── Desktop tab bar ─────────────────────────────────────────────────────── -->
-<div class="hidden sm:block bg-white border-b shadow-sm">
+<!-- ── Desktop tab bar ───────────────────────────────────────────────────── -->
+<div class="hidden sm:block bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-sm transition-colors">
   <div class="max-w-7xl mx-auto px-4 flex gap-6">
     <template x-for="tab in tabs" :key="tab.id">
-      <button
-        @click="activeTab = tab.id"
-        :class="activeTab === tab.id ? 'tab-active' : 'text-gray-500 hover:text-gray-700'"
-        class="py-3 text-sm transition-colors duration-150"
-        x-text="tab.label"
-      ></button>
+      <button @click="activeTab = tab.id"
+        :class="activeTab === tab.id ? 'tab-active' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'"
+        class="py-3 text-sm transition-colors duration-150" x-text="tab.label"></button>
     </template>
   </div>
 </div>
 
-<!-- ── Main content ─────────────────────────────────────────────────────────── -->
+<!-- ── Main content ──────────────────────────────────────────────────────── -->
 <main class="max-w-7xl mx-auto px-4 py-6 pb-24 sm:pb-8">
 
-  <!-- ===== TAB 1: DETECTARE ===== -->
-  <div
-    x-show="activeTab === 'detect'" x-cloak
+  <!-- ═══ TAB 1: DETECTARE ═══ -->
+  <div x-show="activeTab === 'detect'" x-cloak
     x-transition:enter="transition ease-out duration-200"
-    x-transition:enter-start="opacity-0 translate-y-1"
-    x-transition:enter-end="opacity-100 translate-y-0"
-  >
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+
+    <!-- Mode toggle: single / batch -->
+    <div class="flex items-center gap-2 mb-4">
+      <button @click="batchMode = false" :class="!batchMode ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px]">O imagine</button>
+      <button @click="batchMode = true" :class="batchMode ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'"
+        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px]">Batch (mai multe)</button>
+    </div>
+
+    <!-- ── SINGLE MODE ── -->
+    <div x-show="!batchMode" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
       <!-- Upload panel -->
-      <div class="bg-white rounded-xl shadow p-6 flex flex-col gap-4">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 sm:p-6 flex flex-col gap-4 transition-colors">
         <h2 class="font-semibold text-lg">Încarcă o imagine</h2>
 
-        <!-- Drop zone -->
-        <div
-          @dragover.prevent="isDragging = true"
-          @dragleave.prevent="isDragging = false"
-          @drop.prevent="handleDrop($event)"
-          @click="$refs.fileInput.click()"
-          :class="isDragging ? 'border-brand bg-green-50' : 'border-gray-300 hover:border-brand hover:bg-gray-50'"
-          class="border-2 border-dashed rounded-xl h-44 transition-all duration-150 cursor-pointer overflow-hidden"
-        >
+        <!-- Desktop: drag zone -->
+        <div class="hidden sm:block"
+          @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false"
+          @drop.prevent="handleDrop($event)" @click="$refs.fileInput.click()"
+          :class="isDragging ? 'border-brand bg-green-50 dark:bg-green-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-brand hover:bg-gray-50 dark:hover:bg-gray-700/50'"
+          class="border-2 border-dashed rounded-xl h-44 transition-all duration-150 cursor-pointer overflow-hidden">
           <template x-if="!previewSrc">
             <div class="h-full flex flex-col items-center justify-center gap-2">
-              <svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                  d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
+              <svg class="w-10 h-10 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
               </svg>
-              <p class="text-sm text-gray-500">Trage o imagine sau <span class="text-brand font-medium">click upload</span></p>
+              <p class="text-sm text-gray-500 dark:text-gray-400">Trage o imagine sau <span class="text-brand font-medium">click upload</span></p>
               <p class="text-xs text-gray-400">JPEG · PNG · WEBP · BMP</p>
             </div>
           </template>
@@ -149,26 +139,37 @@
             <img :src="previewSrc" class="h-full w-full object-contain p-2" />
           </template>
         </div>
+
+        <!-- Mobile: simple button -->
+        <div class="sm:hidden flex flex-col gap-3">
+          <template x-if="previewSrc">
+            <img :src="previewSrc" class="w-full h-40 object-contain rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900" />
+          </template>
+          <button @click="$refs.fileInput.click()"
+            class="w-full py-3 min-h-[48px] bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm active:bg-gray-200 dark:active:bg-gray-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
+            </svg>
+            <span x-text="selectedFile ? 'Schimbă imaginea' : 'Alege imagine'"></span>
+          </button>
+        </div>
+
         <input x-ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleFileSelect($event)" />
 
-        <!-- Selected file chip -->
-        <div x-show="selectedFile" x-cloak class="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-xs">
+        <!-- File chip -->
+        <div x-show="selectedFile" x-cloak class="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 rounded-lg px-3 py-2 text-xs">
           <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
-          <span class="text-gray-600 truncate" x-text="selectedFile && selectedFile.name"></span>
-          <button @click.stop="selectedFile=null;previewSrc=null;result=null;$refs.fileInput.value=''"
-            class="ml-auto text-gray-300 hover:text-red-400 transition-colors shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
+          <span class="text-gray-600 dark:text-gray-300 truncate" x-text="selectedFile && selectedFile.name"></span>
+          <button @click.stop="clearFile()" class="ml-auto text-gray-300 hover:text-red-400 transition-colors shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
         <!-- Confidence slider -->
         <div>
-          <label class="text-sm font-medium text-gray-600">
+          <label class="text-sm font-medium text-gray-600 dark:text-gray-400">
             Prag detecție (conf): <span class="text-brand font-bold" x-text="detConf.toFixed(2)"></span>
           </label>
           <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="detConf"
@@ -180,22 +181,18 @@
 
         <!-- Progress bar -->
         <div x-show="loading" x-cloak class="space-y-1.5">
-          <div class="flex justify-between text-xs text-gray-500">
+          <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
             <span x-text="uploadProgress < 88 ? 'Se trimite și procesează…' : 'AI analizează…'"></span>
             <span class="font-medium text-brand" x-text="uploadProgress + '%'"></span>
           </div>
-          <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-            <div class="bg-brand h-2 rounded-full transition-all duration-300"
-              :style="`width: ${uploadProgress}%`"></div>
+          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+            <div class="bg-brand h-2 rounded-full transition-all duration-300" :style="`width: ${uploadProgress}%`"></div>
           </div>
         </div>
 
         <!-- Run button -->
-        <button
-          @click="runDetection()"
-          :disabled="!selectedFile || loading"
-          class="w-full py-2.5 bg-brand text-white rounded-xl font-medium hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
-        >
+        <button @click="runDetection()" :disabled="!selectedFile || loading"
+          class="w-full py-3 min-h-[48px] bg-brand text-white rounded-xl font-medium hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-sm shadow-sm active:scale-[0.98]">
           <template x-if="loading">
             <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -204,8 +201,7 @@
           </template>
           <template x-if="!loading">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
             </svg>
           </template>
           <span x-text="loading ? 'Se procesează…' : 'Rulează detectarea'"></span>
@@ -213,133 +209,248 @@
       </div>
 
       <!-- Result panel -->
-      <div class="bg-white rounded-xl shadow p-6 flex flex-col gap-4">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 sm:p-6 flex flex-col gap-4 transition-colors">
         <h2 class="font-semibold text-lg">Rezultat</h2>
 
         <!-- Empty state -->
         <template x-if="!result && !loading">
-          <div class="flex flex-col items-center justify-center gap-3 py-16 text-gray-300">
+          <div class="flex flex-col items-center justify-center gap-3 py-16 text-gray-300 dark:text-gray-600">
             <svg class="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
-                d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
             </svg>
             <p class="text-sm text-center">Încarcă o imagine pentru<br>a vedea rezultatul</p>
           </div>
         </template>
 
-        <!-- Skeleton while loading -->
+        <!-- Skeleton -->
         <template x-if="loading && !result">
           <div class="flex flex-col gap-3">
             <div class="skeleton rounded-xl h-52 w-full"></div>
-            <div class="flex gap-2">
-              <div class="skeleton h-7 w-32 rounded-full"></div>
-              <div class="skeleton h-7 w-20 rounded-full"></div>
-            </div>
+            <div class="flex gap-2"><div class="skeleton h-7 w-32 rounded-full"></div><div class="skeleton h-7 w-20 rounded-full"></div></div>
             <div class="skeleton h-4 w-full rounded"></div>
             <div class="skeleton h-4 w-4/5 rounded"></div>
-            <div class="skeleton h-4 w-2/3 rounded"></div>
           </div>
         </template>
 
-        <!-- Result -->
+        <!-- Result content -->
         <template x-if="result">
-          <div
-            x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0 scale-95"
-            x-transition:enter-end="opacity-100 scale-100"
-            class="flex flex-col gap-4"
-          >
-            <!-- Annotated image with lightbox -->
-            <div class="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
-              <img
-                :src="result.annotated_url"
-                @click="lightboxSrc = result.annotated_url"
-                class="w-full max-h-64 object-contain"
-                style="cursor:zoom-in"
-              />
+          <div x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+            class="flex flex-col gap-4">
+
+            <!-- BBox overlay toggle -->
+            <div class="flex items-center gap-3">
+              <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">Vizualizare:</span>
+              <button @click="showAnnotated = true" :class="showAnnotated ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors min-h-[36px]">Cu detecții</button>
+              <button @click="showAnnotated = false" :class="!showAnnotated ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors min-h-[36px]">Original</button>
+            </div>
+
+            <!-- Image with lightbox -->
+            <div class="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900">
+              <img :src="showAnnotated ? result.annotated_url : originalImageUrl"
+                @click="lightboxSrc = showAnnotated ? result.annotated_url : originalImageUrl"
+                class="w-full max-h-64 object-contain" style="cursor:zoom-in" />
               <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors pointer-events-none">
-                <span class="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
-                  Click pentru mărire
-                </span>
+                <span class="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">Click pentru mărire</span>
               </div>
+            </div>
+
+            <!-- Conf rerun slider -->
+            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Ajustează conf:</label>
+                <span class="text-xs font-bold text-brand" x-text="rerunConf.toFixed(2)"></span>
+              </div>
+              <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="rerunConf"
+                class="w-full accent-brand" :disabled="isRerunning" />
+              <button @click="rerunDetection()" :disabled="isRerunning"
+                class="w-full py-2 min-h-[44px] bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 active:scale-[0.98]">
+                <template x-if="isRerunning">
+                  <svg class="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                </template>
+                <span x-text="isRerunning ? 'Re-analizare…' : 'Re-rulează cu conf ' + rerunConf.toFixed(2)"></span>
+              </button>
             </div>
 
             <!-- Badges -->
             <div class="flex gap-2 flex-wrap">
-              <span class="bg-green-100 text-green-700 text-sm font-semibold px-3 py-1 rounded-full"
+              <span class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-sm font-semibold px-3 py-1 rounded-full"
                 x-text="result.total_objects + ' obiecte'"></span>
-              <span class="bg-blue-100 text-blue-700 text-sm font-semibold px-3 py-1 rounded-full"
+              <span class="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 text-sm font-semibold px-3 py-1 rounded-full"
                 x-text="result.inference_ms.toFixed(1) + ' ms'"></span>
-              <span class="bg-gray-100 text-gray-500 text-xs font-medium px-3 py-1 rounded-full"
+              <span class="bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs font-medium px-3 py-1 rounded-full"
                 x-text="'Sesiune #' + result.session_id"></span>
             </div>
 
             <!-- Detections table -->
             <template x-if="result.detections.length > 0">
-              <div class="overflow-x-auto rounded-lg border border-gray-100">
+              <div class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700">
                 <table class="w-full text-xs">
                   <thead>
-                    <tr class="bg-gray-50 text-gray-500 uppercase text-left">
+                    <tr class="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase text-left">
                       <th class="px-3 py-2.5">Material</th>
-                      <th class="px-3 py-2.5">Det. conf</th>
-                      <th class="px-3 py-2.5">Cls. conf</th>
-                      <th class="px-3 py-2.5 hidden sm:table-cell">Bounding box</th>
+                      <th class="px-3 py-2.5">Det.</th>
+                      <th class="px-3 py-2.5">Cls.</th>
+                      <th class="px-3 py-2.5 hidden sm:table-cell">Box</th>
                     </tr>
                   </thead>
                   <tbody>
                     <template x-for="d in result.detections" :key="d.id">
-                      <tr class="border-t border-gray-100 hover:bg-gray-50 transition-colors">
-                        <td class="px-3 py-2">
-                          <span :class="materialColor(d.material)"
-                            class="px-2 py-0.5 rounded-full text-xs font-medium"
-                            x-text="d.material"></span>
-                        </td>
+                      <tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <td class="px-3 py-2"><span :class="materialColor(d.material)" class="px-2 py-0.5 rounded-full text-xs font-medium" x-text="d.material"></span></td>
                         <td class="px-3 py-2 font-medium" x-text="(d.det_score * 100).toFixed(1) + '%'"></td>
                         <td class="px-3 py-2" x-text="(d.cls_score * 100).toFixed(1) + '%'"></td>
-                        <td class="px-3 py-2 text-gray-400 font-mono hidden sm:table-cell"
-                          x-text="`(${d.box_x1},${d.box_y1})→(${d.box_x2},${d.box_y2})`"></td>
+                        <td class="px-3 py-2 text-gray-400 font-mono hidden sm:table-cell" x-text="`(${d.box_x1},${d.box_y1})→(${d.box_x2},${d.box_y2})`"></td>
                       </tr>
                     </template>
                   </tbody>
                 </table>
               </div>
             </template>
-
             <template x-if="result.detections.length === 0">
-              <p class="text-sm text-gray-400 italic text-center py-3 bg-gray-50 rounded-lg">
-                Nu au fost detectate obiecte. Încearcă un prag mai mic (0.10–0.15).
-              </p>
+              <p class="text-sm text-gray-400 italic text-center py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">Nu au fost detectate obiecte. Încearcă un prag mai mic.</p>
             </template>
           </div>
         </template>
       </div>
     </div>
+
+    <!-- ── BATCH MODE ── -->
+    <div x-show="batchMode" class="space-y-4">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 sm:p-6 transition-colors">
+        <h2 class="font-semibold text-lg mb-4">Upload batch (max 20 imagini)</h2>
+
+        <div class="flex flex-col sm:flex-row gap-3 mb-4">
+          <button @click="$refs.batchInput.click()"
+            class="flex-1 py-3 min-h-[48px] bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm active:bg-gray-200 dark:active:bg-gray-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
+            </svg>
+            <span x-text="batchFiles.length ? batchFiles.length + ' fișiere selectate' : 'Alege imagini'"></span>
+          </button>
+          <button @click="runBatch()" :disabled="!batchFiles.length || batchLoading"
+            class="flex-1 py-3 min-h-[48px] bg-brand text-white rounded-xl font-medium hover:bg-brand-dark disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm active:scale-[0.98]">
+            <template x-if="batchLoading">
+              <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+            </template>
+            <span x-text="batchLoading ? 'Se procesează batch…' : 'Detectare batch'"></span>
+          </button>
+        </div>
+        <input x-ref="batchInput" type="file" accept="image/*" multiple class="hidden" @change="handleBatchSelect($event)" />
+
+        <!-- Conf slider -->
+        <div class="mb-4">
+          <label class="text-sm font-medium text-gray-600 dark:text-gray-400">
+            Conf: <span class="text-brand font-bold" x-text="detConf.toFixed(2)"></span>
+          </label>
+          <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="detConf" class="w-full accent-brand mt-1" />
+        </div>
+
+        <!-- Batch progress -->
+        <div x-show="batchLoading" x-cloak class="space-y-1.5 mb-4">
+          <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+            <span x-text="`Procesare: ${batchProgress} din ${batchFiles.length}`"></span>
+            <span class="font-medium text-brand" x-text="batchFiles.length ? Math.round(batchProgress/batchFiles.length*100) + '%' : '0%'"></span>
+          </div>
+          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+            <div class="bg-brand h-2 rounded-full transition-all duration-300"
+              :style="`width: ${batchFiles.length ? (batchProgress/batchFiles.length*100) : 0}%`"></div>
+          </div>
+        </div>
+
+        <!-- File list -->
+        <template x-if="batchFiles.length > 0">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+            <template x-for="(f, idx) in batchFiles" :key="idx">
+              <div class="text-xs bg-gray-50 dark:bg-gray-700 rounded-lg p-2 truncate text-gray-600 dark:text-gray-300" x-text="f.name"></div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <!-- Batch results -->
+      <template x-if="batchResults">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 sm:p-6 transition-colors">
+          <h3 class="font-semibold text-lg mb-3">
+            Rezultate batch:
+            <span class="text-brand" x-text="batchResults.total_files + ' imagini'"></span> ·
+            <span class="text-green-600" x-text="batchResults.total_objects + ' obiecte'"></span> ·
+            <span class="text-blue-600" x-text="batchResults.total_ms.toFixed(0) + ' ms total'"></span>
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <template x-for="r in batchResults.results" :key="r.session_id">
+              <div class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+                <div class="relative group">
+                  <img :src="r.annotated_url" class="w-full h-40 object-contain bg-gray-100 dark:bg-gray-900" style="cursor:zoom-in"
+                    @click="lightboxSrc = r.annotated_url" />
+                  <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors pointer-events-none">
+                    <span class="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">Click pentru mărire</span>
+                  </div>
+                </div>
+                <div class="p-3 flex items-center justify-between">
+                  <span class="text-xs font-medium truncate max-w-[60%]" x-text="r.filename"></span>
+                  <span class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-xs font-semibold px-2 py-0.5 rounded-full" x-text="r.total_objects + ' obj'"></span>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
   </div>
 
-  <!-- ===== TAB 2: ISTORIC ===== -->
-  <div
-    x-show="activeTab === 'history'" x-cloak
+  <!-- ═══ TAB 2: ISTORIC ═══ -->
+  <div x-show="activeTab === 'history'" x-cloak
     x-transition:enter="transition ease-out duration-200"
-    x-transition:enter-start="opacity-0 translate-y-1"
-    x-transition:enter-end="opacity-100 translate-y-0"
-  >
-    <div class="bg-white rounded-xl shadow p-6">
-      <div class="flex items-center justify-between mb-5">
+    x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 sm:p-6 transition-colors">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <h2 class="font-semibold text-lg">Sesiuni anterioare</h2>
-        <span class="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full font-medium"
+        <span class="text-sm text-gray-500 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full font-medium"
           x-text="history.total + ' total'"></span>
+      </div>
+
+      <!-- Search / filter bar -->
+      <div class="flex flex-col sm:flex-row gap-2 mb-4">
+        <div class="flex-1 relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input type="text" x-model.debounce.400ms="searchQuery" @input="historyPage=0; loadHistory()"
+            placeholder="Caută după nume fișier…"
+            class="w-full pl-9 pr-3 py-2.5 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-colors" />
+        </div>
+        <select x-model="filterMaterial" @change="historyPage=0; loadHistory()"
+          class="py-2.5 min-h-[44px] px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-colors">
+          <option value="">Toate materialele</option>
+          <option value="plastic">Plastic</option>
+          <option value="paper">Paper</option>
+          <option value="glass">Glass</option>
+          <option value="metal">Metal</option>
+          <option value="other">Other</option>
+        </select>
+        <input type="number" x-model.number="filterMinObjects" @input.debounce.400ms="historyPage=0; loadHistory()"
+          placeholder="Min obiecte" min="0"
+          class="w-28 py-2.5 min-h-[44px] px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-colors" />
       </div>
 
       <!-- Skeleton rows -->
       <template x-if="isLoadingHistory">
         <div class="flex flex-col">
           <template x-for="i in 5" :key="i">
-            <div class="flex items-center gap-4 py-3.5 border-t border-gray-100">
-              <div class="skeleton h-3.5 w-8 rounded"></div>
+            <div class="flex items-center gap-4 py-3.5 border-t border-gray-100 dark:border-gray-700">
+              <div class="skeleton h-10 w-10 rounded-lg shrink-0"></div>
               <div class="skeleton h-3.5 w-48 rounded"></div>
               <div class="skeleton h-3.5 w-28 rounded hidden sm:block ml-auto"></div>
               <div class="skeleton h-6 w-12 rounded-full"></div>
-              <div class="skeleton h-6 w-6 rounded"></div>
             </div>
           </template>
         </div>
@@ -347,12 +458,11 @@
 
       <!-- Empty state -->
       <template x-if="!isLoadingHistory && history.items.length === 0">
-        <div class="py-16 flex flex-col items-center gap-3 text-gray-300">
+        <div class="py-16 flex flex-col items-center gap-3 text-gray-300 dark:text-gray-600">
           <svg class="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
-              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
           </svg>
-          <p class="text-sm">Nicio sesiune salvată încă.</p>
+          <p class="text-sm" x-text="searchQuery || filterMaterial || filterMinObjects ? 'Niciun rezultat pentru filtrele selectate.' : 'Nicio sesiune salvată încă.'"></p>
         </div>
       </template>
 
@@ -361,38 +471,40 @@
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="bg-gray-50 text-gray-500 uppercase text-xs text-left">
-                <th class="px-4 py-3 rounded-tl-lg">#</th>
-                <th class="px-4 py-3">Fișier</th>
-                <th class="px-4 py-3 hidden sm:table-cell">Data</th>
-                <th class="px-4 py-3">Obiecte</th>
-                <th class="px-4 py-3 hidden md:table-cell">Timp (ms)</th>
-                <th class="px-4 py-3 rounded-tr-lg"></th>
+              <tr class="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase text-xs text-left">
+                <th class="px-3 py-3 rounded-tl-lg w-12"></th>
+                <th class="px-3 py-3">#</th>
+                <th class="px-3 py-3">Fișier</th>
+                <th class="px-3 py-3 hidden sm:table-cell">Data</th>
+                <th class="px-3 py-3">Obiecte</th>
+                <th class="px-3 py-3 hidden md:table-cell">ms</th>
+                <th class="px-3 py-3 rounded-tr-lg"></th>
               </tr>
             </thead>
             <tbody>
               <template x-for="s in history.items" :key="s.id">
-                <tr
-                  class="border-t border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
-                  @click="openSessionDetail(s.id)"
-                >
-                  <td class="px-4 py-3 text-gray-400 font-mono text-xs" x-text="s.id"></td>
-                  <td class="px-4 py-3 font-medium truncate max-w-[140px] sm:max-w-xs" x-text="s.filename"></td>
-                  <td class="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell" x-text="formatDate(s.upload_time)"></td>
-                  <td class="px-4 py-3">
-                    <span class="bg-green-100 text-green-700 font-semibold px-2.5 py-0.5 rounded-full text-xs"
+                <tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                  @click="openSessionDetail(s.id)">
+                  <!-- Thumbnail -->
+                  <td class="px-3 py-2">
+                    <template x-if="s.annotated_path">
+                      <img :src="getAnnotatedUrl(s.annotated_path)" class="w-10 h-10 rounded-lg object-cover bg-gray-100 dark:bg-gray-900" @error="$el.style.display='none'" />
+                    </template>
+                  </td>
+                  <td class="px-3 py-2 text-gray-400 font-mono text-xs" x-text="s.id"></td>
+                  <td class="px-3 py-2 font-medium truncate max-w-[120px] sm:max-w-xs" x-text="s.filename"></td>
+                  <td class="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs hidden sm:table-cell" x-text="formatDate(s.upload_time)"></td>
+                  <td class="px-3 py-2">
+                    <span class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-semibold px-2.5 py-0.5 rounded-full text-xs"
                       x-text="s.total_objects"></span>
                   </td>
-                  <td class="px-4 py-3 text-gray-500 text-xs hidden md:table-cell" x-text="s.inference_ms.toFixed(1)"></td>
-                  <td class="px-4 py-3">
-                    <button
-                      @click.stop="deleteSession(s.id)"
-                      class="text-gray-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                      title="Șterge sesiunea"
-                    >
+                  <td class="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs hidden md:table-cell" x-text="s.inference_ms.toFixed(1)"></td>
+                  <td class="px-3 py-2">
+                    <button @click.stop="deleteSession(s.id)"
+                      class="text-gray-300 hover:text-red-500 p-2 min-h-[40px] min-w-[40px] rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center"
+                      title="Șterge">
                       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
                   </td>
@@ -404,131 +516,66 @@
       </template>
 
       <!-- Pagination -->
-      <div class="flex items-center justify-between mt-5 pt-4 border-t border-gray-100">
-        <button
-          @click="historyPage > 0 && (historyPage--, loadHistory())"
-          :disabled="historyPage === 0"
-          class="px-4 py-2 bg-gray-100 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-200 transition-colors">
-          ← Anterior
-        </button>
-        <span class="text-sm text-gray-500"
+      <div class="flex items-center justify-between mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">
+        <button @click="historyPage > 0 && (historyPage--, loadHistory())" :disabled="historyPage === 0"
+          class="px-4 py-2.5 min-h-[44px] bg-gray-100 dark:bg-gray-700 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">← Anterior</button>
+        <span class="text-sm text-gray-500 dark:text-gray-400"
           x-text="`Pagina ${historyPage + 1} din ${Math.max(Math.ceil(history.total / historyLimit), 1)}`"></span>
-        <button
-          @click="(historyPage + 1) * historyLimit < history.total && (historyPage++, loadHistory())"
+        <button @click="(historyPage + 1) * historyLimit < history.total && (historyPage++, loadHistory())"
           :disabled="(historyPage + 1) * historyLimit >= history.total"
-          class="px-4 py-2 bg-gray-100 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-200 transition-colors">
-          Următor →
-        </button>
+          class="px-4 py-2.5 min-h-[44px] bg-gray-100 dark:bg-gray-700 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Următor →</button>
       </div>
     </div>
 
-    <!-- Session detail modal — bottom sheet on mobile -->
-    <div
-      x-show="sessionDetail" x-cloak
-      x-transition:enter="transition ease-out duration-200"
-      x-transition:enter-start="opacity-0"
-      x-transition:enter-end="opacity-100"
-      x-transition:leave="transition ease-in duration-150"
-      x-transition:leave-start="opacity-100"
-      x-transition:leave-end="opacity-0"
+    <!-- Session detail modal -->
+    <div x-show="sessionDetail" x-cloak
+      x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
       class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-      @click.self="sessionDetail = null"
-      @keydown.escape.window="sessionDetail = null"
-    >
-      <div
-        x-transition:enter="transition ease-out duration-300"
+      @click.self="sessionDetail=null" @keydown.escape.window="sessionDetail=null">
+      <div x-transition:enter="transition ease-out duration-300"
         x-transition:enter-start="opacity-0 translate-y-8 sm:translate-y-0 sm:scale-95"
         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-        class="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto"
-        @click.stop
-      >
-        <!-- Mobile drag handle -->
-        <div class="flex justify-center pt-3 pb-1 sm:hidden">
-          <div class="w-10 h-1 bg-gray-300 rounded-full"></div>
-        </div>
-
-        <div class="p-6">
+        class="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto" @click.stop>
+        <div class="flex justify-center pt-3 pb-1 sm:hidden"><div class="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full"></div></div>
+        <div class="p-5 sm:p-6">
           <div class="flex items-center justify-between mb-5">
             <h3 class="font-semibold text-lg" x-text="'Sesiunea #' + (sessionDetail && sessionDetail.id)"></h3>
-            <button @click="sessionDetail = null"
-              class="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+            <button @click="sessionDetail=null" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2 min-h-[40px] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
-
           <template x-if="sessionDetail">
             <div class="flex flex-col gap-4">
               <div class="grid grid-cols-2 gap-3">
-                <div class="bg-gray-50 rounded-xl p-3">
-                  <p class="text-xs text-gray-500 mb-1">Fișier</p>
-                  <p class="font-medium text-sm truncate" x-text="sessionDetail.filename"></p>
-                </div>
-                <div class="bg-gray-50 rounded-xl p-3">
-                  <p class="text-xs text-gray-500 mb-1">Data</p>
-                  <p class="text-sm" x-text="formatDate(sessionDetail.upload_time)"></p>
-                </div>
-                <div class="bg-green-50 rounded-xl p-3">
-                  <p class="text-xs text-gray-500 mb-1">Obiecte detectate</p>
-                  <p class="font-bold text-green-700 text-2xl" x-text="sessionDetail.total_objects"></p>
-                </div>
-                <div class="bg-blue-50 rounded-xl p-3">
-                  <p class="text-xs text-gray-500 mb-1">Timp inferență</p>
-                  <p class="font-bold text-blue-700 text-2xl" x-text="sessionDetail.inference_ms.toFixed(1) + ' ms'"></p>
-                </div>
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3"><p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Fișier</p><p class="font-medium text-sm truncate" x-text="sessionDetail.filename"></p></div>
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3"><p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Data</p><p class="text-sm" x-text="formatDate(sessionDetail.upload_time)"></p></div>
+                <div class="bg-green-50 dark:bg-green-900/30 rounded-xl p-3"><p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Obiecte</p><p class="font-bold text-green-700 dark:text-green-400 text-2xl" x-text="sessionDetail.total_objects"></p></div>
+                <div class="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-3"><p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Timp</p><p class="font-bold text-blue-700 dark:text-blue-400 text-2xl" x-text="sessionDetail.inference_ms.toFixed(1) + ' ms'"></p></div>
               </div>
-
               <template x-if="sessionDetail.annotated_path">
-                <div>
-                  <p class="text-xs text-gray-500 font-medium uppercase mb-2">Imagine adnotată</p>
-                  <div class="relative group rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
-                    <img
-                      :src="getAnnotatedUrl(sessionDetail.annotated_path)"
-                      class="w-full max-h-60 object-contain"
-                      style="cursor:zoom-in"
-                      @click="lightboxSrc = getAnnotatedUrl(sessionDetail.annotated_path)"
-                      @error="$el.parentElement.style.display='none'"
-                    />
-                    <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors pointer-events-none">
-                      <span class="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
-                        Click pentru mărire
-                      </span>
-                    </div>
-                  </div>
+                <div class="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900">
+                  <img :src="getAnnotatedUrl(sessionDetail.annotated_path)" class="w-full max-h-60 object-contain" style="cursor:zoom-in"
+                    @click="lightboxSrc = getAnnotatedUrl(sessionDetail.annotated_path)" @error="$el.parentElement.style.display='none'" />
                 </div>
               </template>
-
               <template x-if="sessionDetail.records && sessionDetail.records.length > 0">
-                <div>
-                  <p class="text-xs text-gray-500 font-medium uppercase mb-2">Detecții individuale</p>
-                  <div class="overflow-x-auto rounded-lg border border-gray-100">
-                    <table class="w-full text-xs">
-                      <thead>
-                        <tr class="bg-gray-50 text-gray-500 uppercase text-left">
-                          <th class="px-3 py-2.5">Material</th>
-                          <th class="px-3 py-2.5">Det.</th>
-                          <th class="px-3 py-2.5">Cls.</th>
-                          <th class="px-3 py-2.5 hidden sm:table-cell">Box</th>
+                <div class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700">
+                  <table class="w-full text-xs">
+                    <thead><tr class="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase text-left">
+                      <th class="px-3 py-2.5">Material</th><th class="px-3 py-2.5">Det.</th><th class="px-3 py-2.5">Cls.</th><th class="px-3 py-2.5 hidden sm:table-cell">Box</th>
+                    </tr></thead>
+                    <tbody>
+                      <template x-for="r in sessionDetail.records" :key="r.id">
+                        <tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <td class="px-3 py-2"><span :class="materialColor(r.material)" class="px-2 py-0.5 rounded-full text-xs font-medium" x-text="r.material"></span></td>
+                          <td class="px-3 py-2 font-medium" x-text="(r.det_score * 100).toFixed(1) + '%'"></td>
+                          <td class="px-3 py-2" x-text="(r.cls_score * 100).toFixed(1) + '%'"></td>
+                          <td class="px-3 py-2 text-gray-400 font-mono text-[10px] hidden sm:table-cell" x-text="`(${r.box_x1},${r.box_y1})→(${r.box_x2},${r.box_y2})`"></td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        <template x-for="r in sessionDetail.records" :key="r.id">
-                          <tr class="border-t border-gray-100 hover:bg-gray-50">
-                            <td class="px-3 py-2">
-                              <span :class="materialColor(r.material)"
-                                class="px-2 py-0.5 rounded-full text-xs font-medium"
-                                x-text="r.material"></span>
-                            </td>
-                            <td class="px-3 py-2 font-medium" x-text="(r.det_score * 100).toFixed(1) + '%'"></td>
-                            <td class="px-3 py-2" x-text="(r.cls_score * 100).toFixed(1) + '%'"></td>
-                            <td class="px-3 py-2 text-gray-400 font-mono text-[10px] hidden sm:table-cell"
-                              x-text="`(${r.box_x1},${r.box_y1})→(${r.box_x2},${r.box_y2})`"></td>
-                          </tr>
-                        </template>
-                      </tbody>
-                    </table>
-                  </div>
+                      </template>
+                    </tbody>
+                  </table>
                 </div>
               </template>
             </div>
@@ -538,85 +585,82 @@
     </div>
   </div>
 
-  <!-- ===== TAB 3: STATISTICI ===== -->
-  <div
-    x-show="activeTab === 'stats'" x-cloak
+  <!-- ═══ TAB 3: STATISTICI ═══ -->
+  <div x-show="activeTab === 'stats'" x-cloak
     x-transition:enter="transition ease-out duration-200"
-    x-transition:enter-start="opacity-0 translate-y-1"
-    x-transition:enter-end="opacity-100 translate-y-0"
-  >
+    x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-      <div class="bg-white rounded-xl shadow p-5 flex flex-col items-center gap-1">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 flex flex-col items-center gap-1 transition-colors">
         <span class="text-4xl font-bold text-brand" x-text="stats.total_sessions ?? '—'"></span>
-        <span class="text-sm text-gray-500">Sesiuni totale</span>
+        <span class="text-sm text-gray-500 dark:text-gray-400">Sesiuni totale</span>
       </div>
-      <div class="bg-white rounded-xl shadow p-5 flex flex-col items-center gap-1">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 flex flex-col items-center gap-1 transition-colors">
         <span class="text-4xl font-bold text-brand" x-text="stats.total_objects ?? '—'"></span>
-        <span class="text-sm text-gray-500">Obiecte detectate</span>
+        <span class="text-sm text-gray-500 dark:text-gray-400">Obiecte detectate</span>
       </div>
-      <div class="bg-white rounded-xl shadow p-5 flex flex-col items-center gap-1">
-        <span class="text-4xl font-bold text-brand"
-          x-text="stats.avg_inference_ms != null ? stats.avg_inference_ms.toFixed(1) + ' ms' : '—'"></span>
-        <span class="text-sm text-gray-500">Timp mediu inferență</span>
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 flex flex-col items-center gap-1 transition-colors">
+        <span class="text-4xl font-bold text-brand" x-text="stats.avg_inference_ms != null ? stats.avg_inference_ms.toFixed(1) + ' ms' : '—'"></span>
+        <span class="text-sm text-gray-500 dark:text-gray-400">Timp mediu inferență</span>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="bg-white rounded-xl shadow p-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <!-- Pie chart -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 transition-colors">
         <h3 class="font-semibold mb-4">Distribuție materiale</h3>
         <div class="relative h-64 flex items-center justify-center">
           <template x-if="!stats.material_distribution || stats.material_distribution.length === 0">
-            <p class="text-gray-300 text-sm">Nu există date încă.</p>
+            <p class="text-gray-300 dark:text-gray-600 text-sm">Nu există date încă.</p>
           </template>
-          <canvas id="pieChart"
-            x-show="stats.material_distribution && stats.material_distribution.length > 0"
-            class="w-full h-full"></canvas>
+          <canvas id="pieChart" x-show="stats.material_distribution && stats.material_distribution.length > 0" class="w-full h-full"></canvas>
         </div>
       </div>
-      <div class="bg-white rounded-xl shadow p-6">
-        <h3 class="font-semibold mb-4">Obiecte detectate pe zi</h3>
+      <!-- Stacked bar chart -->
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 transition-colors">
+        <h3 class="font-semibold mb-4">Materiale pe zi (stacked)</h3>
         <div class="relative h-64 flex items-center justify-center">
-          <template x-if="!stats.timeline || stats.timeline.length === 0">
-            <p class="text-gray-300 text-sm">Nu există date încă.</p>
+          <template x-if="!stats.material_per_day || stats.material_per_day.length === 0">
+            <p class="text-gray-300 dark:text-gray-600 text-sm">Nu există date încă.</p>
           </template>
-          <canvas id="barChart"
-            x-show="stats.timeline && stats.timeline.length > 0"
-            class="w-full h-full"></canvas>
+          <canvas id="stackedBarChart" x-show="stats.material_per_day && stats.material_per_day.length > 0" class="w-full h-full"></canvas>
         </div>
+      </div>
+    </div>
+
+    <!-- Simple bar chart -->
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 mb-6 transition-colors">
+      <h3 class="font-semibold mb-4">Total obiecte pe zi</h3>
+      <div class="relative h-64 flex items-center justify-center">
+        <template x-if="!stats.timeline || stats.timeline.length === 0">
+          <p class="text-gray-300 dark:text-gray-600 text-sm">Nu există date încă.</p>
+        </template>
+        <canvas id="barChart" x-show="stats.timeline && stats.timeline.length > 0" class="w-full h-full"></canvas>
       </div>
     </div>
 
     <!-- Material breakdown table -->
     <template x-if="stats.material_distribution && stats.material_distribution.length > 0">
-      <div class="mt-6 bg-white rounded-xl shadow p-6">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 transition-colors">
         <h3 class="font-semibold mb-4">Detaliu pe material</h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
-              <tr class="bg-gray-50 text-gray-500 uppercase text-xs text-left">
-                <th class="px-4 py-3 rounded-tl-lg">Material</th>
-                <th class="px-4 py-3">Nr. detecții</th>
-                <th class="px-4 py-3 rounded-tr-lg">Procent</th>
+              <tr class="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase text-xs text-left">
+                <th class="px-4 py-3 rounded-tl-lg">Material</th><th class="px-4 py-3">Nr. detecții</th><th class="px-4 py-3 rounded-tr-lg">Procent</th>
               </tr>
             </thead>
             <tbody>
               <template x-for="m in stats.material_distribution" :key="m.material">
-                <tr class="border-t border-gray-100 hover:bg-gray-50">
-                  <td class="px-4 py-3">
-                    <span :class="materialColor(m.material)"
-                      class="px-2.5 py-1 rounded-full text-xs font-medium"
-                      x-text="m.material"></span>
-                  </td>
+                <tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td class="px-4 py-3"><span :class="materialColor(m.material)" class="px-2.5 py-1 rounded-full text-xs font-medium" x-text="m.material"></span></td>
                   <td class="px-4 py-3 font-semibold" x-text="m.count"></td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-3">
-                      <div class="flex-1 bg-gray-100 rounded-full h-1.5 max-w-[100px]">
-                        <div class="bg-brand h-1.5 rounded-full"
-                          :style="`width: ${stats.total_objects > 0 ? (m.count/stats.total_objects*100).toFixed(0) : 0}%`">
-                        </div>
+                      <div class="flex-1 bg-gray-100 dark:bg-gray-600 rounded-full h-1.5 max-w-[100px]">
+                        <div class="bg-brand h-1.5 rounded-full" :style="`width: ${stats.total_objects > 0 ? (m.count/stats.total_objects*100).toFixed(0) : 0}%`"></div>
                       </div>
-                      <span class="text-gray-500 text-xs w-12"
-                        x-text="stats.total_objects > 0 ? (m.count/stats.total_objects*100).toFixed(1)+'%' : '—'"></span>
+                      <span class="text-gray-500 dark:text-gray-400 text-xs w-12" x-text="stats.total_objects > 0 ? (m.count/stats.total_objects*100).toFixed(1)+'%' : '—'"></span>
                     </div>
                   </td>
                 </tr>
@@ -628,56 +672,48 @@
     </template>
   </div>
 
-  <!-- ===== TAB 4: EXPORT ===== -->
-  <div
-    x-show="activeTab === 'export'" x-cloak
+  <!-- ═══ TAB 4: EXPORT ═══ -->
+  <div x-show="activeTab === 'export'" x-cloak
     x-transition:enter="transition ease-out duration-200"
-    x-transition:enter-start="opacity-0 translate-y-1"
-    x-transition:enter-end="opacity-100 translate-y-0"
-  >
-    <div class="bg-white rounded-xl shadow p-8 max-w-xl mx-auto text-center flex flex-col items-center gap-6">
-      <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+    x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-8 max-w-xl mx-auto text-center flex flex-col items-center gap-6 transition-colors">
+      <div class="w-16 h-16 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center">
         <svg class="w-8 h-8 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-3-3m3 3l3-3" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-3-3m3 3l3-3" />
         </svg>
       </div>
       <div>
         <h2 class="font-semibold text-xl mb-2">Export date</h2>
-        <p class="text-gray-500 text-sm">Descarcă toate sesiunile și detecțiile individuale într-un fișier CSV, compatibil cu Excel, Google Sheets sau orice instrument de analiză.</p>
+        <p class="text-gray-500 dark:text-gray-400 text-sm">Descarcă sesiunile și detecțiile într-un fișier CSV sau raport HTML.</p>
       </div>
-
       <div class="flex items-center gap-8 text-center">
-        <div>
-          <p class="text-3xl font-bold text-brand" x-text="stats.total_sessions ?? 0"></p>
-          <p class="text-xs text-gray-500 mt-0.5">sesiuni</p>
-        </div>
-        <div class="h-10 border-l border-gray-200"></div>
-        <div>
-          <p class="text-3xl font-bold text-brand" x-text="stats.total_objects ?? 0"></p>
-          <p class="text-xs text-gray-500 mt-0.5">detecții</p>
-        </div>
+        <div><p class="text-3xl font-bold text-brand" x-text="stats.total_sessions ?? 0"></p><p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">sesiuni</p></div>
+        <div class="h-10 border-l border-gray-200 dark:border-gray-700"></div>
+        <div><p class="text-3xl font-bold text-brand" x-text="stats.total_objects ?? 0"></p><p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">detecții</p></div>
       </div>
-
-      <a href="/api/export/csv"
-        class="inline-flex items-center gap-2 bg-brand text-white px-6 py-3 rounded-xl font-medium hover:bg-brand-dark transition-colors shadow-sm">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-3-3m3 3l3-3" />
-        </svg>
-        Descarcă CSV
-      </a>
-      <p class="text-xs text-gray-400">session_id · filename · upload_time · inference_ms · material · det_score · cls_score · box</p>
-
-      <div class="border-t border-gray-100 w-full pt-4">
-        <p class="text-sm text-gray-500 mb-2">Documentație API interactivă:</p>
-        <a href="/docs" target="_blank"
-          class="text-brand text-sm font-medium hover:underline inline-flex items-center gap-1">
-          /docs — Swagger UI
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+      <div class="flex flex-col sm:flex-row gap-3 w-full">
+        <a href="/api/export/csv"
+          class="flex-1 inline-flex items-center justify-center gap-2 bg-brand text-white px-6 py-3 min-h-[48px] rounded-xl font-medium hover:bg-brand-dark transition-colors shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-3-3m3 3l3-3" />
           </svg>
+          Descarcă CSV
+        </a>
+        <a href="/api/export/pdf"
+          class="flex-1 inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 min-h-[48px] rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          Raport HTML
+        </a>
+      </div>
+      <p class="text-xs text-gray-400 dark:text-gray-500">CSV: session_id · filename · upload_time · inference_ms · material · det_score · cls_score · box</p>
+      <div class="border-t border-gray-100 dark:border-gray-700 w-full pt-4">
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Documentație API interactivă:</p>
+        <a href="/docs" target="_blank" class="text-brand text-sm font-medium hover:underline inline-flex items-center gap-1">
+          /docs — Swagger UI
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
         </a>
       </div>
     </div>
@@ -685,21 +721,19 @@
 
 </main>
 
-<!-- ── Mobile bottom navigation ─────────────────────────────────────────────── -->
-<nav class="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 flex shadow-lg">
+<!-- ── Mobile bottom navigation ──────────────────────────────────────────── -->
+<nav class="sm:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40 flex shadow-lg transition-colors">
   <template x-for="tab in tabs" :key="tab.id">
-    <button
-      @click="activeTab = tab.id"
-      :class="activeTab === tab.id ? 'text-brand' : 'text-gray-400 hover:text-gray-600'"
-      class="flex-1 py-2.5 flex flex-col items-center gap-0.5 transition-colors"
-    >
+    <button @click="activeTab = tab.id"
+      :class="activeTab === tab.id ? 'text-brand' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'"
+      class="flex-1 py-3 min-h-[56px] flex flex-col items-center gap-0.5 transition-colors active:bg-gray-50 dark:active:bg-gray-700">
       <span x-text="tab.icon" class="text-xl leading-none"></span>
       <span x-text="tab.shortLabel" class="text-[10px] font-medium leading-tight"></span>
     </button>
   </template>
 </nav>
 
-<!-- ── Alpine.js app logic ─────────────────────────────────────────────────── -->
+<!-- ══ Alpine.js app logic ═══════════════════════════════════════════════ -->
 <script>
 function app() {
   return {
@@ -711,7 +745,10 @@ function app() {
     ],
     activeTab: 'detect',
 
-    // Detect
+    // Dark mode
+    darkMode: false,
+
+    // Single detect
     selectedFile: null,
     previewSrc: null,
     isDragging: false,
@@ -719,11 +756,22 @@ function app() {
     loading: false,
     uploadProgress: 0,
     result: null,
+    showAnnotated: true,
+    originalImageUrl: null,
 
-    // Toast
+    // Rerun
+    rerunConf: 0.25,
+    isRerunning: false,
+
+    // Batch
+    batchMode: false,
+    batchFiles: [],
+    batchLoading: false,
+    batchProgress: 0,
+    batchResults: null,
+
+    // Toast & Lightbox
     toasts: [],
-
-    // Lightbox
     lightboxSrc: null,
 
     // History
@@ -732,207 +780,212 @@ function app() {
     historyLimit: 10,
     sessionDetail: null,
     isLoadingHistory: false,
+    searchQuery: '',
+    filterMaterial: '',
+    filterMinObjects: null,
 
     // Stats
     stats: {},
     pieChart: null,
     barChart: null,
+    stackedChart: null,
 
-    // ── Init ────────────────────────────────────────────────────────────────
+    // ── Init ────────────────────────────────────────────────────────────
     async init() {
+      this.darkMode = localStorage.getItem('darkMode') === 'true' ||
+        (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
       await Promise.all([this.loadStats(), this.loadHistory()]);
 
       this.$watch('activeTab', async (tab) => {
         if (tab === 'stats') {
           await this.loadStats();
-          // Use setTimeout so the DOM is visible before Chart.js renders
           setTimeout(() => this.renderCharts(), 120);
         }
         if (tab === 'history') await this.loadHistory();
       });
     },
 
-    // ── Toast ────────────────────────────────────────────────────────────────
+    // ── Dark mode ────────────────────────────────────────────────────────
+    toggleDark() {
+      this.darkMode = !this.darkMode;
+      localStorage.setItem('darkMode', this.darkMode);
+    },
+
+    // ── Toast ────────────────────────────────────────────────────────────
     showToast(message, type = 'success') {
       const id = Date.now();
       this.toasts.push({ id, message, type, visible: true });
-      setTimeout(() => {
-        const t = this.toasts.find(x => x.id === id);
-        if (t) t.visible = false;
-        setTimeout(() => { this.toasts = this.toasts.filter(x => x.id !== id); }, 250);
-      }, 3500);
+      setTimeout(() => { const t = this.toasts.find(x => x.id === id); if (t) t.visible = false; setTimeout(() => { this.toasts = this.toasts.filter(x => x.id !== id); }, 250); }, 3500);
     },
 
-    // ── File handling ────────────────────────────────────────────────────────
-    handleDrop(ev) {
-      this.isDragging = false;
-      const f = ev.dataTransfer.files[0];
-      if (f) this.setFile(f);
-    },
-    handleFileSelect(ev) {
-      const f = ev.target.files[0];
-      if (f) this.setFile(f);
-    },
+    // ── File handling ────────────────────────────────────────────────────
+    handleDrop(ev) { this.isDragging = false; const f = ev.dataTransfer.files[0]; if (f) this.setFile(f); },
+    handleFileSelect(ev) { const f = ev.target.files[0]; if (f) this.setFile(f); },
     setFile(file) {
       this.selectedFile = file;
       this.result = null;
-      const r = new FileReader();
-      r.onload = (e) => this.previewSrc = e.target.result;
-      r.readAsDataURL(file);
+      this.originalImageUrl = null;
+      const r = new FileReader(); r.onload = (e) => this.previewSrc = e.target.result; r.readAsDataURL(file);
     },
+    clearFile() { this.selectedFile = null; this.previewSrc = null; this.result = null; this.originalImageUrl = null; this.$refs.fileInput.value = ''; },
 
-    // ── Detection ────────────────────────────────────────────────────────────
+    // ── Single detection ─────────────────────────────────────────────────
     async runDetection() {
       if (!this.selectedFile) return;
-      this.loading = true;
-      this.result = null;
-      this.uploadProgress = 0;
-
-      // Animated fake progress during server-side inference
+      this.loading = true; this.result = null; this.uploadProgress = 0;
       let prog = 0;
-      const interval = setInterval(() => {
-        if (prog < 88) {
-          prog += (88 - prog) * 0.12 + 0.8;
-          this.uploadProgress = Math.min(Math.round(prog), 88);
-        }
-      }, 180);
-
+      const interval = setInterval(() => { if (prog < 88) { prog += (88 - prog) * 0.12 + 0.8; this.uploadProgress = Math.min(Math.round(prog), 88); } }, 180);
       try {
-        const fd = new FormData();
-        fd.append('file', this.selectedFile);
+        const fd = new FormData(); fd.append('file', this.selectedFile);
         const resp = await fetch(`/api/detect?det_conf=${this.detConf}`, { method: 'POST', body: fd });
-
-        clearInterval(interval);
-        this.uploadProgress = 100;
-
-        if (!resp.ok) {
-          const err = await resp.json();
-          throw new Error(err.detail || `Eroare server (${resp.status})`);
-        }
-
+        clearInterval(interval); this.uploadProgress = 100;
+        if (!resp.ok) { const err = await resp.json(); throw new Error(err.detail || `Eroare server (${resp.status})`); }
         this.result = await resp.json();
-        this.showToast(
-          `${this.result.total_objects} obiecte detectate — ${this.result.inference_ms.toFixed(0)} ms`,
-          'success'
-        );
-        this.loadStats();
-        this.loadHistory();
-      } catch (e) {
-        clearInterval(interval);
-        this.showToast(e.message, 'error');
-      } finally {
-        this.loading = false;
-        setTimeout(() => { this.uploadProgress = 0; }, 900);
-      }
+        this.rerunConf = this.detConf;
+        this.showAnnotated = true;
+        this.originalImageUrl = `/api/sessions/${this.result.session_id}/original`;
+        this.showToast(`${this.result.total_objects} obiecte detectate — ${this.result.inference_ms.toFixed(0)} ms`);
+        this.loadStats(); this.loadHistory();
+      } catch (e) { clearInterval(interval); this.showToast(e.message, 'error'); }
+      finally { this.loading = false; setTimeout(() => { this.uploadProgress = 0; }, 900); }
     },
 
-    // ── History ──────────────────────────────────────────────────────────────
+    // ── Rerun with different conf ────────────────────────────────────────
+    async rerunDetection() {
+      if (!this.result) return;
+      this.isRerunning = true;
+      try {
+        const resp = await fetch(`/api/sessions/${this.result.session_id}/rerun?det_conf=${this.rerunConf}`, { method: 'POST' });
+        if (!resp.ok) { const err = await resp.json(); throw new Error(err.detail || 'Eroare'); }
+        const newResult = await resp.json();
+        // Cache-bust annotated image
+        newResult.annotated_url = newResult.annotated_url + '?t=' + Date.now();
+        this.result = newResult;
+        this.showAnnotated = true;
+        this.showToast(`Re-detectare: ${newResult.total_objects} obiecte (conf ${this.rerunConf.toFixed(2)})`);
+        this.loadStats(); this.loadHistory();
+      } catch (e) { this.showToast(e.message, 'error'); }
+      finally { this.isRerunning = false; }
+    },
+
+    // ── Batch ────────────────────────────────────────────────────────────
+    handleBatchSelect(ev) { this.batchFiles = Array.from(ev.target.files); this.batchResults = null; },
+    async runBatch() {
+      if (!this.batchFiles.length) return;
+      this.batchLoading = true; this.batchProgress = 0; this.batchResults = null;
+      try {
+        const fd = new FormData();
+        this.batchFiles.forEach(f => fd.append('files', f));
+        // Use XMLHttpRequest for progress tracking
+        const resp = await fetch(`/api/detect/batch?det_conf=${this.detConf}`, { method: 'POST', body: fd });
+        if (!resp.ok) { const err = await resp.json(); throw new Error(err.detail || 'Eroare batch'); }
+        this.batchResults = await resp.json();
+        this.batchProgress = this.batchFiles.length;
+        this.showToast(`Batch: ${this.batchResults.total_files} imagini, ${this.batchResults.total_objects} obiecte`);
+        this.loadStats(); this.loadHistory();
+      } catch (e) { this.showToast(e.message, 'error'); }
+      finally { this.batchLoading = false; }
+    },
+
+    // ── History ──────────────────────────────────────────────────────────
     async loadHistory() {
       this.isLoadingHistory = true;
       try {
-        const r = await fetch(`/api/sessions?skip=${this.historyPage * this.historyLimit}&limit=${this.historyLimit}`);
+        let url = `/api/sessions?skip=${this.historyPage * this.historyLimit}&limit=${this.historyLimit}`;
+        if (this.searchQuery) url += `&q=${encodeURIComponent(this.searchQuery)}`;
+        if (this.filterMaterial) url += `&material=${encodeURIComponent(this.filterMaterial)}`;
+        if (this.filterMinObjects != null && this.filterMinObjects !== '' && this.filterMinObjects >= 0) url += `&min_objects=${this.filterMinObjects}`;
+        const r = await fetch(url);
         if (r.ok) this.history = await r.json();
-      } finally {
-        this.isLoadingHistory = false;
-      }
+      } finally { this.isLoadingHistory = false; }
     },
-    async openSessionDetail(id) {
-      const r = await fetch(`/api/sessions/${id}`);
-      if (r.ok) this.sessionDetail = await r.json();
-    },
+    async openSessionDetail(id) { const r = await fetch(`/api/sessions/${id}`); if (r.ok) this.sessionDetail = await r.json(); },
     async deleteSession(id) {
-      if (!confirm(`Ștergi sesiunea #${id} și imaginea asociată?`)) return;
+      if (!confirm(`Ștergi sesiunea #${id}?`)) return;
       const r = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
-      if (r.ok) {
-        this.showToast('Sesiunea a fost ștearsă.', 'success');
-        await this.loadHistory();
-        await this.loadStats();
-      } else {
-        this.showToast('Eroare la ștergere.', 'error');
-      }
+      if (r.ok) { this.showToast('Sesiunea a fost ștearsă.'); await this.loadHistory(); await this.loadStats(); }
+      else this.showToast('Eroare la ștergere.', 'error');
     },
-    getAnnotatedUrl(path) {
-      return `/annotated/${path.split(/[\\/]/).pop()}`;
-    },
+    getAnnotatedUrl(path) { return `/annotated/${path.split(/[\\/]/).pop()}`; },
 
-    // ── Stats ────────────────────────────────────────────────────────────────
+    // ── Stats ────────────────────────────────────────────────────────────
     async loadStats() {
       const r = await fetch('/api/stats');
-      if (r.ok) {
-        this.stats = await r.json();
-        if (this.activeTab === 'stats') {
-          setTimeout(() => this.renderCharts(), 120);
-        }
-      }
+      if (r.ok) { this.stats = await r.json(); if (this.activeTab === 'stats') setTimeout(() => this.renderCharts(), 120); }
     },
-
-    renderCharts() { this.renderPie(); this.renderBar(); },
+    renderCharts() { this.renderPie(); this.renderBar(); this.renderStackedBar(); },
 
     renderPie() {
-      const ctx = document.getElementById('pieChart');
-      if (!ctx) return;
-      const dist = this.stats.material_distribution || [];
-      if (!dist.length) return;
+      const ctx = document.getElementById('pieChart'); if (!ctx) return;
+      const dist = this.stats.material_distribution || []; if (!dist.length) return;
       if (this.pieChart) { this.pieChart.destroy(); this.pieChart = null; }
       const palette = ['#16a34a','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899'];
       this.pieChart = new Chart(ctx, {
         type: 'doughnut',
-        data: {
-          labels: dist.map(d => d.material),
-          datasets: [{ data: dist.map(d => d.count), backgroundColor: palette, borderWidth: 3, borderColor: '#fff' }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'right', labels: { font: { size: 11 }, padding: 14 } },
-            tooltip: { callbacks: { label: (c) => {
-              const tot = c.dataset.data.reduce((a,b)=>a+b,0);
-              return ` ${c.label}: ${c.parsed} (${((c.parsed/tot)*100).toFixed(1)}%)`;
-            }}}
+        data: { labels: dist.map(d => d.material), datasets: [{ data: dist.map(d => d.count), backgroundColor: palette, borderWidth: 3, borderColor: this.darkMode ? '#1f2937' : '#fff' }] },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'right', labels: { font: { size: 11 }, padding: 14, color: this.darkMode ? '#d1d5db' : '#6b7280' } },
+            tooltip: { callbacks: { label: (c) => { const tot = c.dataset.data.reduce((a,b)=>a+b,0); return ` ${c.label}: ${c.parsed} (${((c.parsed/tot)*100).toFixed(1)}%)`; }}}
           }
         }
       });
     },
 
     renderBar() {
-      const ctx = document.getElementById('barChart');
-      if (!ctx) return;
-      const tl = this.stats.timeline || [];
-      if (!tl.length) return;
+      const ctx = document.getElementById('barChart'); if (!ctx) return;
+      const tl = this.stats.timeline || []; if (!tl.length) return;
       if (this.barChart) { this.barChart.destroy(); this.barChart = null; }
       this.barChart = new Chart(ctx, {
         type: 'bar',
-        data: {
-          labels: tl.map(t => t.day),
-          datasets: [{ label: 'Obiecte', data: tl.map(t => t.total),
-            backgroundColor: '#4ade80', borderColor: '#16a34a', borderWidth: 1, borderRadius: 5 }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
+        data: { labels: tl.map(t => t.day), datasets: [{ label: 'Obiecte', data: tl.map(t => t.total),
+          backgroundColor: '#4ade80', borderColor: '#16a34a', borderWidth: 1, borderRadius: 5 }] },
+        options: { responsive: true, maintainAspectRatio: false,
           plugins: { legend: { display: false } },
-          scales: {
-            y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#f3f4f6' } },
-            x: { ticks: { font: { size: 10 } }, grid: { display: false } }
-          }
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1, color: this.darkMode ? '#9ca3af' : '#6b7280' }, grid: { color: this.darkMode ? '#374151' : '#f3f4f6' } },
+            x: { ticks: { font: { size: 10 }, color: this.darkMode ? '#9ca3af' : '#6b7280' }, grid: { display: false } } }
         }
       });
     },
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-    formatDate(iso) {
-      if (!iso) return '—';
-      return new Date(iso).toLocaleString('ro-RO', {
-        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    renderStackedBar() {
+      const ctx = document.getElementById('stackedBarChart'); if (!ctx) return;
+      const mpd = this.stats.material_per_day || []; if (!mpd.length) return;
+      if (this.stackedChart) { this.stackedChart.destroy(); this.stackedChart = null; }
+
+      const days = [...new Set(mpd.map(r => r.day))].sort();
+      const materials = [...new Set(mpd.map(r => r.material))];
+      const palette = { plastic:'#3b82f6', glass:'#06b6d4', metal:'#f59e0b', paper:'#f97316', other:'#6b7280' };
+      const datasets = materials.map(mat => {
+        const data = days.map(day => { const found = mpd.find(r => r.day === day && r.material === mat); return found ? found.count : 0; });
+        return { label: mat, data, backgroundColor: palette[mat.toLowerCase()] || '#8b5cf6', borderRadius: 3 };
+      });
+
+      this.stackedChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: days, datasets },
+        options: { responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { labels: { font: { size: 11 }, color: this.darkMode ? '#d1d5db' : '#6b7280' } } },
+          scales: { x: { stacked: true, ticks: { font: { size: 10 }, color: this.darkMode ? '#9ca3af' : '#6b7280' }, grid: { display: false } },
+            y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1, color: this.darkMode ? '#9ca3af' : '#6b7280' }, grid: { color: this.darkMode ? '#374151' : '#f3f4f6' } } }
+        }
       });
     },
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+    formatDate(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString('ro-RO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    },
     materialColor(m) {
-      return { plastic:'bg-blue-100 text-blue-700', glass:'bg-cyan-100 text-cyan-700',
-               metal:'bg-yellow-100 text-yellow-700', paper:'bg-orange-100 text-orange-700',
-               other:'bg-gray-100 text-gray-600' }[m?.toLowerCase()] || 'bg-gray-100 text-gray-600';
+      return { plastic:'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400',
+               glass:'bg-cyan-100 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-400',
+               metal:'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400',
+               paper:'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400',
+               other:'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' }[m?.toLowerCase()] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400';
     },
   };
 }
 </script>
-
 </body>
 </html>
