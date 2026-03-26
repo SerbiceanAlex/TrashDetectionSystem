@@ -86,3 +86,38 @@ class BatchDetectResponse(BaseModel):
     total_files: int
     total_objects: int
     total_ms: float
+
+
+# ── Video session schemas ───────────────────────────────────────────────────
+
+class VideoSessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    source_type: str
+    filename: Optional[str] = None
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    duration_sec: float = 0.0
+    total_frames: int = 0
+    total_objects: int = 0
+    avg_fps: float = 0.0
+    avg_inference_ms: float = 0.0
+    materials_summary: Optional[str] = None
+    annotated_video_path: Optional[str] = None
+    status: str = "running"
+    frames_processed: int = 0
+    total_frames_expected: int = 0
+
+
+class VideoSessionsPage(BaseModel):
+    total: int
+    skip: int
+    limit: int
+    items: list[VideoSessionOut]
+
+
+class VideoUploadResponse(BaseModel):
+    session_id: int
+    status: str
+    message: str

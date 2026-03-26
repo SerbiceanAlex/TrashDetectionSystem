@@ -5,11 +5,12 @@ Start with:
     .venv\\Scripts\\uvicorn app.main:app --reload --port 8000
 """
 
+import asyncio
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, UploadFile, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,14 +18,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import database as db
 from app import inference as infer
 from app import schemas
+from app import video as vid
 
 APP_DIR = Path(__file__).parent
 UPLOADS_DIR = APP_DIR / "uploads"
 ANNOTATED_DIR = APP_DIR / "annotated"
+VIDEOS_DIR = APP_DIR / "videos"
 STATIC_DIR = APP_DIR / "static"
 
 UPLOADS_DIR.mkdir(exist_ok=True)
 ANNOTATED_DIR.mkdir(exist_ok=True)
+VIDEOS_DIR.mkdir(exist_ok=True)
 
 
 # ── Lifespan: load models + create DB tables on startup ──────────────────────
@@ -45,6 +49,9 @@ app = FastAPI(
 
 # Serve annotated images at /annotated/<filename>
 app.mount("/annotated", StaticFiles(directory=str(ANNOTATED_DIR)), name="annotated")
+
+# Serve annotated videos at /videos/<filename>
+app.mount("/videos", StaticFiles(directory=str(VIDEOS_DIR)), name="videos")
 
 # Serve the frontend SPA
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -502,3 +509,128 @@ async def export_pdf(session: AsyncSession = Depends(db.get_db)):
             "Content-Disposition": "attachment; filename=raport_trash_detection.html",
         },
     )
+
+
+# ── Video endpoints ─────────────────────────────────────────────────────────
+
+@app.websocket("/ws/video/live")
+async def ws_video_live(
+    websocket: WebSocket,
+    det_conf: float = 0.25,
+):
+    """WebSocket for live webcam video: browser sends JPEG frames, server
+    returns annotated frames + stats JSON."""
+    async with db.AsyncSessionLocal() as session:
+        await vid.handle_live_ws(websocket, det_conf, session)
+
+
+@app.post("/api/video/upload", response_model=schemas.VideoUploadResponse,
+          summary="Upload a video file for offline processing")
+async def upload_video(
+    file: UploadFile = File(...),
+    det_conf: float = Query(default=0.25, ge=0.05, le=0.95),
+    session: AsyncSession = Depends(db.get_db),
+):
+    allowed = {
+        "video/mp4", "video/mpeg", "video/x-msvideo", "video/quicktime",
+        "video/x-matroska", "video/webm", "video/avi",
+    }
+    ct = file.content_type or ""
+    fname = file.filename or "upload.mp4"
+    # Also accept by extension if mime unknown
+    ext = Path(fname).suffix.lower()
+    if ct not in allowed and ext not in {".mp4", ".avi", ".mov", ".mkv", ".webm"}:
+        raise HTTPException(status_code=400, detail=f"Unsupported video type: {ct}")
+
+    stem = uuid.uuid4().hex
+    save_path = VIDEOS_DIR / f"{stem}{ext or '.mp4'}"
+
+    # Write to disk in 1 MB chunks — avoids loading the entire file into RAM
+    chunk_size = 1024 * 1024
+    video_empty = True
+    with open(save_path, "wb") as out_f:
+        while True:
+            chunk = await asyncio.to_thread(file.file.read, chunk_size)
+            if not chunk:
+                break
+            out_f.write(chunk)
+            video_empty = False
+    if video_empty:
+        save_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Empty file uploaded.")
+
+    vs = await db.create_video_session(session, source_type="upload", filename=fname)
+    vs.video_path = str(save_path)
+    await session.commit()
+
+    # Process in background — fire-and-forget with error logging
+    task = asyncio.create_task(vid.process_uploaded_video(save_path, det_conf, vs.id))
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
+
+    return schemas.VideoUploadResponse(
+        session_id=vs.id,
+        status="processing",
+        message=f"Video '{fname}' is being processed. Check /api/video/sessions/{vs.id} for status.",
+    )
+
+
+@app.get("/api/video/sessions", response_model=schemas.VideoSessionsPage,
+         summary="List video sessions")
+async def list_video_sessions(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    session: AsyncSession = Depends(db.get_db),
+):
+    items, total = await db.get_video_sessions_paginated(session, skip, limit)
+    return schemas.VideoSessionsPage(total=total, skip=skip, limit=limit, items=items)
+
+
+@app.get("/api/video/sessions/{session_id}", response_model=schemas.VideoSessionOut,
+         summary="Get video session details")
+async def get_video_session(
+    session_id: int,
+    session: AsyncSession = Depends(db.get_db),
+):
+    vs = await db.get_video_session_by_id(session, session_id)
+    if vs is None:
+        raise HTTPException(status_code=404, detail="Video session not found.")
+    return vs
+
+
+@app.delete("/api/video/sessions/{session_id}", summary="Delete a video session and files")
+async def delete_video_session(
+    session_id: int,
+    session: AsyncSession = Depends(db.get_db),
+):
+    vs = await db.get_video_session_by_id(session, session_id)
+    if vs is None:
+        raise HTTPException(status_code=404, detail="Video session not found.")
+
+    for path_str in (vs.video_path, vs.annotated_video_path):
+        if path_str:
+            p = Path(path_str)
+            if p.exists():
+                p.unlink()
+
+    await session.delete(vs)
+    await session.commit()
+    return {"detail": f"Video session {session_id} deleted."}
+
+
+@app.get("/api/video/sessions/{session_id}/download",
+         summary="Download the annotated video file")
+async def download_annotated_video(
+    session_id: int,
+    session: AsyncSession = Depends(db.get_db),
+):
+    vs = await db.get_video_session_by_id(session, session_id)
+    if vs is None:
+        raise HTTPException(status_code=404, detail="Video session not found.")
+    if not vs.annotated_video_path:
+        raise HTTPException(status_code=404, detail="Annotated video not yet available.")
+
+    p = Path(vs.annotated_video_path)
+    if not p.exists():
+        raise HTTPException(status_code=410, detail="Annotated video file was deleted.")
+
+    return FileResponse(p, media_type="video/mp4", filename=p.name)

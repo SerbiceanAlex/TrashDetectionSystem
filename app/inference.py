@@ -4,6 +4,7 @@ Uses src.detect_two_stage for the actual detection + classification logic.
 """
 
 import time
+import threading
 from pathlib import Path
 
 import cv2
@@ -19,6 +20,9 @@ CLASSIFIER_PT = REPO_ROOT / "runs/classify/parks-cls-B2/weights/best.pt"
 _detector = None
 _classifier = None
 _cls_names: dict[int, str] = {}
+
+# Serialise model calls — YOLO/PyTorch is not thread-safe when sharing weights
+_inference_lock = threading.Lock()
 
 # Max image dimension before resize (prevents OOM on huge images)
 MAX_DIM = 1920
@@ -73,9 +77,10 @@ def run_pipeline(
     frame = _resize_if_needed(frame)
 
     t0 = time.perf_counter()
-    detections = detect_and_classify(
-        frame, _detector, _classifier, det_conf, det_imgsz, cls_imgsz, _cls_names
-    )
+    with _inference_lock:
+        detections = detect_and_classify(
+            frame, _detector, _classifier, det_conf, det_imgsz, cls_imgsz, _cls_names
+        )
     elapsed_ms = (time.perf_counter() - t0) * 1000.0
 
     fps = 1000.0 / max(elapsed_ms, 1e-3)
@@ -85,3 +90,37 @@ def run_pipeline(
     annotated_bytes = buf.tobytes()
 
     return detections, annotated_bytes, elapsed_ms
+
+
+def run_pipeline_frame(
+    frame: np.ndarray,
+    det_conf: float = 0.25,
+    det_imgsz: int = 640,
+    cls_imgsz: int = 224,
+) -> tuple[list[dict], np.ndarray, float]:
+    """
+    Run the two-stage pipeline on a numpy BGR frame (optimised for video —
+    skips the JPEG encode/decode round-trip used by run_pipeline()).
+
+    Returns:
+        detections  — list of dicts from detect_and_classify()
+        annotated   — numpy BGR annotated frame
+        elapsed_ms  — inference time in milliseconds
+    """
+    import sys
+    sys.path.insert(0, str(REPO_ROOT))
+    from src.detect_two_stage import detect_and_classify, draw_detections
+
+    frame = _resize_if_needed(frame)
+
+    t0 = time.perf_counter()
+    with _inference_lock:
+        detections = detect_and_classify(
+            frame, _detector, _classifier, det_conf, det_imgsz, cls_imgsz, _cls_names
+        )
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+
+    fps = 1000.0 / max(elapsed_ms, 1e-3)
+    annotated = draw_detections(frame, detections, fps=fps, max_labels=5, line_width=2)
+
+    return detections, annotated, elapsed_ms

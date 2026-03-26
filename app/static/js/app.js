@@ -4,6 +4,7 @@ function app() {
   return {
     tabs: [
       { id: 'detect',  label: '🔍 Detectare',  icon: '🔍', shortLabel: 'Detectare'  },
+      { id: 'video',   label: '🎥 Video',      icon: '🎥', shortLabel: 'Video'      },
       { id: 'history', label: '📋 Istoric',    icon: '📋', shortLabel: 'Istoric'    },
       { id: 'stats',   label: '📊 Statistici', icon: '📊', shortLabel: 'Statistici' },
       { id: 'export',  label: '📥 Export',     icon: '📥', shortLabel: 'Export'     },

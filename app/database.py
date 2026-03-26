@@ -67,6 +67,29 @@ class DetectionRecord(Base):
     session = relationship("DetectionSession", back_populates="records")
 
 
+class VideoSession(Base):
+    """One row per video stream / upload."""
+
+    __tablename__ = "video_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    source_type = Column(String(16), nullable=False)       # "webcam" or "upload"
+    filename = Column(String(255), nullable=True)
+    start_time = Column(DateTime, default=datetime.utcnow, nullable=False)
+    end_time = Column(DateTime, nullable=True)
+    duration_sec = Column(Float, default=0.0)
+    total_frames = Column(Integer, default=0)
+    total_objects = Column(Integer, default=0)
+    avg_fps = Column(Float, default=0.0)
+    avg_inference_ms = Column(Float, default=0.0)
+    materials_summary = Column(Text, nullable=True)         # JSON string
+    video_path = Column(Text, nullable=True)                # original upload
+    annotated_video_path = Column(Text, nullable=True)      # annotated output
+    status = Column(String(16), default="running")          # running / completed / failed
+    frames_processed = Column(Integer, default=0)           # progress tracking
+    total_frames_expected = Column(Integer, default=0)      # total frames in source video
+
+
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -182,4 +205,71 @@ async def search_sessions(
     total = (await db.execute(count_stmt)).scalar_one()
 
     items = (await db.execute(stmt.offset(skip).limit(limit))).scalars().all()
+    return items, total
+
+
+# ── Video session helpers ──────────────────────────────────────────────────
+
+async def create_video_session(db: AsyncSession, source_type: str, filename: str | None = None) -> VideoSession:
+    vs = VideoSession(source_type=source_type, filename=filename)
+    db.add(vs)
+    await db.flush()
+    await db.refresh(vs)
+    return vs
+
+
+async def finish_video_session(
+    db: AsyncSession,
+    session_id: int,
+    *,
+    total_frames: int,
+    total_objects: int,
+    avg_fps: float,
+    avg_inference_ms: float,
+    duration_sec: float,
+    materials_summary: str,
+    annotated_video_path: str | None = None,
+    status: str = "completed",
+):
+    vs = (await db.execute(select(VideoSession).where(VideoSession.id == session_id))).scalar_one_or_none()
+    if vs is None:
+        return
+    vs.end_time = datetime.utcnow()
+    vs.total_frames = total_frames
+    vs.total_objects = total_objects
+    vs.avg_fps = round(avg_fps, 1)
+    vs.avg_inference_ms = round(avg_inference_ms, 1)
+    vs.duration_sec = round(duration_sec, 1)
+    vs.materials_summary = materials_summary
+    vs.status = status
+    vs.frames_processed = total_frames  # mark as 100% done
+    if annotated_video_path:
+        vs.annotated_video_path = annotated_video_path
+    await db.commit()
+
+
+async def update_video_progress(db: AsyncSession, session_id: int, frames_processed: int, total_frames_expected: int = 0):
+    vs = (await db.execute(select(VideoSession).where(VideoSession.id == session_id))).scalar_one_or_none()
+    if vs is None:
+        return
+    vs.frames_processed = frames_processed
+    if total_frames_expected:
+        vs.total_frames_expected = total_frames_expected
+    await db.commit()
+
+
+async def get_video_session_by_id(db: AsyncSession, session_id: int):
+    result = await db.execute(select(VideoSession).where(VideoSession.id == session_id))
+    return result.scalar_one_or_none()
+
+
+async def get_video_sessions_paginated(db: AsyncSession, skip: int, limit: int):
+    result = await db.execute(
+        select(VideoSession)
+        .order_by(VideoSession.start_time.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    items = result.scalars().all()
+    total = (await db.execute(select(func.count()).select_from(VideoSession))).scalar_one()
     return items, total
