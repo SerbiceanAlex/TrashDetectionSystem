@@ -17,6 +17,25 @@ class DetectionRecordOut(BaseModel):
     cls_score: float
     box_x1: int
     box_y1: int
+"""Pydantic v2 schemas for request/response validation."""
+
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict
+
+
+# ── Detection record (single bounding box) ──────────────────────────────────
+
+class DetectionRecordOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    material: str
+    det_score: float
+    cls_score: float
+    box_x1: int
+    box_y1: int
     box_x2: int
     box_y2: int
 
@@ -32,6 +51,10 @@ class DetectionSessionOut(BaseModel):
     total_objects: int
     inference_ms: float
     annotated_path: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address: Optional[str] = None
+    gps_source: Optional[str] = None
 
 
 class DetectionSessionDetail(DetectionSessionOut):
@@ -47,6 +70,10 @@ class DetectResponse(BaseModel):
     inference_ms: float
     annotated_url: str
     detections: list[DetectionRecordOut]
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address: Optional[str] = None
+    gps_source: Optional[str] = None
 
 
 # ── Stats ────────────────────────────────────────────────────────────────────
@@ -121,3 +148,49 @@ class VideoUploadResponse(BaseModel):
     session_id: int
     status: str
     message: str
+
+
+# ── Map schemas ──────────────────────────────────────────────────────────
+
+class MapReport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    filename: str
+    upload_time: datetime
+    total_objects: int
+    inference_ms: float
+    latitude: float
+    longitude: float
+    annotated_path: Optional[str] = None
+    address: Optional[str] = None
+    gps_source: Optional[str] = None
+
+
+# ── Zone / community schemas ───────────────────────────────────────
+
+class ZoneStats(BaseModel):
+    """Aggregated grid cell for the community map."""
+    lat: float
+    lng: float
+    total_reports: int
+    total_objects: int
+    severity: int             # 0=clean, 1=low, 2=medium, 3=high
+    dominant_material: Optional[str] = None
+    materials: dict = {}
+    last_scan: Optional[str] = None
+
+
+class NearbyReport(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    filename: str
+    upload_time: datetime
+    total_objects: int
+    inference_ms: float
+    latitude: float
+    longitude: float
+    annotated_path: Optional[str] = None
+    address: Optional[str] = None
+    gps_source: Optional[str] = None

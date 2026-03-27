@@ -1,675 +1,430 @@
 <!DOCTYPE html>
-<html lang="ro" x-data="{...app(), ...videoApp()}" x-init="init(); initVideo()" :class="darkMode ? 'dark' : ''">
+<html lang="ro" x-data="ecoApp()" x-init="init()" :class="darkMode ? 'dark' : ''">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trash Detection System</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: { DEFAULT: '#16a34a', light: '#4ade80', dark: '#15803d' }
-          }
-        }
-      }
-    }
-  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#16a34a" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="description" content="EcoAlert — Detectare și raportare deșeuri în timp real. Ajut\u0103 la menținerea curate a spațiilor verzi urbane." />
+  <title>EcoAlert — Hartă curățenie urbană</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/static/manifest.json" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- App CSS -->
   <link rel="stylesheet" href="/static/css/style.css" />
+
+  <!-- Alpine.js (defer so x-data is ready) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Leaflet + heat plugin -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+  <!-- App JS (load order matters: utils first) -->
+  <script src="/static/js/utils.js"></script>
+  <script src="/static/js/detect.js"></script>
+  <script src="/static/js/map.js"></script>
+  <script src="/static/js/history.js"></script>
+  <script src="/static/js/stats.js"></script>
+  <script src="/static/js/app.js"></script>
 </head>
 
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 min-h-screen transition-colors duration-200">
+<body>
 
-<!-- ── Toast container ──────────────────────────────────────────────────── -->
-<div class="fixed top-4 right-4 z-[100] flex flex-col gap-2" style="pointer-events:none">
+<!-- ══ Toast container ══════════════════════════════════════════════════════ -->
+<div class="toast-container">
   <template x-for="toast in toasts" :key="toast.id">
     <div x-show="toast.visible"
       x-transition:enter="transition ease-out duration-300"
-      x-transition:enter-start="opacity-0 translate-x-10"
+      x-transition:enter-start="opacity-0 translate-x-8"
       x-transition:enter-end="opacity-100 translate-x-0"
       x-transition:leave="transition ease-in duration-200"
-      x-transition:leave-start="opacity-100 translate-x-0"
-      x-transition:leave-end="opacity-0 translate-x-10"
-      :class="toast.type === 'error' ? 'bg-red-600' : 'bg-green-600'"
-      class="text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium max-w-xs flex items-center gap-2"
-      style="pointer-events:auto">
-      <span x-text="toast.type === 'error' ? '✕' : '✓'" class="font-bold text-base w-5 shrink-0 text-center"></span>
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      :class="toast.type === 'error' ? 'toast--error' : 'toast--success'"
+      class="toast">
+      <span x-text="toast.type === 'error' ? '✕' : '✓'" style="font-weight:800;font-size:14px;flex-shrink:0"></span>
       <span x-text="toast.message"></span>
     </div>
   </template>
 </div>
 
-<!-- ── Lightbox ──────────────────────────────────────────────────────────── -->
+<!-- ══ Lightbox ═════════════════════════════════════════════════════════════ -->
 <div x-show="lightboxSrc" x-cloak
-  x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-  x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-  @click="lightboxSrc=null" @keydown.escape.window="lightboxSrc=null"
-  class="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4" style="cursor:zoom-out">
-  <img :src="lightboxSrc" class="max-w-full max-h-full object-contain rounded-lg shadow-2xl" @click.stop />
-  <button @click="lightboxSrc=null" class="absolute top-4 right-4 bg-black/40 hover:bg-black/70 text-white rounded-full p-2 transition-colors">
-    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-  </button>
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0"
+  x-transition:enter-end="opacity-100"
+  x-transition:leave="transition ease-in duration-150"
+  x-transition:leave-start="opacity-100"
+  x-transition:leave-end="opacity-0"
+  @click="closeLightbox()"
+  @keydown.escape.window="closeLightbox()"
+  class="lightbox">
+  <img :src="lightboxSrc" @click.stop />
+  <button @click="closeLightbox()" class="lightbox__close" aria-label="Închide">✕</button>
 </div>
 
-<!-- ── Navbar ────────────────────────────────────────────────────────────── -->
-<nav class="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-40 transition-colors">
-  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-    <span class="text-2xl">🗑️</span>
-    <span class="font-bold text-lg text-brand">Trash Detection System</span>
-    <span class="ml-auto text-xs text-gray-400 dark:text-gray-500 hidden sm:block">YOLOv8 · FastAPI · SQLite</span>
-    <!-- Dark mode toggle -->
-    <button @click="toggleDark()" class="ml-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Dark mode">
-      <svg x-show="!darkMode" class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-      </svg>
-      <svg x-show="darkMode" x-cloak class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-      </svg>
-    </button>
-  </div>
+<!-- ══ Navbar ═══════════════════════════════════════════════════════════════ -->
+<nav class="eco-nav">
+  <span class="eco-nav__logo">🌿</span>
+  <span class="eco-nav__title">EcoAlert</span>
+  <span class="eco-nav__spacer"></span>
+  <span style="font-size:11px;color:var(--tx-muted);display:none" class="sm-show">YOLOv8 · FastAPI</span>
+  <!-- Dark mode -->
+  <button @click="toggleDark()" class="btn btn--icon" :title="darkMode ? 'Mod luminos' : 'Mod întunecat'">
+    <span x-show="!darkMode">🌙</span>
+    <span x-show="darkMode" x-cloak>☀️</span>
+  </button>
 </nav>
 
-<!-- ── Desktop tab bar ───────────────────────────────────────────────────── -->
-<div class="hidden sm:block bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-sm transition-colors">
-  <div class="max-w-7xl mx-auto px-4 flex gap-6">
+<!-- ══ Desktop tab bar ══════════════════════════════════════════════════════ -->
+<div class="eco-tabs-desktop">
+  <div style="max-width:1100px;margin:0 auto;padding:0 16px;display:flex">
     <template x-for="tab in tabs" :key="tab.id">
-      <button @click="activeTab = tab.id"
-        :class="activeTab === tab.id ? 'tab-active' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'"
-        class="py-3 text-sm transition-colors duration-150" x-text="tab.label"></button>
+      <button @click="goTo(tab.id)"
+        :class="activeTab === tab.id ? 'eco-tab-btn eco-tab-btn--active' : 'eco-tab-btn'"
+        x-text="tab.icon + ' ' + tab.label">
+      </button>
     </template>
+    <div style="flex:1"></div>
+    <a href="/docs" target="_blank" class="eco-tab-btn" style="opacity:.5;font-size:12px">API docs ↗</a>
   </div>
 </div>
 
-<!-- ── Main content ──────────────────────────────────────────────────────── -->
-<main class="max-w-7xl mx-auto px-4 py-6 pb-24 sm:pb-8">
+<!-- ══ Main content ══════════════════════════════════════════════════════════ -->
+<main class="eco-main">
 
-  <!-- ═══ TAB 1: DETECTARE ═══ -->
-  <div x-show="activeTab === 'detect'" x-cloak
+  <!-- ╔═══════════════════════════════╗
+       ║  TAB: SCANARE                ║
+       ╚═══════════════════════════════╝ -->
+  <div x-show="activeTab === 'scan'" x-cloak
     x-transition:enter="transition ease-out duration-200"
-    x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+    x-transition:enter-start="opacity-0 translate-y-2"
+    x-transition:enter-end="opacity-100 translate-y-0">
 
-    <!-- Mode toggle: single / batch -->
-    <div class="flex items-center gap-2 mb-4">
-      <button @click="batchMode = false" :class="!batchMode ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'"
-        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px]">O imagine</button>
-      <button @click="batchMode = true" :class="batchMode ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'"
-        class="px-4 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px]">Batch (mai multe)</button>
-    </div>
+    <h1 class="section-title">📷 Scanează zona</h1>
 
-    <!-- ── SINGLE MODE ── -->
-    <div x-show="!batchMode" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div style="display:grid;grid-template-columns:1fr;gap:16px" class="detect-grid">
 
-      <!-- Upload panel -->
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 sm:p-6 flex flex-col gap-4 transition-colors">
-        <h2 class="font-semibold text-lg">Încarcă o imagine</h2>
+      <!-- Upload / Camera panel -->
+      <div class="card card--elevated">
 
-        <!-- Desktop: drag zone -->
-        <div class="hidden sm:block"
-          @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false"
-          @drop.prevent="handleDrop($event)" @click="$refs.fileInput.click()"
-          :class="isDragging ? 'border-brand bg-green-50 dark:bg-green-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-brand hover:bg-gray-50 dark:hover:bg-gray-700/50'"
-          class="border-2 border-dashed rounded-xl h-44 transition-all duration-150 cursor-pointer overflow-hidden">
-          <template x-if="!previewSrc">
-            <div class="h-full flex flex-col items-center justify-center gap-2">
-              <svg class="w-10 h-10 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
-              </svg>
-              <p class="text-sm text-gray-500 dark:text-gray-400">Trage o imagine sau <span class="text-brand font-medium">click upload</span></p>
-              <p class="text-xs text-gray-400">JPEG · PNG · WEBP · BMP</p>
-            </div>
-          </template>
-          <template x-if="previewSrc">
-            <img :src="previewSrc" class="h-full w-full object-contain p-2" />
-          </template>
-        </div>
-
-        <!-- Mobile: simple button -->
-        <div class="sm:hidden flex flex-col gap-3">
-          <template x-if="previewSrc">
-            <img :src="previewSrc" class="w-full h-40 object-contain rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900" />
-          </template>
-          <button @click="$refs.fileInput.click()"
-            class="w-full py-3 min-h-[48px] bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm active:bg-gray-200 dark:active:bg-gray-600">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
-            </svg>
-            <span x-text="selectedFile ? 'Schimbă imaginea' : 'Alege imagine'"></span>
+        <!-- GPS status chip -->
+        <div style="margin-bottom:16px">
+          <button @click="requestGeo()"
+            :class="geoStatus === 'ok' ? 'gps-chip gps-chip--ok' : 'gps-chip'"
+            :disabled="geoStatus === 'loading'">
+            <span x-text="geoLabel"></span>
+            <span x-show="geoStatus === 'ok'" style="font-family:monospace;font-size:10px;opacity:.7"
+              x-text="`${geoLat?.toFixed(4)}, ${geoLng?.toFixed(4)}`"></span>
           </button>
         </div>
 
-        <input x-ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleFileSelect($event)" />
+        <!-- Mobile camera (direct camera access) -->
+        <label for="fileInput" style="display:block;cursor:pointer">
+          <div class="drop-zone"
+            :class="isDragging ? 'drop-zone--active' : ''"
+            @dragover.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="handleDrop($event)"
+            @click.prevent="document.getElementById('fileInput').click()">
 
-        <!-- File chip -->
-        <div x-show="selectedFile" x-cloak class="flex items-center gap-2 bg-gray-50 dark:bg-gray-700 rounded-lg px-3 py-2 text-xs">
-          <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-          </svg>
-          <span class="text-gray-600 dark:text-gray-300 truncate" x-text="selectedFile && selectedFile.name"></span>
-          <button @click.stop="clearFile()" class="ml-auto text-gray-300 hover:text-red-400 transition-colors shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <template x-if="!previewSrc">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+                <div class="drop-zone__icon">📷</div>
+                <div class="drop-zone__text">
+                  <strong>Fă o poză</strong> sau alege din galerie
+                </div>
+                <div class="drop-zone__sub">JPEG · PNG · WEBP</div>
+              </div>
+            </template>
+
+            <template x-if="previewSrc">
+              <div style="width:100%">
+                <img :src="previewSrc" style="max-height:220px;max-width:100%;object-fit:contain;border-radius:10px" />
+              </div>
+            </template>
+          </div>
+        </label>
+
+        <!-- Mobile-friendly file input with camera capture -->
+        <input id="fileInput" type="file" accept="image/*" capture="environment"
+          style="display:none" @change="handleFileSelect($event)" />
+
+        <!-- Clear button -->
+        <div x-show="selectedFile" x-cloak
+          style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--tx-secondary)">
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+            x-text="selectedFile?.name"></span>
+          <button @click.stop="clearFile()" class="btn btn--danger btn--icon" style="padding:4px 8px;font-size:11px">
+            ✕ Șterge
           </button>
         </div>
 
         <!-- Confidence slider -->
-        <div>
-          <label class="text-sm font-medium text-gray-600 dark:text-gray-400">
-            Prag detecție (conf): <span class="text-brand font-bold" x-text="detConf.toFixed(2)"></span>
-          </label>
+        <div style="margin-top:16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <label style="font-size:13px;font-weight:600;color:var(--tx-secondary)">Prag detecție</label>
+            <span style="font-size:13px;font-weight:700;color:var(--eco-green-dark)" x-text="detConf.toFixed(2)"></span>
+          </div>
           <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="detConf"
-            class="w-full accent-brand mt-1" :disabled="loading" />
-          <div class="flex justify-between text-[10px] text-gray-400 mt-0.5">
-            <span>Sensibil (0.05)</span><span>Strict (0.95)</span>
+            class="slider" :disabled="loading" />
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
+            <span>Mai sensibil (0.05)</span>
+            <span>Mai strict (0.95)</span>
           </div>
         </div>
 
         <!-- Progress bar -->
-        <div x-show="loading" x-cloak class="space-y-1.5">
-          <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span x-text="uploadProgress < 88 ? 'Se trimite și procesează…' : 'AI analizează…'"></span>
-            <span class="font-medium text-brand" x-text="uploadProgress + '%'"></span>
+        <div x-show="loading" x-cloak style="margin-top:12px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
+            <span x-text="uploadProgress < 88 ? '🔍 Se analizează…' : '🤖 AI procesează…'"></span>
+            <span style="font-weight:700;color:var(--eco-green-dark)" x-text="uploadProgress + '%'"></span>
           </div>
-          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-            <div class="bg-brand h-2 rounded-full transition-all duration-300" :style="`width: ${uploadProgress}%`"></div>
-          </div>
+          <div class="progress"><div class="progress__bar" :style="`width:${uploadProgress}%`"></div></div>
         </div>
 
-        <!-- Run button -->
+        <!-- Scan button -->
         <button @click="runDetection()" :disabled="!selectedFile || loading"
-          class="w-full py-3 min-h-[48px] bg-brand text-white rounded-xl font-medium hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 text-sm shadow-sm active:scale-[0.98]">
+          class="btn btn--scan" style="margin-top:16px">
           <template x-if="loading">
-            <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-            </svg>
+            <div class="spinner"></div>
           </template>
-          <template x-if="!loading">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-          </template>
-          <span x-text="loading ? 'Se procesează…' : 'Rulează detectarea'"></span>
+          <span x-text="loading ? 'Se procesează…' : '🔍 Analizează zona'"></span>
         </button>
       </div>
 
       <!-- Result panel -->
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 sm:p-6 flex flex-col gap-4 transition-colors">
-        <h2 class="font-semibold text-lg">Rezultat</h2>
-
-        <!-- Empty state -->
-        <template x-if="!result && !loading">
-          <div class="flex flex-col items-center justify-center gap-3 py-16 text-gray-300 dark:text-gray-600">
-            <svg class="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z"/>
-            </svg>
-            <p class="text-sm text-center">Încarcă o imagine pentru<br>a vedea rezultatul</p>
-          </div>
-        </template>
+      <div class="card" x-show="result || loading" x-cloak
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-4"
+        x-transition:enter-end="opacity-100 translate-y-0">
 
         <!-- Skeleton -->
         <template x-if="loading && !result">
-          <div class="flex flex-col gap-3">
-            <div class="skeleton rounded-xl h-52 w-full"></div>
-            <div class="flex gap-2"><div class="skeleton h-7 w-32 rounded-full"></div><div class="skeleton h-7 w-20 rounded-full"></div></div>
-            <div class="skeleton h-4 w-full rounded"></div>
-            <div class="skeleton h-4 w-4/5 rounded"></div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="skeleton" style="height:180px;border-radius:10px"></div>
+            <div style="display:flex;gap:8px">
+              <div class="skeleton" style="height:28px;width:80px;border-radius:99px"></div>
+              <div class="skeleton" style="height:28px;width:60px;border-radius:99px"></div>
+            </div>
+            <div class="skeleton" style="height:14px;border-radius:4px"></div>
+            <div class="skeleton" style="height:14px;width:75%;border-radius:4px"></div>
           </div>
         </template>
 
-        <!-- Result content -->
+        <!-- Result -->
         <template x-if="result">
-          <div x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-            class="flex flex-col gap-4">
-
-            <!-- BBox overlay toggle -->
-            <div class="flex items-center gap-3">
-              <span class="text-xs text-gray-500 dark:text-gray-400 font-medium">Vizualizare:</span>
-              <button @click="showAnnotated = true" :class="showAnnotated ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'"
-                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors min-h-[36px]">Cu detecții</button>
-              <button @click="showAnnotated = false" :class="!showAnnotated ? 'bg-brand text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'"
-                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors min-h-[36px]">Original</button>
+          <div class="fade-up">
+            <!-- Severity banner -->
+            <div x-show="resultSeverity" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;border-radius:10px;background:var(--bg-raised)">
+              <span style="font-size:26px" x-text="resultSeverity?.icon"></span>
+              <div>
+                <div style="font-weight:700;font-size:15px" x-text="resultSeverity?.label"></div>
+                <div style="font-size:12px;color:var(--tx-muted)"
+                  x-text="`${result.total_objects} obiecte detectate · ${result.inference_ms.toFixed(0)} ms`"></div>
+              </div>
+              <span class="badge" :class="`sev-${severityFromCount(result.total_objects)}`"
+                style="margin-left:auto" x-text="'#' + result.session_id"></span>
             </div>
 
-            <!-- Image with lightbox -->
-            <div class="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900">
-              <img :src="showAnnotated ? result.annotated_url : originalImageUrl"
-                @click="lightboxSrc = showAnnotated ? result.annotated_url : originalImageUrl"
-                class="w-full max-h-64 object-contain" style="cursor:zoom-in" />
-              <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors pointer-events-none">
-                <span class="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">Click pentru mărire</span>
+            <!-- Location banner -->
+            <template x-if="result.address">
+              <div style="margin-bottom:14px;padding:8px 12px;border-radius:8px;background:var(--bg-surface);font-size:12px;color:var(--tx-secondary);display:flex;align-items:center;gap:6px;border:1px solid var(--bg-border)">
+                <span>📍</span>
+                <span x-text="result.address" style="line-height:1.3"></span>
+              </div>
+            </template>
+
+            <!-- Toggle original/annotated -->
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <button @click="showAnnotated = true"
+                :class="showAnnotated ? 'btn btn--primary' : 'btn btn--ghost'"
+                style="flex:1;font-size:12px;min-height:36px;padding:6px 12px">Cu detecții</button>
+              <button @click="showAnnotated = false"
+                :class="!showAnnotated ? 'btn btn--primary' : 'btn btn--ghost'"
+                style="flex:1;font-size:12px;min-height:36px;padding:6px 12px">Originală</button>
+            </div>
+
+            <!-- Annotated image -->
+            <div class="result-img-wrap" @click="openLightbox(showAnnotated ? result.annotated_url : originalImageUrl)">
+              <img :src="showAnnotated ? result.annotated_url : originalImageUrl" alt="Rezultat detecție" />
+              <div class="result-img-wrap__overlay">
+                <span class="result-img-wrap__hint">🔍 Click pentru mărire</span>
               </div>
             </div>
 
-            <!-- Conf rerun slider -->
-            <div class="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-3 space-y-2">
-              <div class="flex items-center justify-between">
-                <label class="text-xs font-medium text-gray-500 dark:text-gray-400">Ajustează conf:</label>
-                <span class="text-xs font-bold text-brand" x-text="rerunConf.toFixed(2)"></span>
+            <!-- Material badges -->
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">
+              <template x-for="d in result.detections" :key="d.id">
+                <span class="badge" :style="materialBadgeStyle(d.material)"
+                  x-text="d.material + ' ' + (d.cls_score * 100).toFixed(0) + '%'"></span>
+              </template>
+              <span x-show="result.detections.length === 0"
+                style="font-size:13px;color:var(--tx-muted);font-style:italic;padding:4px 0">
+                Niciun obiect detectat. Încearcă un prag mai mic.
+              </span>
+            </div>
+
+            <!-- Re-run slider -->
+            <div style="margin-top:14px;padding:12px;background:var(--bg-raised);border-radius:10px">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
+                <span>Ajustează pragul</span>
+                <span style="font-weight:700;color:var(--eco-green-dark)" x-text="rerunConf.toFixed(2)"></span>
               </div>
               <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="rerunConf"
-                class="w-full accent-brand" :disabled="isRerunning" />
+                class="slider" :disabled="isRerunning" style="margin-bottom:8px" />
               <button @click="rerunDetection()" :disabled="isRerunning"
-                class="w-full py-2 min-h-[44px] bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 active:scale-[0.98]">
-                <template x-if="isRerunning">
-                  <svg class="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                  </svg>
-                </template>
-                <span x-text="isRerunning ? 'Re-analizare…' : 'Re-rulează cu conf ' + rerunConf.toFixed(2)"></span>
+                class="btn btn--ghost" style="width:100%;font-size:12px;min-height:36px">
+                <template x-if="isRerunning"><div class="spinner spinner--dark"></div></template>
+                <span x-text="isRerunning ? 'Se re-analizează…' : '↩ Re-detectează cu conf ' + rerunConf.toFixed(2)"></span>
               </button>
             </div>
-
-            <!-- Badges -->
-            <div class="flex gap-2 flex-wrap">
-              <span class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-sm font-semibold px-3 py-1 rounded-full"
-                x-text="result.total_objects + ' obiecte'"></span>
-              <span class="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 text-sm font-semibold px-3 py-1 rounded-full"
-                x-text="result.inference_ms.toFixed(1) + ' ms'"></span>
-              <span class="bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs font-medium px-3 py-1 rounded-full"
-                x-text="'Sesiune #' + result.session_id"></span>
-            </div>
-
-            <!-- Detections table -->
-            <template x-if="result.detections.length > 0">
-              <div class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700">
-                <table class="w-full text-xs">
-                  <thead>
-                    <tr class="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase text-left">
-                      <th class="px-3 py-2.5">Material</th>
-                      <th class="px-3 py-2.5">Det.</th>
-                      <th class="px-3 py-2.5">Cls.</th>
-                      <th class="px-3 py-2.5 hidden sm:table-cell">Box</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <template x-for="d in result.detections" :key="d.id">
-                      <tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                        <td class="px-3 py-2"><span :class="materialColor(d.material)" class="px-2 py-0.5 rounded-full text-xs font-medium" x-text="d.material"></span></td>
-                        <td class="px-3 py-2 font-medium" x-text="(d.det_score * 100).toFixed(1) + '%'"></td>
-                        <td class="px-3 py-2" x-text="(d.cls_score * 100).toFixed(1) + '%'"></td>
-                        <td class="px-3 py-2 text-gray-400 font-mono hidden sm:table-cell" x-text="`(${d.box_x1},${d.box_y1})→(${d.box_x2},${d.box_y2})`"></td>
-                      </tr>
-                    </template>
-                  </tbody>
-                </table>
-              </div>
-            </template>
-            <template x-if="result.detections.length === 0">
-              <p class="text-sm text-gray-400 italic text-center py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">Nu au fost detectate obiecte. Încearcă un prag mai mic.</p>
-            </template>
           </div>
         </template>
+      </div>
+
+    </div><!-- /detect-grid -->
+  </div><!-- /scan tab -->
+
+
+  <!-- ╔═══════════════════════════════╗
+       ║  TAB: HARTĂ                  ║
+       ╚═══════════════════════════════╝ -->
+  <div x-show="activeTab === 'map'" x-cloak
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0 translate-y-2"
+    x-transition:enter-end="opacity-100 translate-y-0">
+
+    <h1 class="section-title">🗺️ Hartă poluare</h1>
+
+    <!-- Toolbar -->
+    <div class="map-toolbar">
+      <button @click="setViewMode('zones')" :class="mapViewMode === 'zones' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">🟠 Zone</button>
+      <button @click="setViewMode('heat')"  :class="mapViewMode === 'heat'  ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">🌡️ Heatmap</button>
+      <button @click="setViewMode('markers')" :class="mapViewMode === 'markers' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">📍 Markeri</button>
+      <button @click="centerOnUser()" class="map-view-btn" style="margin-left:auto">
+        <template x-if="geoLoading"><div class="spinner spinner--dark" style="width:14px;height:14px"></div></template>
+        <span x-show="!geoLoading">📍 Locație</span>
+      </button>
+      <button @click="loadMapData()" class="map-view-btn" :disabled="mapLoading">
+        <template x-if="mapLoading"><div class="spinner spinner--dark" style="width:14px;height:14px"></div></template>
+        <span x-show="!mapLoading">🔄</span>
+      </button>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="card" style="margin-bottom:12px;padding:12px 16px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
+        <div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px;color:var(--eco-green-dark)" x-text="mapStats.total"></div>
+          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Rapoarte</div>
+        </div>
+        <div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px" x-text="mapStats.objects"></div>
+          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Obiecte</div>
+        </div>
+        <div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px;color:#ef4444" x-text="mapStats.highZones"></div>
+          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Zone critice</div>
+        </div>
+        <div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px" x-text="mapStats.zones"></div>
+          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Zone totale</div>
+        </div>
       </div>
     </div>
 
-    <!-- ── BATCH MODE ── -->
-    <div x-show="batchMode" class="space-y-4">
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 sm:p-6 transition-colors">
-        <h2 class="font-semibold text-lg mb-4">Upload batch (max 20 imagini)</h2>
+    <!-- Map -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div id="ecoMap" style="height:460px;border-radius:14px"></div>
+    </div>
 
-        <div class="flex flex-col sm:flex-row gap-3 mb-4">
-          <button @click="$refs.batchInput.click()"
-            class="flex-1 py-3 min-h-[48px] bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm active:bg-gray-200 dark:active:bg-gray-600">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4" />
-            </svg>
-            <span x-text="batchFiles.length ? batchFiles.length + ' fișiere selectate' : 'Alege imagini'"></span>
+    <!-- Legend -->
+    <div class="legend" style="margin-top:12px">
+      <span class="legend__item"><span class="legend__dot" style="background:#22c55e"></span> Curat</span>
+      <span class="legend__item"><span class="legend__dot" style="background:#eab308"></span> Scăzut</span>
+      <span class="legend__item"><span class="legend__dot" style="background:#f97316"></span> Mediu</span>
+      <span class="legend__item"><span class="legend__dot" style="background:#ef4444"></span> Ridicat</span>
+    </div>
+
+    <!-- Nearby reports section -->
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h2 style="font-size:15px;font-weight:700">Rapoarte în apropiere</h2>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select x-model.number="nearbyRadius"
+            style="font-size:12px;padding:4px 8px;border-radius:8px;border:1.5px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);min-height:32px">
+            <option value="0.5">500m</option>
+            <option value="1">1 km</option>
+            <option value="2">2 km</option>
+            <option value="5">5 km</option>
+          </select>
+          <button @click="loadNearby()" :disabled="nearbyLoading" class="btn btn--ghost" style="font-size:12px;min-height:32px;padding:4px 12px">
+            <template x-if="nearbyLoading"><div class="spinner spinner--dark" style="width:12px;height:12px"></div></template>
+            <span x-show="!nearbyLoading">Caută</span>
           </button>
-          <button @click="runBatch()" :disabled="!batchFiles.length || batchLoading"
-            class="flex-1 py-3 min-h-[48px] bg-brand text-white rounded-xl font-medium hover:bg-brand-dark disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm active:scale-[0.98]">
-            <template x-if="batchLoading">
-              <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-              </svg>
-            </template>
-            <span x-text="batchLoading ? 'Se procesează batch…' : 'Detectare batch'"></span>
-          </button>
         </div>
-        <input x-ref="batchInput" type="file" accept="image/*" multiple class="hidden" @change="handleBatchSelect($event)" />
-
-        <!-- Conf slider -->
-        <div class="mb-4">
-          <label class="text-sm font-medium text-gray-600 dark:text-gray-400">
-            Conf: <span class="text-brand font-bold" x-text="detConf.toFixed(2)"></span>
-          </label>
-          <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="detConf" class="w-full accent-brand mt-1" />
-        </div>
-
-        <!-- Batch progress -->
-        <div x-show="batchLoading" x-cloak class="space-y-1.5 mb-4">
-          <div class="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span x-text="`Procesare: ${batchProgress} din ${batchFiles.length}`"></span>
-            <span class="font-medium text-brand" x-text="batchFiles.length ? Math.round(batchProgress/batchFiles.length*100) + '%' : '0%'"></span>
-          </div>
-          <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-            <div class="bg-brand h-2 rounded-full transition-all duration-300"
-              :style="`width: ${batchFiles.length ? (batchProgress/batchFiles.length*100) : 0}%`"></div>
-          </div>
-        </div>
-
-        <!-- File list -->
-        <template x-if="batchFiles.length > 0">
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-            <template x-for="(f, idx) in batchFiles" :key="idx">
-              <div class="text-xs bg-gray-50 dark:bg-gray-700 rounded-lg p-2 truncate text-gray-600 dark:text-gray-300" x-text="f.name"></div>
-            </template>
-          </div>
-        </template>
       </div>
-
-      <!-- Batch results -->
-      <template x-if="batchResults">
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 sm:p-6 transition-colors">
-          <h3 class="font-semibold text-lg mb-3">
-            Rezultate batch:
-            <span class="text-brand" x-text="batchResults.total_files + ' imagini'"></span> ·
-            <span class="text-green-600" x-text="batchResults.total_objects + ' obiecte'"></span> ·
-            <span class="text-blue-600" x-text="batchResults.total_ms.toFixed(0) + ' ms total'"></span>
-          </h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <template x-for="r in batchResults.results" :key="r.session_id">
-              <div class="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
-                <div class="relative group">
-                  <img :src="r.annotated_url" class="w-full h-40 object-contain bg-gray-100 dark:bg-gray-900" style="cursor:zoom-in"
-                    @click="lightboxSrc = r.annotated_url" />
-                  <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors pointer-events-none">
-                    <span class="opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">Click pentru mărire</span>
-                  </div>
+      <template x-if="nearbyReports.length > 0">
+        <div>
+          <template x-for="r in nearbyReports" :key="r.id">
+            <div class="report-card" style="padding:10px;border-radius:10px">
+              <img x-show="r.annotated_path" :src="getAnnotatedUrl(r.annotated_path)"
+                class="report-card__thumb" @error="$el.style.display='none'" />
+              <div class="report-card__body">
+                <div class="report-card__name" x-text="r.filename"></div>
+                <div class="report-card__meta">
+                  <span :class="`badge sev-${severityFromCount(r.total_objects)}`"
+                    x-text="r.total_objects + ' obiecte'"></span>
+                  · <span x-text="timeAgo(r.upload_time)"></span>
                 </div>
-                <div class="p-3 flex items-center justify-between">
-                  <span class="text-xs font-medium truncate max-w-[60%]" x-text="r.filename"></span>
-                  <span class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-xs font-semibold px-2 py-0.5 rounded-full" x-text="r.total_objects + ' obj'"></span>
-                </div>
+                <template x-if="r.address">
+                  <div style="font-size:11px;color:var(--tx-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="'📍 ' + r.address"></div>
+                </template>
               </div>
-            </template>
-          </div>
+            </div>
+          </template>
         </div>
       </template>
+      <div x-show="nearbyReports.length === 0 && !nearbyLoading" class="empty-state" style="padding:24px">
+        <div class="empty-state__icon">📍</div>
+        <div class="empty-state__text">Apasă "Caută" pentru rapoarte din apropiere</div>
+      </div>
     </div>
-  </div>
+  </div><!-- /map tab -->
 
-  <!-- ═══ TAB: VIDEO ═══ -->
-  <div x-show="activeTab === 'video'" x-cloak
+
+  <!-- ╔═══════════════════════════════╗
+       ║  TAB: RAPOARTE               ║
+       ╚═══════════════════════════════╝ -->
+  <div x-show="activeTab === 'reports'" x-cloak
     x-transition:enter="transition ease-out duration-200"
-    x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+    x-transition:enter-start="opacity-0 translate-y-2"
+    x-transition:enter-end="opacity-100 translate-y-0">
 
-    <!-- Mode toggle -->
-    <div class="flex gap-3 mb-6">
-      <button @click="videoMode = 'webcam'"
-        :class="videoMode === 'webcam' ? 'bg-brand text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700'"
-        class="px-5 py-2.5 rounded-xl font-semibold text-sm transition-all">
-        📷 Webcam Live
-      </button>
-      <button @click="videoMode = 'upload'"
-        :class="videoMode === 'upload' ? 'bg-brand text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700'"
-        class="px-5 py-2.5 rounded-xl font-semibold text-sm transition-all">
-        📁 Upload Video
-      </button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h1 class="section-title" style="margin-bottom:0">📋 Rapoarte</h1>
+      <span class="badge badge--gray" x-text="history.total + ' total'"></span>
     </div>
 
-    <!-- Confidence slider -->
-    <div class="mb-5 flex items-center gap-4">
-      <label class="text-sm font-medium text-gray-600 dark:text-gray-400">Confidence:</label>
-      <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="detConf"
-        class="w-48 accent-brand" />
-      <span class="text-sm font-mono font-bold text-brand" x-text="detConf.toFixed(2)"></span>
-    </div>
-
-    <!-- ── Webcam mode ─────────────────────────────────────────────────── -->
-    <div x-show="videoMode === 'webcam'">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Video display -->
-        <div class="lg:col-span-2">
-          <div class="bg-black rounded-2xl overflow-hidden relative" style="min-height: 400px;">
-            <!-- Hidden video for capture -->
-            <video x-ref="webcamVideo" class="hidden" playsinline muted></video>
-
-            <!-- Annotated canvas (shown when running with bboxes) -->
-            <canvas x-ref="displayCanvas" x-show="webcamActive && showBboxes"
-              class="w-full h-full object-contain"></canvas>
-
-            <!-- Raw webcam (shown when running without bboxes) -->
-            <video x-ref="webcamVideoDisplay" x-show="webcamActive && !showBboxes"
-              class="w-full h-full object-contain" playsinline muted></video>
-
-            <!-- Placeholder -->
-            <div x-show="!webcamActive" class="absolute inset-0 flex items-center justify-center text-gray-500">
-              <div class="text-center">
-                <div class="text-5xl mb-3">📷</div>
-                <p class="text-sm">Apasa "Start" pentru a porni camera</p>
-              </div>
-            </div>
-
-            <!-- FPS overlay -->
-            <div x-show="webcamActive"
-              class="absolute top-3 left-3 bg-black/70 text-white px-3 py-1.5 rounded-lg text-xs font-mono">
-              <span x-text="liveFps.toFixed(1)"></span> FPS ·
-              <span x-text="liveMs.toFixed(0)"></span> ms ·
-              <span x-text="liveObjects"></span> obiecte
-            </div>
-
-            <!-- Connection indicator -->
-            <div x-show="webcamActive" class="absolute top-3 right-3">
-              <div :class="wsConnected ? 'bg-green-500' : 'bg-red-500'"
-                class="w-3 h-3 rounded-full animate-pulse"></div>
-            </div>
-          </div>
-
-          <!-- Controls -->
-          <div class="mt-4 flex flex-wrap gap-3">
-            <button x-show="!webcamActive" @click="startWebcam()"
-              class="px-6 py-2.5 bg-brand text-white rounded-xl font-semibold text-sm hover:bg-brand-dark transition-colors">
-              ▶ Start Webcam
-            </button>
-            <button x-show="webcamActive" @click="stopWebcam()"
-              class="px-6 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-sm hover:bg-red-700 transition-colors">
-              ⏹ Stop
-            </button>
-            <label x-show="webcamActive" class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-              <input type="checkbox" x-model="showBboxes" class="accent-brand w-4 h-4" />
-              Bounding boxes
-            </label>
-          </div>
-        </div>
-
-        <!-- Live stats sidebar -->
-        <div class="space-y-4">
-          <div class="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
-            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Live Stats</h3>
-            <div class="space-y-3">
-              <div class="flex justify-between">
-                <span class="text-sm text-gray-500">FPS</span>
-                <span class="font-bold text-brand" x-text="liveFps.toFixed(1)"></span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-sm text-gray-500">Latenta</span>
-                <span class="font-bold" x-text="liveMs.toFixed(0) + ' ms'"></span>
-              </div>
-              <div class="flex justify-between">
-                <span class="text-sm text-gray-500">Obiecte / frame</span>
-                <span class="font-bold" x-text="liveObjects"></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
-            <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Materiale detectate</h3>
-            <div class="space-y-2">
-              <template x-for="[mat, cnt] in Object.entries(liveMaterials)" :key="mat">
-                <div class="flex justify-between items-center">
-                  <span class="text-sm capitalize" x-text="mat"></span>
-                  <span class="bg-brand/10 text-brand text-xs font-bold px-2 py-0.5 rounded-full" x-text="cnt"></span>
-                </div>
-              </template>
-              <p x-show="Object.keys(liveMaterials).length === 0" class="text-xs text-gray-400 italic">
-                Niciun obiect detectat
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── Upload mode ─────────────────────────────────────────────────── -->
-    <div x-show="videoMode === 'upload'">
-      <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-6">
-        <div class="flex flex-wrap items-center gap-4">
-          <label class="flex-1 min-w-[200px]">
-            <input type="file" accept="video/*" @change="handleVideoFileSelect($event)"
-              class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
-              file:rounded-xl file:border-0 file:text-sm file:font-semibold
-              file:bg-brand/10 file:text-brand hover:file:bg-brand/20 cursor-pointer" />
-          </label>
-          <button @click="uploadVideo()" :disabled="!uploadFile || uploadLoading"
-            class="px-6 py-2.5 bg-brand text-white rounded-xl font-semibold text-sm hover:bg-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            <span x-show="!uploadLoading">📤 Proceseaza Video</span>
-            <span x-show="uploadLoading" class="flex items-center gap-2">
-              <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-              Se proceseaza...
-            </span>
-          </button>
-        </div>
-        <p x-show="uploadStatus" class="mt-3 text-sm"
-          :class="uploadStatus.startsWith('Eroare') ? 'text-red-600' : 'text-brand'" x-text="uploadStatus"></p>
-
-        <!-- Progress bar (visible while processing) -->
-        <div x-show="uploadLoading && uploadProgress > 0" class="mt-3">
-          <div class="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
-            <div class="bg-brand h-2 rounded-full transition-all duration-500"
-              :style="`width: ${uploadProgress}%`"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Processed video result -->
-      <div x-show="selectedVideoSession && selectedVideoSession.status === 'completed'"
-        class="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 mb-6">
-        <h3 class="font-bold text-lg mb-4">Rezultat procesare</h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <div class="text-center">
-            <div class="text-2xl font-bold text-brand" x-text="selectedVideoSession?.total_frames || 0"></div>
-            <div class="text-xs text-gray-500">Frame-uri</div>
-          </div>
-          <div class="text-center">
-            <div class="text-2xl font-bold text-blue-600" x-text="selectedVideoSession?.total_objects || 0"></div>
-            <div class="text-xs text-gray-500">Obiecte total</div>
-          </div>
-          <div class="text-center">
-            <div class="text-2xl font-bold text-amber-600" x-text="(selectedVideoSession?.avg_fps || 0).toFixed(1)"></div>
-            <div class="text-xs text-gray-500">FPS mediu</div>
-          </div>
-          <div class="text-center">
-            <div class="text-2xl font-bold text-purple-600" x-text="(selectedVideoSession?.avg_inference_ms || 0).toFixed(0) + ' ms'"></div>
-            <div class="text-xs text-gray-500">Latenta medie</div>
-          </div>
-        </div>
-
-        <!-- Materials breakdown -->
-        <div x-show="selectedVideoSession?.materials_summary" class="mb-4">
-          <h4 class="text-sm font-semibold text-gray-500 mb-2">Materiale:</h4>
-          <div class="flex flex-wrap gap-2">
-            <template x-for="[mat, cnt] in Object.entries(parseMaterials(selectedVideoSession?.materials_summary))" :key="mat">
-              <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-brand/10 text-brand capitalize">
-                <span x-text="mat"></span>: <span x-text="cnt"></span>
-              </span>
-            </template>
-          </div>
-        </div>
-
-        <a :href="getVideoDownloadUrl(selectedVideoSession)"
-          class="inline-flex items-center gap-2 px-5 py-2.5 bg-brand text-white rounded-xl font-semibold text-sm hover:bg-brand-dark transition-colors">
-          ⬇ Descarca video adnotat
-        </a>
-      </div>
-    </div>
-
-    <!-- ── Video sessions history ──────────────────────────────────────── -->
-    <div class="mt-8">
-      <h3 class="text-lg font-bold mb-4">Sesiuni video recente</h3>
-      <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="bg-gray-50 dark:bg-gray-700/50 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
-              <th class="px-4 py-3">#</th>
-              <th class="px-4 py-3">Sursa</th>
-              <th class="px-4 py-3">Data</th>
-              <th class="px-4 py-3">Durata</th>
-              <th class="px-4 py-3">Frame-uri</th>
-              <th class="px-4 py-3">Obiecte</th>
-              <th class="px-4 py-3">FPS</th>
-              <th class="px-4 py-3">Status</th>
-              <th class="px-4 py-3">Actiuni</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-for="vs in videoSessions" :key="vs.id">
-              <tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                <td class="px-4 py-3 font-mono text-xs" x-text="vs.id"></td>
-                <td class="px-4 py-3">
-                  <span :class="vs.source_type === 'webcam' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400'"
-                    class="px-2 py-0.5 rounded-full text-xs font-semibold" x-text="vs.source_type"></span>
-                </td>
-                <td class="px-4 py-3 text-xs" x-text="formatDate(vs.start_time)"></td>
-                <td class="px-4 py-3 text-xs" x-text="formatDuration(vs.duration_sec)"></td>
-                <td class="px-4 py-3 font-mono" x-text="vs.total_frames"></td>
-                <td class="px-4 py-3 font-mono font-bold" x-text="vs.total_objects"></td>
-                <td class="px-4 py-3 font-mono" x-text="vs.avg_fps.toFixed(1)"></td>
-                <td class="px-4 py-3">
-                  <span :class="{
-                    'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400': vs.status === 'completed',
-                    'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400': vs.status === 'running',
-                    'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400': vs.status === 'failed'
-                  }" class="px-2 py-0.5 rounded-full text-xs font-semibold" x-text="vs.status"></span>
-                </td>
-                <td class="px-4 py-3">
-                  <div class="flex gap-2">
-                    <button x-show="vs.status === 'completed' && vs.annotated_video_path"
-                      @click="viewVideoSession(vs.id)"
-                      class="text-brand hover:underline text-xs font-semibold">Detalii</button>
-                    <button @click="deleteVideoSession(vs.id)"
-                      class="text-red-500 hover:underline text-xs font-semibold">Sterge</button>
-                  </div>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-        <div x-show="videoSessions.length === 0" class="px-4 py-8 text-center text-gray-400 text-sm">
-          Nicio sesiune video.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ TAB 2: ISTORIC ═══ -->
-  <div x-show="activeTab === 'history'" x-cloak
-    x-transition:enter="transition ease-out duration-200"
-    x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
-
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 sm:p-6 transition-colors">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-        <h2 class="font-semibold text-lg">Sesiuni anterioare</h2>
-        <span class="text-sm text-gray-500 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full font-medium"
-          x-text="history.total + ' total'"></span>
-      </div>
-
-      <!-- Search / filter bar -->
-      <div class="flex flex-col sm:flex-row gap-2 mb-4">
-        <div class="flex-1 relative">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-          </svg>
-          <input type="text" x-model.debounce.400ms="searchQuery" @input="historyPage=0; loadHistory()"
-            placeholder="Caută după nume fișier…"
-            class="w-full pl-9 pr-3 py-2.5 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-colors" />
-        </div>
+    <!-- Filter bar -->
+    <div class="card" style="margin-bottom:16px;padding:12px 16px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <input type="text" x-model.debounce.400ms="searchQuery"
+          @input="historyPage=0; loadHistory()"
+          placeholder="🔍 Caută după nume…" class="input" style="flex:1;min-width:160px;min-height:40px;font-size:13px" />
         <select x-model="filterMaterial" @change="historyPage=0; loadHistory()"
-          class="py-2.5 min-h-[44px] px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-colors">
+          class="input" style="flex:0 0 auto;width:auto;font-size:13px;min-height:40px">
           <option value="">Toate materialele</option>
           <option value="plastic">Plastic</option>
           <option value="paper">Paper</option>
@@ -677,141 +432,139 @@
           <option value="metal">Metal</option>
           <option value="other">Other</option>
         </select>
-        <input type="number" x-model.number="filterMinObjects" @input.debounce.400ms="historyPage=0; loadHistory()"
-          placeholder="Min obiecte" min="0"
-          class="w-28 py-2.5 min-h-[44px] px-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand/30 focus:border-brand outline-none transition-colors" />
-      </div>
-
-      <!-- Skeleton rows -->
-      <template x-if="isLoadingHistory">
-        <div class="flex flex-col">
-          <template x-for="i in 5" :key="i">
-            <div class="flex items-center gap-4 py-3.5 border-t border-gray-100 dark:border-gray-700">
-              <div class="skeleton h-10 w-10 rounded-lg shrink-0"></div>
-              <div class="skeleton h-3.5 w-48 rounded"></div>
-              <div class="skeleton h-3.5 w-28 rounded hidden sm:block ml-auto"></div>
-              <div class="skeleton h-6 w-12 rounded-full"></div>
-            </div>
-          </template>
-        </div>
-      </template>
-
-      <!-- Empty state -->
-      <template x-if="!isLoadingHistory && history.items.length === 0">
-        <div class="py-16 flex flex-col items-center gap-3 text-gray-300 dark:text-gray-600">
-          <svg class="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-          </svg>
-          <p class="text-sm" x-text="searchQuery || filterMaterial || filterMinObjects ? 'Niciun rezultat pentru filtrele selectate.' : 'Nicio sesiune salvată încă.'"></p>
-        </div>
-      </template>
-
-      <!-- Table -->
-      <template x-if="!isLoadingHistory && history.items.length > 0">
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase text-xs text-left">
-                <th class="px-3 py-3 rounded-tl-lg w-12"></th>
-                <th class="px-3 py-3">#</th>
-                <th class="px-3 py-3">Fișier</th>
-                <th class="px-3 py-3 hidden sm:table-cell">Data</th>
-                <th class="px-3 py-3">Obiecte</th>
-                <th class="px-3 py-3 hidden md:table-cell">ms</th>
-                <th class="px-3 py-3 rounded-tr-lg"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <template x-for="s in history.items" :key="s.id">
-                <tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                  @click="openSessionDetail(s.id)">
-                  <!-- Thumbnail -->
-                  <td class="px-3 py-2">
-                    <template x-if="s.annotated_path">
-                      <img :src="getAnnotatedUrl(s.annotated_path)" class="w-10 h-10 rounded-lg object-cover bg-gray-100 dark:bg-gray-900" @error="$el.style.display='none'" />
-                    </template>
-                  </td>
-                  <td class="px-3 py-2 text-gray-400 font-mono text-xs" x-text="s.id"></td>
-                  <td class="px-3 py-2 font-medium truncate max-w-[120px] sm:max-w-xs" x-text="s.filename"></td>
-                  <td class="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs hidden sm:table-cell" x-text="formatDate(s.upload_time)"></td>
-                  <td class="px-3 py-2">
-                    <span class="bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-semibold px-2.5 py-0.5 rounded-full text-xs"
-                      x-text="s.total_objects"></span>
-                  </td>
-                  <td class="px-3 py-2 text-gray-500 dark:text-gray-400 text-xs hidden md:table-cell" x-text="s.inference_ms.toFixed(1)"></td>
-                  <td class="px-3 py-2">
-                    <button @click.stop="deleteSession(s.id)"
-                      class="text-gray-300 hover:text-red-500 p-2 min-h-[40px] min-w-[40px] rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center"
-                      title="Șterge">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
-      </template>
-
-      <!-- Pagination -->
-      <div class="flex items-center justify-between mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">
-        <button @click="historyPage > 0 && (historyPage--, loadHistory())" :disabled="historyPage === 0"
-          class="px-4 py-2.5 min-h-[44px] bg-gray-100 dark:bg-gray-700 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">← Anterior</button>
-        <span class="text-sm text-gray-500 dark:text-gray-400"
-          x-text="`Pagina ${historyPage + 1} din ${Math.max(Math.ceil(history.total / historyLimit), 1)}`"></span>
-        <button @click="(historyPage + 1) * historyLimit < history.total && (historyPage++, loadHistory())"
-          :disabled="(historyPage + 1) * historyLimit >= history.total"
-          class="px-4 py-2.5 min-h-[44px] bg-gray-100 dark:bg-gray-700 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Următor →</button>
+        <input type="number" x-model.number="filterMinObjects"
+          @input.debounce.400ms="historyPage=0; loadHistory()"
+          placeholder="Min obj." min="0"
+          class="input" style="width:90px;font-size:13px;min-height:40px" />
       </div>
     </div>
 
-    <!-- Session detail modal -->
-    <div x-show="sessionDetail" x-cloak
-      x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-      x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-      class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
-      @click.self="sessionDetail=null" @keydown.escape.window="sessionDetail=null">
-      <div x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 translate-y-8 sm:translate-y-0 sm:scale-95"
-        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-        class="bg-white dark:bg-gray-800 rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto" @click.stop>
-        <div class="flex justify-center pt-3 pb-1 sm:hidden"><div class="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full"></div></div>
-        <div class="p-5 sm:p-6">
-          <div class="flex items-center justify-between mb-5">
-            <h3 class="font-semibold text-lg" x-text="'Sesiunea #' + (sessionDetail && sessionDetail.id)"></h3>
-            <button @click="sessionDetail=null" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2 min-h-[40px] rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+    <!-- Skeleton -->
+    <template x-if="isLoadingHistory">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <template x-for="i in 5" :key="i">
+          <div class="card" style="display:flex;gap:12px;padding:12px">
+            <div class="skeleton" style="width:56px;height:56px;border-radius:8px;flex-shrink:0"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px;justify-content:center">
+              <div class="skeleton" style="height:13px;width:60%;border-radius:4px"></div>
+              <div class="skeleton" style="height:11px;width:40%;border-radius:4px"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- Empty state -->
+    <template x-if="!isLoadingHistory && history.items.length === 0">
+      <div class="card">
+        <div class="empty-state">
+          <div class="empty-state__icon">📋</div>
+          <div class="empty-state__text" x-text="searchQuery || filterMaterial ? 'Niciun rezultat pentru filtrele selectate.' : 'Nicio sesiune salvată încă. Fă prima scanare!'"></div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Report cards -->
+    <template x-if="!isLoadingHistory && history.items.length > 0">
+      <div class="card" style="padding:8px 16px">
+        <template x-for="s in history.items" :key="s.id">
+          <div class="report-card" @click="openSessionDetail(s.id)">
+            <template x-if="s.annotated_path">
+              <img :src="getAnnotatedUrl(s.annotated_path)" class="report-card__thumb"
+                @error="$el.style.display='none'" alt="" />
+            </template>
+            <template x-if="!s.annotated_path">
+              <div class="report-card__thumb" style="display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--tx-muted)">🗑️</div>
+            </template>
+            <div class="report-card__body">
+              <div class="report-card__name" x-text="s.filename"></div>
+              <div class="report-card__meta">
+                <span :class="`badge sev-${severityFromCount(s.total_objects)}`" x-text="sessionSeverity(s).icon + ' ' + s.total_objects + ' obiecte'"></span>
+                · <span x-text="formatDate(s.upload_time)"></span>
+              </div>
+              <template x-if="s.address">
+                <div style="font-size:11px;color:var(--tx-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="'📍 ' + s.address"></div>
+              </template>
+              <div style="font-size:11px;color:var(--tx-muted);margin-top:2px"
+                x-text="`${s.inference_ms.toFixed(0)} ms · #${s.id}`"></div>
+            </div>
+            <button @click.stop="deleteSession(s.id)" class="btn btn--danger btn--icon" style="flex-shrink:0" title="Șterge">
+              🗑
             </button>
           </div>
+        </template>
+
+        <!-- Pagination -->
+        <div class="pagination">
+          <button @click="prevPage()" :disabled="!hasPrev" class="btn btn--ghost" style="font-size:12px;min-height:36px;padding:6px 14px">← Anterior</button>
+          <span class="pagination__info" x-text="`Pagina ${historyPage + 1} / ${totalPages}`"></span>
+          <button @click="nextPage()" :disabled="!hasNext" class="btn btn--ghost" style="font-size:12px;min-height:36px;padding:6px 14px">Următor →</button>
+        </div>
+      </div>
+    </template>
+
+    <!-- Session detail modal -->
+    <div x-show="sessionDetail" x-cloak
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="modal-bg"
+      @click.self="sessionDetail = null"
+      @keydown.escape.window="sessionDetail = null">
+      <div class="modal" @click.stop x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="translate-y-8 opacity-0"
+        x-transition:enter-end="translate-y-0 opacity-100">
+        <div class="modal__grip"></div>
+        <div class="modal__body" x-if="sessionDetail">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <h3 style="font-size:16px;font-weight:700" x-text="sessionDetail?.filename"></h3>
+            <button @click="sessionDetail=null" class="btn btn--icon">✕</button>
+          </div>
           <template x-if="sessionDetail">
-            <div class="flex flex-col gap-4">
-              <div class="grid grid-cols-2 gap-3">
-                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3"><p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Fișier</p><p class="font-medium text-sm truncate" x-text="sessionDetail.filename"></p></div>
-                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3"><p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Data</p><p class="text-sm" x-text="formatDate(sessionDetail.upload_time)"></p></div>
-                <div class="bg-green-50 dark:bg-green-900/30 rounded-xl p-3"><p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Obiecte</p><p class="font-bold text-green-700 dark:text-green-400 text-2xl" x-text="sessionDetail.total_objects"></p></div>
-                <div class="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-3"><p class="text-xs text-gray-500 dark:text-gray-400 mb-1">Timp</p><p class="font-bold text-blue-700 dark:text-blue-400 text-2xl" x-text="sessionDetail.inference_ms.toFixed(1) + ' ms'"></p></div>
-              </div>
-              <template x-if="sessionDetail.annotated_path">
-                <div class="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900">
-                  <img :src="getAnnotatedUrl(sessionDetail.annotated_path)" class="w-full max-h-60 object-contain" style="cursor:zoom-in"
-                    @click="lightboxSrc = getAnnotatedUrl(sessionDetail.annotated_path)" @error="$el.parentElement.style.display='none'" />
+            <div>
+              <!-- Annotated image -->
+              <div x-show="sessionDetail.annotated_path" class="result-img-wrap"
+                style="margin-bottom:12px"
+                @click="openLightbox(getAnnotatedUrl(sessionDetail.annotated_path))">
+                <img :src="getAnnotatedUrl(sessionDetail.annotated_path)" alt="" />
+                <div class="result-img-wrap__overlay">
+                  <span class="result-img-wrap__hint">🔍 Mărire</span>
                 </div>
-              </template>
+              </div>
+
+              <!-- Meta info -->
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                <span :class="`badge sev-${severityFromCount(sessionDetail.total_objects)}`"
+                  x-text="sessionDetail.total_objects + ' obiecte'"></span>
+                <span class="badge badge--blue" x-text="sessionDetail.inference_ms.toFixed(0) + ' ms'"></span>
+                <span class="badge badge--gray" x-text="formatDate(sessionDetail.upload_time)"></span>
+                <template x-if="sessionDetail.latitude">
+                  <span class="badge badge--green"
+                    x-text="sessionDetail.address ? `📍 ${sessionDetail.address}` : `📍 ${sessionDetail.latitude?.toFixed(4)}, ${sessionDetail.longitude?.toFixed(4)}`"
+                    :title="`Lat: ${sessionDetail.latitude}, Lng: ${sessionDetail.longitude}`"></span>
+                </template>
+              </div>
+
+              <!-- Detection records -->
               <template x-if="sessionDetail.records && sessionDetail.records.length > 0">
-                <div class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700">
-                  <table class="w-full text-xs">
-                    <thead><tr class="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase text-left">
-                      <th class="px-3 py-2.5">Material</th><th class="px-3 py-2.5">Det.</th><th class="px-3 py-2.5">Cls.</th><th class="px-3 py-2.5 hidden sm:table-cell">Box</th>
-                    </tr></thead>
+                <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--bg-border)">
+                  <table class="eco-table">
+                    <thead>
+                      <tr>
+                        <th>Material</th>
+                        <th>Det. %</th>
+                        <th>Cls. %</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      <template x-for="r in sessionDetail.records" :key="r.id">
-                        <tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                          <td class="px-3 py-2"><span :class="materialColor(r.material)" class="px-2 py-0.5 rounded-full text-xs font-medium" x-text="r.material"></span></td>
-                          <td class="px-3 py-2 font-medium" x-text="(r.det_score * 100).toFixed(1) + '%'"></td>
-                          <td class="px-3 py-2" x-text="(r.cls_score * 100).toFixed(1) + '%'"></td>
-                          <td class="px-3 py-2 text-gray-400 font-mono text-[10px] hidden sm:table-cell" x-text="`(${r.box_x1},${r.box_y1})→(${r.box_x2},${r.box_y2})`"></td>
+                      <template x-for="d in sessionDetail.records" :key="d.id">
+                        <tr>
+                          <td><span class="badge" :style="materialBadgeStyle(d.material)" x-text="d.material"></span></td>
+                          <td style="font-weight:600" x-text="(d.det_score * 100).toFixed(1) + '%'"></td>
+                          <td x-text="(d.cls_score * 100).toFixed(1) + '%'"></td>
                         </tr>
                       </template>
                     </tbody>
@@ -823,158 +576,104 @@
         </div>
       </div>
     </div>
-  </div>
+  </div><!-- /reports tab -->
 
-  <!-- ═══ TAB 3: STATISTICI ═══ -->
+
+  <!-- ╔═══════════════════════════════╗
+       ║  TAB: STATISTICI             ║
+       ╚═══════════════════════════════╝ -->
   <div x-show="activeTab === 'stats'" x-cloak
     x-transition:enter="transition ease-out duration-200"
-    x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+    x-transition:enter-start="opacity-0 translate-y-2"
+    x-transition:enter-end="opacity-100 translate-y-0">
 
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 flex flex-col items-center gap-1 transition-colors">
-        <span class="text-4xl font-bold text-brand" x-text="stats.total_sessions ?? '—'"></span>
-        <span class="text-sm text-gray-500 dark:text-gray-400">Sesiuni totale</span>
-      </div>
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 flex flex-col items-center gap-1 transition-colors">
-        <span class="text-4xl font-bold text-brand" x-text="stats.total_objects ?? '—'"></span>
-        <span class="text-sm text-gray-500 dark:text-gray-400">Obiecte detectate</span>
-      </div>
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-5 flex flex-col items-center gap-1 transition-colors">
-        <span class="text-4xl font-bold text-brand" x-text="stats.avg_inference_ms != null ? stats.avg_inference_ms.toFixed(1) + ' ms' : '—'"></span>
-        <span class="text-sm text-gray-500 dark:text-gray-400">Timp mediu inferență</span>
-      </div>
-    </div>
+    <h1 class="section-title">📊 Statistici</h1>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-      <!-- Pie chart -->
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 transition-colors">
-        <h3 class="font-semibold mb-4">Distribuție materiale</h3>
-        <div class="relative h-64 flex items-center justify-center">
-          <template x-if="!stats.material_distribution || stats.material_distribution.length === 0">
-            <p class="text-gray-300 dark:text-gray-600 text-sm">Nu există date încă.</p>
-          </template>
-          <canvas id="pieChart" x-show="stats.material_distribution && stats.material_distribution.length > 0" class="w-full h-full"></canvas>
+    <!-- Summary cards -->
+    <template x-if="stats">
+      <div class="grid-4" style="margin-bottom:16px">
+        <div class="card stat-card">
+          <div class="stat-card__value" style="color:var(--eco-green-dark)" x-text="stats.total_sessions"></div>
+          <div class="stat-card__label">Sesiuni</div>
         </div>
-      </div>
-      <!-- Stacked bar chart -->
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 transition-colors">
-        <h3 class="font-semibold mb-4">Materiale pe zi (stacked)</h3>
-        <div class="relative h-64 flex items-center justify-center">
-          <template x-if="!stats.material_per_day || stats.material_per_day.length === 0">
-            <p class="text-gray-300 dark:text-gray-600 text-sm">Nu există date încă.</p>
-          </template>
-          <canvas id="stackedBarChart" x-show="stats.material_per_day && stats.material_per_day.length > 0" class="w-full h-full"></canvas>
+        <div class="card stat-card">
+          <div class="stat-card__value" x-text="stats.total_objects"></div>
+          <div class="stat-card__label">Obiecte</div>
         </div>
-      </div>
-    </div>
-
-    <!-- Simple bar chart -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 mb-6 transition-colors">
-      <h3 class="font-semibold mb-4">Total obiecte pe zi</h3>
-      <div class="relative h-64 flex items-center justify-center">
-        <template x-if="!stats.timeline || stats.timeline.length === 0">
-          <p class="text-gray-300 dark:text-gray-600 text-sm">Nu există date încă.</p>
-        </template>
-        <canvas id="barChart" x-show="stats.timeline && stats.timeline.length > 0" class="w-full h-full"></canvas>
-      </div>
-    </div>
-
-    <!-- Material breakdown table -->
-    <template x-if="stats.material_distribution && stats.material_distribution.length > 0">
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-6 transition-colors">
-        <h3 class="font-semibold mb-4">Detaliu pe material</h3>
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 uppercase text-xs text-left">
-                <th class="px-4 py-3 rounded-tl-lg">Material</th><th class="px-4 py-3">Nr. detecții</th><th class="px-4 py-3 rounded-tr-lg">Procent</th>
-              </tr>
-            </thead>
-            <tbody>
-              <template x-for="m in stats.material_distribution" :key="m.material">
-                <tr class="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                  <td class="px-4 py-3"><span :class="materialColor(m.material)" class="px-2.5 py-1 rounded-full text-xs font-medium" x-text="m.material"></span></td>
-                  <td class="px-4 py-3 font-semibold" x-text="m.count"></td>
-                  <td class="px-4 py-3">
-                    <div class="flex items-center gap-3">
-                      <div class="flex-1 bg-gray-100 dark:bg-gray-600 rounded-full h-1.5 max-w-[100px]">
-                        <div class="bg-brand h-1.5 rounded-full" :style="`width: ${stats.total_objects > 0 ? (m.count/stats.total_objects*100).toFixed(0) : 0}%`"></div>
-                      </div>
-                      <span class="text-gray-500 dark:text-gray-400 text-xs w-12" x-text="stats.total_objects > 0 ? (m.count/stats.total_objects*100).toFixed(1)+'%' : '—'"></span>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
+        <div class="card stat-card">
+          <div class="stat-card__value" style="color:#3b82f6" x-text="stats.avg_inference_ms?.toFixed(0) + 'ms'"></div>
+          <div class="stat-card__label">Timp mediu</div>
+        </div>
+        <div class="card stat-card">
+          <div class="stat-card__value" style="color:#f59e0b" x-text="topMaterial?.material || '—'"></div>
+          <div class="stat-card__label">Top material</div>
         </div>
       </div>
     </template>
-  </div>
 
-  <!-- ═══ TAB 4: EXPORT ═══ -->
-  <div x-show="activeTab === 'export'" x-cloak
-    x-transition:enter="transition ease-out duration-200"
-    x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0">
+    <!-- Charts -->
+    <div style="display:grid;grid-template-columns:1fr;gap:16px">
+      <!-- Pie -->
+      <div class="card">
+        <h2 style="font-size:14px;font-weight:700;margin-bottom:12px">Distribuție materiale</h2>
+        <div class="chart-wrap">
+          <canvas id="pieChart"></canvas>
+        </div>
+      </div>
 
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow p-8 max-w-xl mx-auto text-center flex flex-col items-center gap-6 transition-colors">
-      <div class="w-16 h-16 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center">
-        <svg class="w-8 h-8 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-3-3m3 3l3-3" />
-        </svg>
+      <!-- Bar timeline -->
+      <div class="card">
+        <h2 style="font-size:14px;font-weight:700;margin-bottom:12px">Obiecte pe zi</h2>
+        <div class="chart-wrap">
+          <canvas id="barChart"></canvas>
+        </div>
       </div>
-      <div>
-        <h2 class="font-semibold text-xl mb-2">Export date</h2>
-        <p class="text-gray-500 dark:text-gray-400 text-sm">Descarcă sesiunile și detecțiile într-un fișier CSV sau raport HTML.</p>
+
+      <!-- Stacked bar -->
+      <div class="card">
+        <h2 style="font-size:14px;font-weight:700;margin-bottom:12px">Materiale pe zi</h2>
+        <div class="chart-wrap">
+          <canvas id="stackedBarChart"></canvas>
+        </div>
       </div>
-      <div class="flex items-center gap-8 text-center">
-        <div><p class="text-3xl font-bold text-brand" x-text="stats.total_sessions ?? 0"></p><p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">sesiuni</p></div>
-        <div class="h-10 border-l border-gray-200 dark:border-gray-700"></div>
-        <div><p class="text-3xl font-bold text-brand" x-text="stats.total_objects ?? 0"></p><p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">detecții</p></div>
-      </div>
-      <div class="flex flex-col sm:flex-row gap-3 w-full">
-        <a href="/api/export/csv"
-          class="flex-1 inline-flex items-center justify-center gap-2 bg-brand text-white px-6 py-3 min-h-[48px] rounded-xl font-medium hover:bg-brand-dark transition-colors shadow-sm">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-3-3m3 3l3-3" />
-          </svg>
-          Descarcă CSV
-        </a>
-        <a href="/api/export/pdf"
-          class="flex-1 inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 min-h-[48px] rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-sm">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
-          Raport HTML
-        </a>
-      </div>
-      <p class="text-xs text-gray-400 dark:text-gray-500">CSV: session_id · filename · upload_time · inference_ms · material · det_score · cls_score · box</p>
-      <div class="border-t border-gray-100 dark:border-gray-700 w-full pt-4">
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">Documentație API interactivă:</p>
-        <a href="/docs" target="_blank" class="text-brand text-sm font-medium hover:underline inline-flex items-center gap-1">
-          /docs — Swagger UI
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+    </div>
+
+    <!-- Export -->
+    <div class="card" style="margin-top:16px">
+      <h2 style="font-size:14px;font-weight:700;margin-bottom:12px">📥 Export date</h2>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button @click="downloadCsv()" class="btn btn--ghost">
+          📊 Descarcă CSV
+        </button>
+        <button @click="downloadPdf()" class="btn btn--ghost">
+          📄 Raport HTML/PDF
+        </button>
+        <a href="/docs" target="_blank" class="btn btn--ghost">
+          📖 API Docs
         </a>
       </div>
     </div>
-  </div>
+  </div><!-- /stats tab -->
 
 </main>
 
-<!-- ── Mobile bottom navigation ──────────────────────────────────────────── -->
-<nav class="sm:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 z-40 flex shadow-lg transition-colors">
+<!-- ══ Bottom navigation (mobile) ═══════════════════════════════════════════ -->
+<nav class="eco-bottom-nav">
   <template x-for="tab in tabs" :key="tab.id">
-    <button @click="activeTab = tab.id"
-      :class="activeTab === tab.id ? 'text-brand' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'"
-      class="flex-1 py-3 min-h-[56px] flex flex-col items-center gap-0.5 transition-colors active:bg-gray-50 dark:active:bg-gray-700">
-      <span x-text="tab.icon" class="text-xl leading-none"></span>
-      <span x-text="tab.shortLabel" class="text-[10px] font-medium leading-tight"></span>
+    <button @click="goTo(tab.id)"
+      :class="activeTab === tab.id ? 'eco-bottom-btn eco-bottom-btn--active' : 'eco-bottom-btn'">
+      <span class="eco-bottom-btn__icon" x-text="tab.icon"></span>
+      <span x-text="tab.label"></span>
     </button>
   </template>
 </nav>
 
-<!-- ══ Alpine.js app logic (external) ═════════════════════════════════ -->
-<script src="/static/js/app.js"></script>
-<script src="/static/js/video.js"></script>
+<!-- PWA register -->
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+</script>
+
 </body>
 </html>

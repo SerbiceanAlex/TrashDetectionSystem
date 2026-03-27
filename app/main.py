@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import database as db
+from app import geo
 from app import inference as infer
 from app import schemas
 from app import video as vid
@@ -78,6 +79,8 @@ async def detect(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     det_conf: float = Query(default=0.30, ge=0.05, le=0.95, description="Detector confidence threshold"),
+    latitude: float = Query(default=None, description="GPS latitude"),
+    longitude: float = Query(default=None, description="GPS longitude"),
     session: AsyncSession = Depends(db.get_db),
 ):
     """
@@ -91,6 +94,17 @@ async def detect(
     image_bytes = await file.read()
     if len(image_bytes) == 0:
         raise HTTPException(status_code=400, detail="Empty file uploaded.")
+
+    # ── Determine location (EXIF GPS first, browser GPS fallback) ────────────
+    location = await geo.get_image_location(
+        image_bytes,
+        fallback_lat=latitude,
+        fallback_lng=longitude,
+    )
+    final_lat = location["latitude"]
+    final_lng = location["longitude"]
+    address   = location["address"]
+    gps_src   = location["gps_source"]
 
     # Run inference
     try:
@@ -108,6 +122,10 @@ async def detect(
         annotated_path=str(ANNOTATED_DIR / f"{stem}_annotated.jpg"),
         total_objects=len(detections),
         inference_ms=round(elapsed_ms, 2),
+        latitude=final_lat,
+        longitude=final_lng,
+        address=address,
+        gps_source=gps_src,
     )
     session.add(det_session)
     await session.flush()  # get the auto-generated id
@@ -144,6 +162,10 @@ async def detect(
         inference_ms=det_session.inference_ms,
         annotated_url=f"/annotated/{stem}_annotated.jpg",
         detections=[schemas.DetectionRecordOut.model_validate(r) for r in records],
+        latitude=final_lat,
+        longitude=final_lng,
+        address=address,
+        gps_source=gps_src,
     )
 
 
@@ -509,6 +531,50 @@ async def export_pdf(session: AsyncSession = Depends(db.get_db)):
             "Content-Disposition": "attachment; filename=raport_trash_detection.html",
         },
     )
+
+
+# ── Map endpoints ──────────────────────────────────────────────────────────
+
+@app.get("/api/map/reports", response_model=list[schemas.MapReport],
+         summary="Get geolocated detection sessions for map display")
+async def map_reports(
+    limit: int = Query(default=500, ge=1, le=2000),
+    session: AsyncSession = Depends(db.get_db),
+):
+    items = await db.get_geolocated_sessions(session, limit)
+    return items
+
+
+@app.get("/api/zones", response_model=list[schemas.ZoneStats],
+         summary="Get aggregated zone contamination stats for EcoAlert map")
+async def get_zones(
+    grid_size: float = Query(default=0.002, ge=0.0005, le=0.05,
+                             description="Grid cell size in degrees (~200m default)"),
+    session: AsyncSession = Depends(db.get_db),
+):
+    """
+    Returns grid cells with aggregated trash levels for the community heatmap.
+    Each cell represents ~200m x 200m. Severity: 0=clean 1=low 2=medium 3=high.
+    """
+    zones = await db.get_zone_stats(session, grid_size=grid_size)
+    return [schemas.ZoneStats(**z) for z in zones]
+
+
+@app.get("/api/nearby", response_model=list[schemas.NearbyReport],
+         summary="Get reports near a GPS coordinate")
+async def get_nearby(
+    lat: float = Query(..., ge=-90, le=90, description="Latitude"),
+    lng: float = Query(..., ge=-180, le=180, description="Longitude"),
+    radius_km: float = Query(default=1.0, ge=0.1, le=50.0, description="Search radius in km"),
+    limit: int = Query(default=50, ge=1, le=200),
+    session: AsyncSession = Depends(db.get_db),
+):
+    """
+    Returns geolocated reports within radius_km of the given coordinates.
+    Useful for "what's near me" feature on mobile.
+    """
+    items = await db.get_nearby_reports(session, lat, lng, radius_km, limit)
+    return items
 
 
 # ── Video endpoints ─────────────────────────────────────────────────────────

@@ -43,6 +43,10 @@ class DetectionSession(Base):
     annotated_path = Column(Text, nullable=True)   # annotated saved
     total_objects = Column(Integer, default=0)
     inference_ms = Column(Float, default=0.0)
+    latitude = Column(Float, nullable=True)        # GPS coordinates
+    longitude = Column(Float, nullable=True)
+    address = Column(Text, nullable=True)          # reverse-geocoded address
+    gps_source = Column(String(16), nullable=True) # 'exif' | 'browser' | 'manual'
 
     records = relationship(
         "DetectionRecord", back_populates="session", cascade="all, delete-orphan"
@@ -208,6 +212,20 @@ async def search_sessions(
     return items, total
 
 
+# ── Map helpers ──────────────────────────────────────────────────────────
+
+async def get_geolocated_sessions(db: AsyncSession, limit: int = 500):
+    """Return sessions that have GPS coordinates, for map display."""
+    result = await db.execute(
+        select(DetectionSession)
+        .where(DetectionSession.latitude.isnot(None))
+        .where(DetectionSession.longitude.isnot(None))
+        .order_by(DetectionSession.upload_time.desc())
+        .limit(limit)
+    )
+    return result.scalars().all()
+
+
 # ── Video session helpers ──────────────────────────────────────────────────
 
 async def create_video_session(db: AsyncSession, source_type: str, filename: str | None = None) -> VideoSession:
@@ -273,3 +291,140 @@ async def get_video_sessions_paginated(db: AsyncSession, skip: int, limit: int):
     items = result.scalars().all()
     total = (await db.execute(select(func.count()).select_from(VideoSession))).scalar_one()
     return items, total
+
+
+# ── Zone / community helpers ──────────────────────────────────────────────
+
+async def get_zone_stats(db: AsyncSession, grid_size: float = 0.002):
+    """
+    Aggregate geolocated sessions into grid cells (~200m x ~200m).
+    Returns list of zone dicts with centroid lat/lng, total_reports,
+    total_objects, dominant_material, and severity score.
+    grid_size ≈ 0.002 degrees ≈ 200m at mid-latitudes.
+    """
+    import math
+
+    result = await db.execute(
+        select(
+            DetectionSession.latitude,
+            DetectionSession.longitude,
+            DetectionSession.total_objects,
+            DetectionSession.upload_time,
+        )
+        .where(DetectionSession.latitude.isnot(None))
+        .where(DetectionSession.longitude.isnot(None))
+    )
+    rows = result.all()
+
+    # Also load material breakdown per session
+    mat_result = await db.execute(
+        select(
+            DetectionRecord.session_id,
+            DetectionRecord.material,
+            func.count(DetectionRecord.id).label("cnt"),
+        )
+        .join(DetectionSession, DetectionSession.id == DetectionRecord.session_id)
+        .where(DetectionSession.latitude.isnot(None))
+        .group_by(DetectionRecord.session_id, DetectionRecord.material)
+    )
+    mat_rows = mat_result.all()
+
+    # Build session-id → materials map  (session_id → {material: count})
+    session_materials: dict = {}
+    for m in mat_rows:
+        session_materials.setdefault(m.session_id, {})[m.material] = m.cnt
+
+    # Load session ids alongside rows
+    id_result = await db.execute(
+        select(DetectionSession.id, DetectionSession.latitude, DetectionSession.longitude)
+        .where(DetectionSession.latitude.isnot(None))
+    )
+    id_rows = {(r.latitude, r.longitude): r.id for r in id_result.all()}
+
+    # Snap each session to a grid cell
+    cells: dict = {}
+    for row in rows:
+        lat_cell = math.floor(row.latitude / grid_size) * grid_size
+        lng_cell = math.floor(row.longitude / grid_size) * grid_size
+        key = (round(lat_cell, 6), round(lng_cell, 6))
+
+        if key not in cells:
+            cells[key] = {
+                "lat": round(lat_cell + grid_size / 2, 6),
+                "lng": round(lng_cell + grid_size / 2, 6),
+                "total_reports": 0,
+                "total_objects": 0,
+                "last_scan": None,
+                "materials": {},
+            }
+        c = cells[key]
+        c["total_reports"] += 1
+        c["total_objects"] += row.total_objects or 0
+        if c["last_scan"] is None or (row.upload_time and row.upload_time > c["last_scan"]):
+            c["last_scan"] = row.upload_time
+
+        # Aggregate materials
+        sess_id = id_rows.get((row.latitude, row.longitude))
+        if sess_id and sess_id in session_materials:
+            for mat, cnt in session_materials[sess_id].items():
+                c["materials"][mat] = c["materials"].get(mat, 0) + cnt
+
+    # Build output list with severity
+    zones = []
+    for cell in cells.values():
+        obj = cell["total_objects"]
+        # Severity: 0=clean, 1=low, 2=medium, 3=high
+        if obj == 0:
+            severity = 0
+        elif obj < 5:
+            severity = 1
+        elif obj < 15:
+            severity = 2
+        else:
+            severity = 3
+
+        dominant = max(cell["materials"], key=cell["materials"].get) if cell["materials"] else None
+        zones.append({
+            "lat": cell["lat"],
+            "lng": cell["lng"],
+            "total_reports": cell["total_reports"],
+            "total_objects": cell["total_objects"],
+            "severity": severity,
+            "dominant_material": dominant,
+            "materials": cell["materials"],
+            "last_scan": cell["last_scan"].isoformat() if cell["last_scan"] else None,
+        })
+
+    return zones
+
+
+async def get_nearby_reports(db: AsyncSession, lat: float, lng: float, radius_km: float = 1.0, limit: int = 50):
+    """
+    Return geolocated sessions within radius_km of (lat, lng).
+    Uses a simple bounding-box pre-filter then Haversine distance.
+    """
+    import math
+
+    # 1 degree lat ≈ 111 km
+    delta_lat = radius_km / 111.0
+    delta_lng = radius_km / (111.0 * math.cos(math.radians(lat)))
+
+    result = await db.execute(
+        select(DetectionSession)
+        .where(DetectionSession.latitude.isnot(None))
+        .where(DetectionSession.latitude.between(lat - delta_lat, lat + delta_lat))
+        .where(DetectionSession.longitude.between(lng - delta_lng, lng + delta_lng))
+        .order_by(DetectionSession.upload_time.desc())
+        .limit(limit * 2)  # fetch more for Haversine filtering
+    )
+    candidates = result.scalars().all()
+
+    def haversine(lat1, lng1, lat2, lng2) -> float:
+        R = 6371
+        dlat = math.radians(lat2 - lat1)
+        dlng = math.radians(lng2 - lng1)
+        a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2
+        return R * 2 * math.asin(math.sqrt(a))
+
+    nearby = [r for r in candidates if haversine(lat, lng, r.latitude, r.longitude) <= radius_km]
+    return nearby[:limit]
