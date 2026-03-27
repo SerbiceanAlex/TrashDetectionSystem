@@ -21,7 +21,7 @@ function videoApp() {
     showBboxes: true,
 
     // Confidence
-    detConf: 0.25,
+    detConf: 0.30,
 
     // Upload state
     uploadFile: null,

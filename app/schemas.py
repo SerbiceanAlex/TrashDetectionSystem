@@ -106,8 +106,8 @@ class VideoSessionOut(BaseModel):
     materials_summary: Optional[str] = None
     annotated_video_path: Optional[str] = None
     status: str = "running"
-    frames_processed: int = 0
-    total_frames_expected: int = 0
+    frames_processed: Optional[int] = 0
+    total_frames_expected: Optional[int] = 0
 
 
 class VideoSessionsPage(BaseModel):

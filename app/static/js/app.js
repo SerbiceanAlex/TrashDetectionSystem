@@ -18,7 +18,7 @@ function app() {
     selectedFile: null,
     previewSrc: null,
     isDragging: false,
-    detConf: 0.25,
+    detConf: 0.30,
     loading: false,
     uploadProgress: 0,
     result: null,

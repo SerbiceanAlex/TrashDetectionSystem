@@ -25,8 +25,11 @@ runs/
 *.mp4
 *.avi
 *.mov
-*.json
 *.csv
+
+# Ignore JSON except static app files
+*.json
+!app/static/manifest.json
 
 # datasets / big files
 datasets/
