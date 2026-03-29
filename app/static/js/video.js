@@ -21,7 +21,7 @@ function videoApp() {
     showBboxes: true,
 
     // Confidence
-    detConf: 0.30,
+    detConf: 0.50,
 
     // Upload state
     uploadFile: null,
@@ -44,10 +44,23 @@ function videoApp() {
     },
 
     // ── Webcam ────────────────────────────────────────────────────────────
+    facingMode: 'environment',   // 'environment' = back cam, 'user' = front cam
+    _animFrameId: null,          // requestAnimationFrame handle for drawing loop
+
     async startWebcam() {
       try {
+        // Stop existing stream first (needed when flipping camera)
+        if (this.webcamStream) {
+          this.webcamStream.getTracks().forEach(t => t.stop());
+          this.webcamStream = null;
+        }
+
         this.webcamStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' },
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: this.facingMode,
+          },
           audio: false,
         });
 
@@ -55,16 +68,7 @@ function videoApp() {
         videoEl.srcObject = this.webcamStream;
         await videoEl.play();
 
-        // Also wire the raw display video so "no bboxes" mode works
-        const displayVideoEl = this.$refs.webcamVideoDisplay;
-        if (displayVideoEl) {
-          displayVideoEl.srcObject = this.webcamStream;
-          await displayVideoEl.play();
-        }
-
         this.webcamActive = true;
-
-        // Create offscreen canvas for JPEG capture
         this.captureCanvas = document.createElement('canvas');
 
         // Open WebSocket
@@ -75,68 +79,170 @@ function videoApp() {
 
         this.ws.onopen = () => {
           this.wsConnected = true;
-          this._sendFrameLoop();
+          this._startSendLoop();   // fire-and-forget send loop
         };
 
         this.ws.onmessage = (evt) => {
           const data = JSON.parse(evt.data);
-          this.liveFps = data.fps || 0;
-          this.liveMs = data.elapsed_ms || 0;
+          this.liveFps   = data.fps            || 0;
+          this.liveMs    = data.elapsed_ms     || 0;
           this.liveObjects = data.total_objects || 0;
           this.liveMaterials = data.material_counts || {};
-
-          // Draw annotated frame on display canvas
-          if (data.frame && this.showBboxes) {
-            const displayCanvas = this.$refs.displayCanvas;
-            if (displayCanvas) {
-              const img = new Image();
-              img.onload = () => {
-                displayCanvas.width = img.width;
-                displayCanvas.height = img.height;
-                displayCanvas.getContext('2d').drawImage(img, 0, 0);
-              };
-              img.src = 'data:image/jpeg;base64,' + data.frame;
-            }
-          }
+          // Store detections for overlay drawing
+          this._lastDetections = data.detections || [];
         };
 
         this.ws.onclose = () => { this.wsConnected = false; };
         this.ws.onerror = () => { this.wsConnected = false; };
 
+        // Start smooth 30fps render loop (draws live video + bbox overlay)
+        this._startRenderLoop();
+
       } catch (err) {
-        alert('Nu se poate accesa camera: ' + err.message);
+        this.webcamActive = false;
+        showToast('Nu se poate accesa camera: ' + err.message, 'error');
       }
     },
 
-    _sendFrameLoop() {
-      if (!this.webcamActive || !this.wsConnected) return;
+    // ── Smooth 30fps render loop (client-side only, always fast) ──────────
+    _startRenderLoop() {
+      const draw = () => {
+        if (!this.webcamActive) return;
 
-      const videoEl = this.$refs.webcamVideo;
-      const canvas = this.captureCanvas;
-      if (!videoEl || videoEl.readyState < 2) {
-        requestAnimationFrame(() => this._sendFrameLoop());
-        return;
-      }
+        const videoEl  = this.$refs.webcamVideo;
+        const overlayEl = this.$refs.displayCanvas;
+        if (!videoEl || !overlayEl) { this._animFrameId = requestAnimationFrame(draw); return; }
 
-      canvas.width = videoEl.videoWidth;
-      canvas.height = videoEl.videoHeight;
-      canvas.getContext('2d').drawImage(videoEl, 0, 0);
+        const vw = videoEl.videoWidth;
+        const vh = videoEl.videoHeight;
+        if (!vw || !vh) { this._animFrameId = requestAnimationFrame(draw); return; }
 
-      canvas.toBlob((blob) => {
-        if (blob && this.ws && this.ws.readyState === WebSocket.OPEN) {
-          blob.arrayBuffer().then(buf => {
-            this.ws.send(new Uint8Array(buf));
-          });
+        // Match canvas size to video
+        if (overlayEl.width !== vw || overlayEl.height !== vh) {
+          overlayEl.width  = vw;
+          overlayEl.height = vh;
         }
-        // Next frame — throttle to ~15 fps to avoid overwhelming the server
-        setTimeout(() => {
-          if (this.webcamActive) this._sendFrameLoop();
-        }, 66);
-      }, 'image/jpeg', 0.75);
+
+        const ctx = overlayEl.getContext('2d');
+
+        // Draw the live video frame
+        ctx.drawImage(videoEl, 0, 0, vw, vh);
+
+        // Draw detection bounding boxes on top
+        if (this._lastDetections && this._lastDetections.length > 0) {
+          this._drawBoxes(ctx, this._lastDetections, vw, vh);
+        }
+
+        this._animFrameId = requestAnimationFrame(draw);
+      };
+      this._animFrameId = requestAnimationFrame(draw);
     },
+
+    // ── Draw bboxes client-side (scales from model coords → display) ──────
+    _drawBoxes(ctx, detections, canvasW, canvasH) {
+      const COLORS = {
+        plastic:    '#3b82f6',
+        metal:      '#f59e0b',
+        glass:      '#10b981',
+        paper:      '#8b5cf6',
+        cardboard:  '#f97316',
+        biological: '#84cc16',
+        trash:      '#ef4444',
+        clothes:    '#ec4899',
+        shoes:      '#14b8a6',
+      };
+
+      for (const det of detections) {
+        const fw = det.frame_w || canvasW;
+        const fh = det.frame_h || canvasH;
+        const scaleX = canvasW / fw;
+        const scaleY = canvasH / fh;
+
+        let [x1, y1, x2, y2] = det.box;
+        x1 *= scaleX; y1 *= scaleY;
+        x2 *= scaleX; y2 *= scaleY;
+
+        const color = COLORS[det.material?.toLowerCase()] || '#ef4444';
+
+        // Box
+        ctx.strokeStyle = color;
+        ctx.lineWidth   = 2.5;
+        ctx.shadowColor = color;
+        ctx.shadowBlur  = 6;
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+        ctx.shadowBlur  = 0;
+
+        // Label background
+        const label = `${det.material} ${Math.round((det.score || 0) * 100)}%`;
+        ctx.font = 'bold 13px Inter, system-ui, sans-serif';
+        const tw = ctx.measureText(label).width;
+        ctx.fillStyle = color;
+        const lx = Math.max(0, x1);
+        const ly = Math.max(18, y1);
+        ctx.fillRect(lx - 2, ly - 16, tw + 10, 18);
+
+        // Label text
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, lx + 3, ly - 2);
+      }
+    },
+
+    // ── Async fire-and-forget frame send (doesn't block render loop) ──────
+    _startSendLoop() {
+      const send = () => {
+        if (!this.webcamActive || !this.wsConnected) return;
+
+        const videoEl = this.$refs.webcamVideo;
+        const canvas  = this.captureCanvas;
+        if (!videoEl || videoEl.readyState < 2) {
+          setTimeout(send, 100);
+          return;
+        }
+
+        const vw = videoEl.videoWidth;
+        const vh = videoEl.videoHeight;
+        if (!vw || !vh) { setTimeout(send, 100); return; }
+
+        // Downscale to max 640px
+        const maxDim = 640;
+        let w = vw, h = vh;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+          else       { w = Math.round(w * maxDim / h); h = maxDim; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext('2d').drawImage(videoEl, 0, 0, w, h);
+
+        canvas.toBlob((blob) => {
+          if (blob && this.ws && this.ws.readyState === WebSocket.OPEN) {
+            blob.arrayBuffer().then(buf => {
+              this.ws.send(new Uint8Array(buf));
+            });
+          }
+          // Send at ~20fps — GPU can handle this rate
+          setTimeout(send, 50);
+        }, 'image/jpeg', 0.65);
+      };
+      send();
+    },
+
+    // ── Flip camera (front ↔ back) ────────────────────────────────────────
+    async flipCamera() {
+      this.facingMode = this.facingMode === 'environment' ? 'user' : 'environment';
+      if (this.webcamActive) {
+        // Stop old stream, reconnect WS, restart
+        if (this.ws) { this.ws.close(); this.ws = null; }
+        if (this._animFrameId) { cancelAnimationFrame(this._animFrameId); this._animFrameId = null; }
+        this._lastDetections = [];
+        await this.startWebcam();
+      }
+    },
+
 
     stopWebcam() {
       this.webcamActive = false;
+      if (this._animFrameId) { cancelAnimationFrame(this._animFrameId); this._animFrameId = null; }
       if (this.ws) {
         this.ws.close();
         this.ws = null;
@@ -150,10 +256,63 @@ function videoApp() {
       this.liveMs = 0;
       this.liveObjects = 0;
       this.liveMaterials = {};
+      this._lastDetections = [];
       this.loadVideoSessions();
     },
 
-    // ── Upload video ──────────────────────────────────────────────────────
+    // ── 📸 Save current live frame as a detection session ─────────────────
+    snapshotLoading: false,
+    snapshotFlash: false,
+
+    async saveSnapshot() {
+      const canvas = this.$refs.displayCanvas;
+      if (!canvas || !this.webcamActive) {
+        showToast('Camera nu este activă', 'error');
+        return;
+      }
+
+      this.snapshotLoading = true;
+
+      // Flash effect
+      this.snapshotFlash = true;
+      setTimeout(() => { this.snapshotFlash = false; }, 300);
+
+      // Silently refresh GPS before saving
+      try {
+        if (this.geoStatus !== 'ok') {
+          const pos = await requestGPS();
+          this.geoLat = pos.lat;
+          this.geoLng = pos.lng;
+          this.geoAccuracy = pos.accuracy;
+          this.geoStatus = 'ok';
+        }
+      } catch (_) {}
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) { this.snapshotLoading = false; return; }
+
+        const fd = new FormData();
+        fd.append('file', blob, `live_${Date.now()}.jpg`);
+
+        let url = `/api/detect?det_conf=${this.detConf}`;
+        if (this.geoLat != null && this.geoLng != null) {
+          url += `&latitude=${this.geoLat}&longitude=${this.geoLng}`;
+        }
+
+        try {
+          const data = await fetchAPI(url, { method: 'POST', body: fd });
+          showToast(`📸 Salvat! ${data.total_objects} obiecte detectate`);
+          // Notify map + history to refresh
+          window.dispatchEvent(new CustomEvent('eco:newReport'));
+        } catch (e) {
+          showToast('Eroare la salvare: ' + e.message, 'error');
+        } finally {
+          this.snapshotLoading = false;
+        }
+      }, 'image/jpeg', 0.92);
+    },
+
+
     handleVideoFileSelect(ev) {
       const f = ev.target.files[0];
       if (f) {

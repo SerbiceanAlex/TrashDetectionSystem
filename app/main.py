@@ -78,7 +78,7 @@ async def index():
 async def detect(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    det_conf: float = Query(default=0.30, ge=0.05, le=0.95, description="Detector confidence threshold"),
+    det_conf: float = Query(default=0.50, ge=0.05, le=0.95, description="Detector confidence threshold"),
     latitude: float = Query(default=None, description="GPS latitude"),
     longitude: float = Query(default=None, description="GPS longitude"),
     session: AsyncSession = Depends(db.get_db),
@@ -291,7 +291,7 @@ async def export_csv(session: AsyncSession = Depends(db.get_db)):
 async def rerun_detection(
     session_id: int,
     background_tasks: BackgroundTasks,
-    det_conf: float = Query(default=0.30, ge=0.05, le=0.95),
+    det_conf: float = Query(default=0.50, ge=0.05, le=0.95),
     session: AsyncSession = Depends(db.get_db),
 ):
     det_session = await db.get_session_by_id(session, session_id)
@@ -366,7 +366,7 @@ from typing import List
 async def detect_batch(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
-    det_conf: float = Query(default=0.30, ge=0.05, le=0.95),
+    det_conf: float = Query(default=0.50, ge=0.05, le=0.95),
     session: AsyncSession = Depends(db.get_db),
 ):
     if len(files) > 20:
@@ -582,7 +582,7 @@ async def get_nearby(
 @app.websocket("/ws/video/live")
 async def ws_video_live(
     websocket: WebSocket,
-    det_conf: float = 0.30,
+    det_conf: float = 0.50,
 ):
     """WebSocket for live webcam video: browser sends JPEG frames, server
     returns annotated frames + stats JSON."""
@@ -594,7 +594,7 @@ async def ws_video_live(
           summary="Upload a video file for offline processing")
 async def upload_video(
     file: UploadFile = File(...),
-    det_conf: float = Query(default=0.30, ge=0.05, le=0.95),
+    det_conf: float = Query(default=0.50, ge=0.05, le=0.95),
     session: AsyncSession = Depends(db.get_db),
 ):
     allowed = {

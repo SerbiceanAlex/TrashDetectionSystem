@@ -13,11 +13,11 @@ from ultralytics import YOLO
 
 # ── Paths to the best trained weights ────────────────────────────────────────
 REPO_ROOT = Path(__file__).parent.parent
-DETECTOR_PT = REPO_ROOT / "runs/detect/parks-trash-A3-final/weights/best.pt"
+DETECTOR_PT  = REPO_ROOT / "runs/detect/parks-trash-A3-final/weights/best.pt"
 CLASSIFIER_PT = REPO_ROOT / "runs/classify/parks-cls-B2/weights/best.pt"
 
 # Lazy-loaded singletons (populated on first load_models() call)
-_detector = None
+_detector   = None
 _classifier = None
 _cls_names: dict[int, str] = {}
 
@@ -27,19 +27,30 @@ _inference_lock = threading.Lock()
 # Max image dimension before resize (prevents OOM on huge images)
 MAX_DIM = 1920
 
+# For live webcam inference use smaller size = more FPS
+LIVE_IMGSZ = 320
+
+# Auto-detect best device: CUDA GPU > Apple MPS > CPU
+import torch  # noqa: E402
+_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 def load_models():
-    """Load YOLO models into memory (called once at app startup)."""
+    """Load YOLO models into memory on the best available device (GPU if present)."""
     global _detector, _classifier, _cls_names
     if _detector is None:
         _detector = YOLO(str(DETECTOR_PT))
+        _detector.to(_DEVICE)
     if _classifier is None:
         _classifier = YOLO(str(CLASSIFIER_PT))
+        _classifier.to(_DEVICE)
         raw = getattr(_classifier, "names", {})
         if isinstance(raw, dict):
             _cls_names = {int(k): str(v) for k, v in raw.items()}
         elif isinstance(raw, list):
             _cls_names = {i: str(v) for i, v in enumerate(raw)}
+    import logging
+    logging.getLogger(__name__).info("Models loaded on device: %s", _DEVICE)
 
 
 def _resize_if_needed(frame: np.ndarray) -> np.ndarray:
@@ -95,7 +106,7 @@ def run_pipeline(
 def run_pipeline_frame(
     frame: np.ndarray,
     det_conf: float = 0.25,
-    det_imgsz: int = 640,
+    det_imgsz: int = LIVE_IMGSZ,   # 320 by default for live — faster on GPU
     cls_imgsz: int = 224,
 ) -> tuple[list[dict], np.ndarray, float]:
     """
