@@ -6,7 +6,7 @@ function detectApp() {
     selectedFile: null,
     previewSrc: null,
     isDragging: false,
-    detConf: 0.30,
+    detConf: 0.50,
     loading: false,
     uploadProgress: 0,
     result: null,
@@ -20,7 +20,7 @@ function detectApp() {
     geoAccuracy: null,
 
     // Rerun
-    rerunConf: 0.30,
+    rerunConf: 0.50,
     isRerunning: false,
 
     // Batch state

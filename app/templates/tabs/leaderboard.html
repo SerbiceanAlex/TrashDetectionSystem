@@ -1,0 +1,104 @@
+<!-- ══ Leaderboard Tab (visible to all users) ════════════════════════════ -->
+<div x-show="activeTab === 'leaderboard'" x-cloak
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0 translate-y-2"
+  x-transition:enter-end="opacity-100 translate-y-0">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+    <div>
+      <h1 style="font-size:22px;font-weight:800;letter-spacing:-0.4px">🏆 Leaderboard</h1>
+      <p style="font-size:13px;color:var(--tx-muted);margin-top:3px">Top contribuitori din comunitatea TrashDet.</p>
+    </div>
+    <button @click="loadLeaderboard()" class="btn btn--ghost" style="gap:6px">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Reîmprospătare
+    </button>
+  </div>
+
+  <!-- My position card -->
+  <template x-if="user && leaderboard.length > 0">
+    <div class="card kpi-card--accent" style="margin-bottom:16px;display:flex;align-items:center;gap:14px">
+      <div style="width:48px;height:48px;border-radius:14px;background:rgba(5,150,105,.2);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#059669;flex-shrink:0"
+        x-text="user.username.slice(0,2).toUpperCase()"></div>
+      <div style="flex:1">
+        <p style="font-size:12px;color:var(--tx-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Poziția ta</p>
+        <p style="font-weight:800;font-size:16px" x-text="user.username"></p>
+      </div>
+      <div style="text-align:right">
+        <p style="font-size:24px;font-weight:900;color:#f59e0b">⭐ <span x-text="user.points"></span></p>
+        <p style="font-size:11px;color:var(--tx-muted)">puncte</p>
+      </div>
+    </div>
+  </template>
+
+  <!-- Leaderboard list -->
+  <div class="card">
+    <template x-if="leaderboardLoading">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <template x-for="i in [1,2,3,4,5]" :key="i">
+          <div class="skeleton" style="height:52px;border-radius:12px"></div>
+        </template>
+      </div>
+    </template>
+
+    <template x-if="!leaderboardLoading && leaderboard.length === 0">
+      <div class="empty-state">
+        <div class="empty-state__icon">🏆</div>
+        <p class="empty-state__text">Nicio raportare încă.<br>Fii primul din comunitate!</p>
+        <button @click="goTo('scan')" class="btn btn--brand" style="margin-top:12px">Raportează acum</button>
+      </div>
+    </template>
+
+    <template x-if="!leaderboardLoading && leaderboard.length > 0">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <template x-for="entry in leaderboard" :key="entry.rank">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;transition:background .15s"
+            :style="entry.username === user?.username ? 'background:rgba(5,150,105,.1);border:1.5px solid rgba(5,150,105,.25)' : 'background:var(--bg-raised)'">
+
+            <!-- Rank medal -->
+            <div style="width:36px;text-align:center;font-size:22px;flex-shrink:0"
+              x-text="entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : '#' + entry.rank"
+              :style="entry.rank > 3 ? 'font-size:14px;font-weight:700;color:var(--tx-muted)' : ''"></div>
+
+            <!-- Avatar -->
+            <div style="width:38px;height:38px;border-radius:11px;background:rgba(5,150,105,.15);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#059669;flex-shrink:0"
+              x-text="entry.username.slice(0,2).toUpperCase()"></div>
+
+            <!-- Name + role -->
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-weight:700;font-size:14px" x-text="entry.username"></span>
+                <span x-show="entry.username === user?.username" style="font-size:10px;background:rgba(5,150,105,.2);color:#059669;padding:2px 7px;border-radius:99px;font-weight:700">Tu</span>
+                <span x-show="entry.role === 'admin'" style="font-size:10px;background:rgba(59,130,246,.15);color:#3b82f6;padding:2px 7px;border-radius:99px;font-weight:700">Admin</span>
+              </div>
+              <p style="font-size:11px;color:var(--tx-muted);margin-top:2px" x-text="entry.total_reports + ' raportări'"></p>
+            </div>
+
+            <!-- Points + bar -->
+            <div style="text-align:right;flex-shrink:0">
+              <p style="font-weight:900;font-size:16px;color:#f59e0b">⭐ <span x-text="entry.points"></span></p>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+
+  <!-- Points explanation -->
+  <div class="card" style="margin-top:12px">
+    <h4 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:12px">Cum câștigi puncte?</h4>
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="width:28px;text-align:center">📸</span>
+        <span style="flex:1">Raportezi deșeuri (upload/scan)</span>
+        <span style="font-weight:800;color:#f59e0b">+10 ⭐</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="width:28px;text-align:center">✅</span>
+        <span style="flex:1">Raportul tău este marcat rezolvat de admin</span>
+        <span style="font-weight:800;color:#f59e0b">+5 ⭐</span>
+      </div>
+    </div>
+  </div>
+
+</div>

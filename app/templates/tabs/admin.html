@@ -1,0 +1,177 @@
+<!-- ══ Admin Panel Tab (only visible to admin role) ═══════════════════════ -->
+<div x-show="activeTab === 'admin' && user?.role === 'admin'" x-cloak
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0 translate-y-2"
+  x-transition:enter-end="opacity-100 translate-y-0">
+
+  <!-- Confirm delete modal -->
+  <div x-show="adminConfirmOpen" x-cloak
+    class="modal-bg"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+    <div class="modal" style="max-width:380px;border-radius:var(--r-xl);align-self:center;margin:auto">
+      <div class="modal__body" style="padding:28px 24px;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:44px;height:44px;border-radius:12px;background:rgba(239,68,68,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg fill="none" stroke="#ef4444" viewBox="0 0 24 24" stroke-width="2" style="width:22px;height:22px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.999l-6.928-12C12.771 2.668 11.229 2.668 10.268 4.001L3.34 16.001C2.57 17.333 3.532 19 5.072 19z"/></svg>
+          </div>
+          <div>
+            <p style="font-weight:800;font-size:16px">Confirmi ștergerea?</p>
+            <p style="font-size:13px;color:var(--tx-muted)" x-text="'Utilizatorul ' + (adminConfirmUser?.username ?? '') + ' va fi șters permanent.'"></p>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button @click="adminConfirmOpen=false" class="btn btn--ghost" style="flex:1">Anulează</button>
+          <button @click="adminDeleteUser()" class="btn btn--danger" style="flex:1;background:#ef4444;color:#fff">Șterge</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+    <div>
+      <h1 style="font-size:22px;font-weight:800;letter-spacing:-0.4px">Panou Administrator</h1>
+      <p style="font-size:13px;color:var(--tx-muted);margin-top:3px">Gestionare utilizatori, rapoarte și statistici platformă.</p>
+    </div>
+    <button @click="loadAdminAll()" class="btn btn--ghost" style="gap:6px">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Reîmprospătare
+    </button>
+  </div>
+
+  <!-- Admin KPI cards -->
+  <div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:20px">
+    <template x-if="adminStatsLoading">
+      <template x-for="i in [1,2,3,4]" :key="i">
+        <div class="kpi-card"><div class="skeleton" style="height:32px;border-radius:8px"></div></div>
+      </template>
+    </template>
+    <template x-if="!adminStatsLoading && adminStats">
+      <div class="kpi-card">
+        <span class="kpi-card__label">Utilizatori</span>
+        <span class="kpi-card__value text-brand" x-text="adminStats.total_users"></span>
+      </div>
+    </template>
+    <template x-if="!adminStatsLoading && adminStats">
+      <div class="kpi-card">
+        <span class="kpi-card__label">Raportări totale</span>
+        <span class="kpi-card__value text-brand" x-text="adminStats.total_sessions"></span>
+      </div>
+    </template>
+    <template x-if="!adminStatsLoading && adminStats">
+      <div class="kpi-card kpi-card--accent">
+        <span class="kpi-card__label">Rezolvate ✓</span>
+        <span class="kpi-card__value" x-text="adminStats.resolved_reports"></span>
+      </div>
+    </template>
+    <template x-if="!adminStatsLoading && adminStats">
+      <div class="kpi-card">
+        <span class="kpi-card__label">Detecții AI</span>
+        <span class="kpi-card__value" x-text="adminStats.total_objects"></span>
+      </div>
+    </template>
+  </div>
+
+  <!-- Leaderboard + Users table -->
+  <div style="display:grid;grid-template-columns:1fr;gap:16px">
+
+    <!-- Leaderboard -->
+    <div class="card">
+      <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+        🏆 Leaderboard comunitate
+      </h3>
+      <template x-if="leaderboardLoading">
+        <div class="skeleton" style="height:160px;border-radius:12px"></div>
+      </template>
+      <template x-if="!leaderboardLoading && leaderboard.length === 0">
+        <p style="font-size:13px;color:var(--tx-muted);text-align:center;padding:20px">Nicio raportare încă.</p>
+      </template>
+      <template x-if="!leaderboardLoading && leaderboard.length > 0">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <template x-for="entry in leaderboard" :key="entry.rank">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--bg-raised)">
+              <span style="width:24px;text-align:center;font-weight:900;font-size:13px"
+                :style="entry.rank === 1 ? 'color:#f59e0b' : entry.rank === 2 ? 'color:#9ca3af' : entry.rank === 3 ? 'color:#b45309' : 'color:var(--tx-muted)'"
+                x-text="entry.rank <= 3 ? ['🥇','🥈','🥉'][entry.rank-1] : '#'+entry.rank"></span>
+              <div style="width:30px;height:30px;border-radius:8px;background:rgba(5,150,105,.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#059669;flex-shrink:0"
+                x-text="entry.username.slice(0,2).toUpperCase()"></div>
+              <span style="flex:1;font-size:13px;font-weight:600" x-text="entry.username"></span>
+              <span style="font-size:11px;color:var(--tx-muted)" x-text="entry.total_reports + ' rap.'"></span>
+              <span style="font-size:13px;font-weight:800;color:#f59e0b">⭐ <span x-text="entry.points"></span></span>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <!-- Users management table -->
+    <div class="card">
+      <h3 style="font-size:14px;font-weight:700;margin-bottom:14px">👥 Utilizatori platformă</h3>
+      <template x-if="adminUsersLoading">
+        <div class="skeleton" style="height:200px;border-radius:12px"></div>
+      </template>
+      <template x-if="!adminUsersLoading && adminUsers.length === 0">
+        <p style="font-size:13px;color:var(--tx-muted);text-align:center;padding:20px">Niciun utilizator.</p>
+      </template>
+      <template x-if="!adminUsersLoading && adminUsers.length > 0">
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+          <table class="eco-table" style="min-width:600px">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Utilizator</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Rapoarte</th>
+                <th>Puncte</th>
+                <th>Acțiuni</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="u in adminUsers" :key="u.id">
+                <tr>
+                  <td style="color:var(--tx-muted);font-size:12px" x-text="u.id"></td>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <div style="width:28px;height:28px;border-radius:8px;background:rgba(5,150,105,.12);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#059669;flex-shrink:0"
+                        x-text="u.username.slice(0,2).toUpperCase()"></div>
+                      <span style="font-weight:600;font-size:13px" x-text="u.username"></span>
+                    </div>
+                  </td>
+                  <td style="font-size:12px;color:var(--tx-muted)" x-text="u.email"></td>
+                  <td>
+                    <span :class="u.role === 'admin' ? 'badge badge--blue' : 'badge badge--gray'" x-text="u.role"></span>
+                  </td>
+                  <td style="text-align:center;font-weight:700" x-text="u.total_reports"></td>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:4px">
+                      <button @click="adminAdjustPoints(u.id, -10)" class="admin-pts-btn" title="-10 pts">−</button>
+                      <span style="font-weight:800;font-size:14px;min-width:32px;text-align:center" x-text="u.points"></span>
+                      <button @click="adminAdjustPoints(u.id, +10)" class="admin-pts-btn admin-pts-btn--plus" title="+10 pts">+</button>
+                    </div>
+                  </td>
+                  <td>
+                    <div style="display:flex;gap:6px;flex-wrap:nowrap">
+                      <button @click="adminToggleRole(u.id, u.role)"
+                        class="btn btn--ghost btn--icon"
+                        :title="u.role === 'admin' ? 'Retrogradează la user' : 'Promovează la admin'"
+                        style="font-size:14px;min-height:32px;padding:4px 8px">
+                        <span x-text="u.role === 'admin' ? '👤' : '🛡️'"></span>
+                      </button>
+                      <button @click="adminAskDelete(u)" class="btn btn--danger btn--icon"
+                        style="min-height:32px;padding:4px 8px;font-size:14px" title="Șterge cont">
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
+    </div>
+
+  </div>
+</div>

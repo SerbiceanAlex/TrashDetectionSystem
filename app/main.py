@@ -7,18 +7,23 @@ Start with:
 
 import asyncio
 import uuid
+from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, UploadFile, WebSocket
+from typing import Annotated, Optional
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, UploadFile, WebSocket, Request
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import database as db
 from app import geo
 from app import inference as infer
 from app import schemas
+from app.auth_router import router as auth_router, get_current_active_user, oauth2_scheme
+from app.auth import decode_access_token
 from app import video as vid
 
 APP_DIR = Path(__file__).parent
@@ -26,10 +31,13 @@ UPLOADS_DIR = APP_DIR / "uploads"
 ANNOTATED_DIR = APP_DIR / "annotated"
 VIDEOS_DIR = APP_DIR / "videos"
 STATIC_DIR = APP_DIR / "static"
+TEMPLATES_DIR = APP_DIR / "templates"
 
 UPLOADS_DIR.mkdir(exist_ok=True)
 ANNOTATED_DIR.mkdir(exist_ok=True)
 VIDEOS_DIR.mkdir(exist_ok=True)
+
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 # ── Lifespan: load models + create DB tables on startup ──────────────────────
@@ -54,6 +62,9 @@ app.mount("/annotated", StaticFiles(directory=str(ANNOTATED_DIR)), name="annotat
 # Serve annotated videos at /videos/<filename>
 app.mount("/videos", StaticFiles(directory=str(VIDEOS_DIR)), name="videos")
 
+# Include Routers
+app.include_router(auth_router)
+
 # Serve the frontend SPA
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -69,9 +80,12 @@ def _save_files(original_bytes: bytes, annotated_bytes: bytes, stem: str):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def index():
-    html_path = STATIC_DIR / "index.html"
-    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+async def index(request: Request):
+    return templates.TemplateResponse(
+        request=request,
+        name="base.html",
+        context={}
+    )
 
 
 @app.post("/api/detect", response_model=schemas.DetectResponse, summary="Upload image and run detection")
@@ -82,7 +96,20 @@ async def detect(
     latitude: float = Query(default=None, description="GPS latitude"),
     longitude: float = Query(default=None, description="GPS longitude"),
     session: AsyncSession = Depends(db.get_db),
+    token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ):
+    # Optional User Auth for points
+    current_user = None
+    if token:
+        from app.auth import decode_access_token
+        try:
+            payload = decode_access_token(token)
+            if payload and "username" in payload:
+                from sqlalchemy import select
+                res = await session.execute(select(db.User).where(db.User.username == payload["username"]))
+                current_user = res.scalar_one_or_none()
+        except Exception:
+            pass
     """
     Upload a JPEG/PNG image, run the two-stage pipeline, store results in DB,
     and return the annotated image URL + detection JSON.
@@ -126,7 +153,10 @@ async def detect(
         longitude=final_lng,
         address=address,
         gps_source=gps_src,
+        reporter_id=current_user.id if current_user else None
     )
+    if current_user:
+        current_user.points += 10
     session.add(det_session)
     await session.flush()  # get the auto-generated id
 
@@ -166,7 +196,10 @@ async def detect(
         longitude=final_lng,
         address=address,
         gps_source=gps_src,
+        reporter_id=current_user.id if current_user else None
     )
+    if current_user:
+        current_user.points += 10
 
 
 @app.get("/api/sessions", response_model=schemas.SessionsPage, summary="List all detection sessions")
@@ -204,8 +237,11 @@ async def get_session(
 @app.delete("/api/sessions/{session_id}", summary="Delete a session and its saved images")
 async def delete_session(
     session_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
 ):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Numai administratorii pot șterge raportări.")
     det_session = await db.get_session_by_id(session, session_id)
     if det_session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
@@ -663,11 +699,170 @@ async def get_video_session(
     return vs
 
 
+# ── ADMIN endpoints ───────────────────────────────────────────────────────────
+
+@app.get("/api/admin/users", summary="[Admin] List all users with stats")
+async def admin_list_users(
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+    from sqlalchemy import select, func
+    result = await session.execute(
+        select(
+            db.User,
+            func.count(db.DetectionSession.id).label("total_reports")
+        )
+        .outerjoin(db.DetectionSession, db.DetectionSession.reporter_id == db.User.id)
+        .group_by(db.User.id)
+        .order_by(db.User.points.desc())
+    )
+    rows = result.all()
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "role": u.role,
+            "points": u.points,
+            "total_reports": total,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+        for u, total in rows
+    ]
+
+
+@app.patch("/api/admin/users/{user_id}", summary="[Admin] Update user role or points")
+async def admin_update_user(
+    user_id: int,
+    body: dict,
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Nu poți modifica propriul cont.")
+    from sqlalchemy import select
+    result = await session.execute(select(db.User).where(db.User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost găsit.")
+    allowed_roles = {"user", "admin"}
+    if "role" in body and body["role"] in allowed_roles:
+        user.role = body["role"]
+    if "points" in body and isinstance(body["points"], int):
+        user.points = max(0, body["points"])
+    await session.commit()
+    await session.refresh(user)
+    return {"id": user.id, "username": user.username, "role": user.role, "points": user.points}
+
+
+@app.delete("/api/admin/users/{user_id}", summary="[Admin] Delete a user account")
+async def admin_delete_user(
+    user_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Nu poți șterge propriul cont.")
+    from sqlalchemy import select
+    result = await session.execute(select(db.User).where(db.User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost găsit.")
+    await session.delete(user)
+    await session.commit()
+    return {"detail": f"Utilizatorul '{user.username}' a fost șters."}
+
+
+@app.post("/api/sessions/{session_id}/resolve", summary="[Admin] Mark session as resolved/cleaned")
+async def resolve_session(
+    session_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+    det_session = await db.get_session_by_id(session, session_id)
+    if det_session is None:
+        raise HTTPException(status_code=404, detail="Sesiunea nu a fost găsită.")
+    det_session.is_resolved = 1 if det_session.is_resolved == 0 else 0
+    det_session.resolved_at = datetime.utcnow() if det_session.is_resolved == 1 else None
+    det_session.resolver_id = current_user.id if det_session.is_resolved == 1 else None
+    if det_session.is_resolved == 1 and det_session.reporter_id:
+        # +5 bonus points to reporter when their report is cleaned
+        from sqlalchemy import select
+        rep_r = await session.execute(select(db.User).where(db.User.id == det_session.reporter_id))
+        reporter = rep_r.scalar_one_or_none()
+        if reporter:
+            reporter.points += 5
+    await session.commit()
+    return {"session_id": session_id, "is_resolved": det_session.is_resolved}
+
+
+@app.get("/api/leaderboard", summary="Top users by community points")
+async def leaderboard(
+    limit: int = Query(default=10, ge=1, le=50),
+    session: AsyncSession = Depends(db.get_db),
+):
+    from sqlalchemy import select, func
+    result = await session.execute(
+        select(
+            db.User,
+            func.count(db.DetectionSession.id).label("total_reports")
+        )
+        .outerjoin(db.DetectionSession, db.DetectionSession.reporter_id == db.User.id)
+        .group_by(db.User.id)
+        .order_by(db.User.points.desc())
+        .limit(limit)
+    )
+    rows = result.all()
+    return [
+        {
+            "rank": i + 1,
+            "username": u.username,
+            "role": u.role,
+            "points": u.points,
+            "total_reports": total,
+        }
+        for i, (u, total) in enumerate(rows)
+    ]
+
+
+@app.get("/api/admin/stats", summary="[Admin] Global platform stats")
+async def admin_stats(
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+    from sqlalchemy import select, func
+    user_count = await session.scalar(select(func.count(db.User.id)))
+    resolved_count = await session.scalar(
+        select(func.count(db.DetectionSession.id)).where(db.DetectionSession.is_resolved == 1)
+    )
+    total_s, total_o, avg_ms = await db.get_global_stats(session)
+    return {
+        "total_users": user_count,
+        "total_sessions": total_s,
+        "total_objects": total_o,
+        "resolved_reports": resolved_count,
+        "avg_inference_ms": round(avg_ms, 1),
+    }
+
+
 @app.delete("/api/video/sessions/{session_id}", summary="Delete a video session and files")
 async def delete_video_session(
     session_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
 ):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Numai administratorii pot șterge sesiuni video.")
     vs = await db.get_video_session_by_id(session, session_id)
     if vs is None:
         raise HTTPException(status_code=404, detail="Video session not found.")
@@ -700,3 +895,26 @@ async def download_annotated_video(
         raise HTTPException(status_code=410, detail="Annotated video file was deleted.")
 
     return FileResponse(p, media_type="video/mp4", filename=p.name)
+
+@app.post("/api/sessions/{session_id}/resolve", summary="Mark a detection session as resolved (cleaned)")
+async def resolve_session(
+    session_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    ds = await db.get_session_by_id(session, session_id)
+    if ds is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    
+    if ds.is_resolved:
+        return {"detail": "Acest focar este deja marcat ca fiind curățat."}
+
+    ds.is_resolved = 1
+    ds.resolved_at = datetime.utcnow()
+    ds.resolver_id = current_user.id
+    
+    # Reward points
+    current_user.points += 50
+    
+    await session.commit()
+    return {"detail": "Murdăria a fost marcată ca fiind curățată."}

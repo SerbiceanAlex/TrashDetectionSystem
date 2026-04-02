@@ -1585,3 +1585,31 @@ input[type="range"].slider::-webkit-slider-thumb:active {
   margin-bottom: 20px;
 }
 @media (min-width: 640px) { .dash-actions { flex-direction: row; justify-content: center; } }
+
+/* ── ADMIN PANEL ──────────────────────────────────────────────────────────── */
+.admin-pts-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1.5px solid var(--bg-border);
+  background: var(--bg-raised);
+  color: var(--tx-secondary);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s, color .15s;
+  line-height: 1;
+  padding: 0;
+}
+.admin-pts-btn:hover { background: var(--bg-border); color: var(--tx-primary); }
+.admin-pts-btn--plus:hover { background: rgba(5,150,105,.15); color: #059669; border-color: rgba(5,150,105,.3); }
+
+/* Admin tab sidebar badge */
+.td-sidebar__item[data-admin] .td-sidebar__badge,
+.td-sidebar__badge--admin {
+  background: rgba(239,68,68,.2);
+  color: #ef4444;
+}

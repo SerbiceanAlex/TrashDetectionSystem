@@ -53,7 +53,8 @@ async def handle_live_ws(websocket: WebSocket, det_conf: float, session: AsyncSe
             if frame is None:
                 continue
 
-            detections, annotated, elapsed_ms = infer.run_pipeline_frame(
+            # Run inference — frame only (no annotated image needed, client draws boxes)
+            detections, _annotated, elapsed_ms = infer.run_pipeline_frame(
                 frame, det_conf=det_conf
             )
 
@@ -65,24 +66,23 @@ async def handle_live_ws(websocket: WebSocket, det_conf: float, session: AsyncSe
             for det in detections:
                 material_counts[det["material_name"]] += 1
 
-            # Encode annotated frame to JPEG
-            _, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            b64_frame = base64.b64encode(buf.tobytes()).decode("ascii")
-
             avg_fps = total_frames / max(time.time() - t_start, 0.001)
 
+            # Send ONLY lightweight detection data (no base64 image) — ~1KB vs ~100KB
+            # Client-side canvas overlay draws the boxes on the live video feed
             payload = json.dumps({
-                "frame": b64_frame,
                 "total_objects": frame_objects,
                 "fps": round(avg_fps, 1),
                 "elapsed_ms": round(elapsed_ms, 1),
                 "material_counts": dict(material_counts),
+                # Normalised box coords [x1,y1,x2,y2] in pixels of the 640px downscaled frame
                 "detections": [
                     {
                         "material": d["material_name"],
-                        "det_score": round(d["det_score"], 3),
-                        "cls_score": round(d["material_score"], 3),
-                        "box": d["box"],
+                        "score": round(d["det_score"], 2),
+                        "box": d["box"],           # [x1, y1, x2, y2] pixels
+                        "frame_w": frame.shape[1], # actual processed width
+                        "frame_h": frame.shape[0], # actual processed height
                     }
                     for d in detections
                 ],

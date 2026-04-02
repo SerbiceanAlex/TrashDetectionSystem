@@ -25,6 +25,35 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
+# ── Auth & Users ─────────────────────────────────────────────────────────────
+
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    username: str
+    email: str
+    role: str
+    points: int
+    created_at: datetime
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+    role: Optional[str] = None
+    id: Optional[int] = None
+
 # ── Detection record (single bounding box) ──────────────────────────────────
 
 class DetectionRecordOut(BaseModel):
@@ -55,6 +84,10 @@ class DetectionSessionOut(BaseModel):
     longitude: Optional[float] = None
     address: Optional[str] = None
     gps_source: Optional[str] = None
+    is_resolved: int = 0
+    resolved_at: Optional[datetime] = None
+    reporter_id: Optional[int] = None
+    resolver_id: Optional[int] = None
 
 
 class DetectionSessionDetail(DetectionSessionOut):
@@ -74,6 +107,10 @@ class DetectResponse(BaseModel):
     longitude: Optional[float] = None
     address: Optional[str] = None
     gps_source: Optional[str] = None
+    is_resolved: int = 0
+    resolved_at: Optional[datetime] = None
+    reporter_id: Optional[int] = None
+    resolver_id: Optional[int] = None
 
 
 # ── Stats ────────────────────────────────────────────────────────────────────
@@ -165,6 +202,7 @@ class MapReport(BaseModel):
     annotated_path: Optional[str] = None
     address: Optional[str] = None
     gps_source: Optional[str] = None
+    is_resolved: int = 0
 
 
 # ── Zone / community schemas ───────────────────────────────────────
@@ -194,3 +232,4 @@ class NearbyReport(BaseModel):
     annotated_path: Optional[str] = None
     address: Optional[str] = None
     gps_source: Optional[str] = None
+    is_resolved: int = 0

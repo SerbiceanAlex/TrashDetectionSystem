@@ -48,6 +48,22 @@ function historyApp() {
       }
     },
 
+    async resolveSession(id) {
+      if (!confirm(`Ești sigur că vrei să marchezi acest focar ca fiind curățat?`)) return;
+      try {
+        await fetchAPI(`/api/sessions/${id}/resolve`, { method: 'POST' });
+        showToast('Murdăria a fost marcată ca fiind curățată! 🎉', 'success');
+        // Update local state instantly
+        if (this.sessionDetail && this.sessionDetail.id === id) {
+          this.sessionDetail.is_resolved = 1;
+        }
+        await this.loadHistory();
+        window.dispatchEvent(new CustomEvent('eco:newReport')); // force map update
+      } catch (e) {
+        showToast('Eroare la actualizarea statusului.', 'error');
+      }
+    },
+
     async deleteSession(id) {
       if (!confirm(`Ștergi sesiunea #${id}?`)) return;
       try {

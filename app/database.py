@@ -31,6 +31,24 @@ class Base(DeclarativeBase):
     pass
 
 
+class User(Base):
+    """Platform users."""
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True, nullable=False)
+    email = Column(String(100), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(200), nullable=False)
+    role = Column(String(20), default="user") # 'user' or 'admin'
+    points = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    reports = relationship("DetectionSession", foreign_keys="[DetectionSession.reporter_id]", back_populates="reporter")
+    resolutions = relationship("DetectionSession", foreign_keys="[DetectionSession.resolver_id]", back_populates="resolver")
+
+
 class DetectionSession(Base):
     """One row per uploaded image."""
 
@@ -47,6 +65,14 @@ class DetectionSession(Base):
     longitude = Column(Float, nullable=True)
     address = Column(Text, nullable=True)          # reverse-geocoded address
     gps_source = Column(String(16), nullable=True) # 'exif' | 'browser' | 'manual'
+    is_resolved = Column(Integer, default=0)       # 0=dirty, 1=cleaned
+    resolved_at = Column(DateTime, nullable=True)
+    
+    reporter_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    resolver_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    reporter = relationship("User", foreign_keys=[reporter_id], back_populates="reports")
+    resolver = relationship("User", foreign_keys=[resolver_id], back_populates="resolutions")
 
     records = relationship(
         "DetectionRecord", back_populates="session", cascade="all, delete-orphan"

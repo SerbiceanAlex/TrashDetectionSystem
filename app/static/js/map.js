@@ -194,8 +194,13 @@ function mapApp() {
       const sevColors = ['#22c55e', '#eab308', '#f97316', '#ef4444'];
 
       for (const r of this.mapReports) {
-        const sev = severityFromCount(r.total_objects);
-        const color = sevColors[sev];
+        let color = '#3b82f6'; // default
+        if (r.is_resolved) {
+          color = '#10b981'; // Solved -> Green
+        } else {
+          const sev = severityFromCount(r.total_objects);
+          color = sevColors[sev];
+        }
 
         const icon = L.divIcon({
           className: '',

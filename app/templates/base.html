@@ -40,6 +40,7 @@
   <script src="/static/js/history.js"></script>
   <script src="/static/js/stats.js"></script>
   <script src="/static/js/video.js"></script>
+  <script src="/static/js/admin.js"></script>
   <script src="/static/js/auth.js"></script>
   <script src="/static/js/app.js"></script>
 </head>
@@ -234,6 +235,7 @@
           </svg>
           <span x-text="tab.label"></span>
           <span x-show="tab.id === 'scan'" class="td-sidebar__badge">AI</span>
+          <span x-show="tab.id === 'admin'" class="td-sidebar__badge" style="background:rgba(239,68,68,.2);color:#ef4444">ADMIN</span>
         </button>
       </template>
     </nav>
@@ -299,6 +301,8 @@
       {% include 'tabs/map.html' %}
       {% include 'tabs/history.html' %}
       {% include 'tabs/stats.html' %}
+      {% include 'tabs/leaderboard.html' %}
+      {% include 'tabs/admin.html' %}
       {% include 'tabs/settings.html' %}
     </main>
 

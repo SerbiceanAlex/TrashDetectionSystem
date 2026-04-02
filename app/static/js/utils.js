@@ -88,12 +88,19 @@ function getSeverity(level) {
 
 /* ── Fetch wrapper with error handling ──────────────────────────────────── */
 async function fetchAPI(url, options = {}) {
+  const token = localStorage.getItem('eco_token');
+  if (token) {
+    options.headers = {
+      ...options.headers,
+      'Authorization': `Bearer ${token}`
+    };
+  }
   const response = await fetch(url, options);
   if (!response.ok) {
     let detail = `Eroare server (${response.status})`;
     try {
       const err = await response.json();
-      detail = err.detail || detail;
+      detail = (err && err.detail) ? err.detail : detail;
     } catch (_) {}
     throw new Error(detail);
   }
