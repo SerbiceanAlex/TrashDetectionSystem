@@ -1,0 +1,192 @@
+<!-- ╔═══════════════════════════════╗
+       ║  TAB: SCANARE                ║
+       ╚═══════════════════════════════╝ -->
+  <div x-show="activeTab === 'scan'" x-cloak
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0 translate-y-2"
+    x-transition:enter-end="opacity-100 translate-y-0">
+
+    <h1 class="section-title">📷 Scanează zona</h1>
+
+    <div style="display:grid;grid-template-columns:1fr;gap:16px" class="detect-grid">
+
+      <!-- Upload / Camera panel -->
+      <div class="card card--elevated">
+
+        <!-- GPS status chip -->
+        <div style="margin-bottom:16px">
+          <button @click="requestGeo()"
+            :class="geoStatus === 'ok' ? 'gps-chip gps-chip--ok' : 'gps-chip'"
+            :disabled="geoStatus === 'loading'">
+            <span x-text="geoLabel"></span>
+            <span x-show="geoStatus === 'ok'" style="font-family:monospace;font-size:10px;opacity:.7"
+              x-text="`${geoLat?.toFixed(4)}, ${geoLng?.toFixed(4)}`"></span>
+          </button>
+        </div>
+
+        <!-- Mobile camera (direct camera access) -->
+        <label for="fileInput" style="display:block;cursor:pointer">
+          <div class="drop-zone"
+            :class="isDragging ? 'drop-zone--active' : ''"
+            @dragover.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="handleDrop($event)"
+            @click.prevent="document.getElementById('fileInput').click()">
+
+            <template x-if="!previewSrc">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+                <div class="drop-zone__icon">📷</div>
+                <div class="drop-zone__text">
+                  <strong>Fă o poză</strong> sau alege din galerie
+                </div>
+                <div class="drop-zone__sub">JPEG · PNG · WEBP</div>
+              </div>
+            </template>
+
+            <template x-if="previewSrc">
+              <div style="width:100%">
+                <img :src="previewSrc" style="max-height:220px;max-width:100%;object-fit:contain;border-radius:10px" />
+              </div>
+            </template>
+          </div>
+        </label>
+
+        <!-- Mobile-friendly file input with camera capture -->
+        <input id="fileInput" type="file" accept="image/*" capture="environment"
+          style="display:none" @change="handleFileSelect($event)" />
+
+        <!-- Clear button -->
+        <div x-show="selectedFile" x-cloak
+          style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--tx-secondary)">
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+            x-text="selectedFile?.name"></span>
+          <button @click.stop="clearFile()" class="btn btn--danger btn--icon" style="padding:4px 8px;font-size:11px">
+            ✕ Șterge
+          </button>
+        </div>
+
+        <!-- Confidence slider -->
+        <div style="margin-top:16px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+            <label style="font-size:13px;font-weight:600;color:var(--tx-secondary)">Prag detecție</label>
+            <span style="font-size:13px;font-weight:700;color:var(--eco-green-dark)" x-text="detConf.toFixed(2)"></span>
+          </div>
+          <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="detConf"
+            class="slider" :disabled="loading" />
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
+            <span>Mai sensibil (0.05)</span>
+            <span>Mai strict (0.95)</span>
+          </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div x-show="loading" x-cloak style="margin-top:12px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
+            <span x-text="uploadProgress < 88 ? '🔍 Se analizează…' : '🤖 AI procesează…'"></span>
+            <span style="font-weight:700;color:var(--eco-green-dark)" x-text="uploadProgress + '%'"></span>
+          </div>
+          <div class="progress"><div class="progress__bar" :style="`width:${uploadProgress}%`"></div></div>
+        </div>
+
+        <!-- Scan button -->
+        <button @click="runDetection()" :disabled="!selectedFile || loading"
+          class="btn btn--scan" style="margin-top:16px">
+          <template x-if="loading">
+            <div class="spinner"></div>
+          </template>
+          <span x-text="loading ? 'Se procesează…' : '🔍 Analizează zona'"></span>
+        </button>
+      </div>
+
+      <!-- Result panel -->
+      <div class="card" x-show="result || loading" x-cloak
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-4"
+        x-transition:enter-end="opacity-100 translate-y-0">
+
+        <!-- Skeleton -->
+        <template x-if="loading && !result">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="skeleton" style="height:180px;border-radius:10px"></div>
+            <div style="display:flex;gap:8px">
+              <div class="skeleton" style="height:28px;width:80px;border-radius:99px"></div>
+              <div class="skeleton" style="height:28px;width:60px;border-radius:99px"></div>
+            </div>
+            <div class="skeleton" style="height:14px;border-radius:4px"></div>
+            <div class="skeleton" style="height:14px;width:75%;border-radius:4px"></div>
+          </div>
+        </template>
+
+        <!-- Result -->
+        <template x-if="result">
+          <div class="fade-up">
+            <!-- Severity banner -->
+            <div x-show="resultSeverity" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;border-radius:10px;background:var(--bg-raised)">
+              <span style="font-size:26px" x-text="resultSeverity?.icon"></span>
+              <div>
+                <div style="font-weight:700;font-size:15px" x-text="resultSeverity?.label"></div>
+                <div style="font-size:12px;color:var(--tx-muted)"
+                  x-text="`${result.total_objects} obiecte detectate · ${result.inference_ms.toFixed(0)} ms`"></div>
+              </div>
+              <span class="badge" :class="`sev-${severityFromCount(result.total_objects)}`"
+                style="margin-left:auto" x-text="'#' + result.session_id"></span>
+            </div>
+
+            <!-- Location banner -->
+            <template x-if="result.address">
+              <div style="margin-bottom:14px;padding:8px 12px;border-radius:8px;background:var(--bg-surface);font-size:12px;color:var(--tx-secondary);display:flex;align-items:center;gap:6px;border:1px solid var(--bg-border)">
+                <span>📍</span>
+                <span x-text="result.address" style="line-height:1.3"></span>
+              </div>
+            </template>
+
+            <!-- Toggle original/annotated -->
+            <div style="display:flex;gap:8px;margin-bottom:10px">
+              <button @click="showAnnotated = true"
+                :class="showAnnotated ? 'btn btn--primary' : 'btn btn--ghost'"
+                style="flex:1;font-size:12px;min-height:36px;padding:6px 12px">Cu detecții</button>
+              <button @click="showAnnotated = false"
+                :class="!showAnnotated ? 'btn btn--primary' : 'btn btn--ghost'"
+                style="flex:1;font-size:12px;min-height:36px;padding:6px 12px">Originală</button>
+            </div>
+
+            <!-- Annotated image -->
+            <div class="result-img-wrap" @click="openLightbox(showAnnotated ? result.annotated_url : originalImageUrl)">
+              <img :src="showAnnotated ? result.annotated_url : originalImageUrl" alt="Rezultat detecție" />
+              <div class="result-img-wrap__overlay">
+                <span class="result-img-wrap__hint">🔍 Click pentru mărire</span>
+              </div>
+            </div>
+
+            <!-- Material badges -->
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">
+              <template x-for="d in result.detections" :key="d.id">
+                <span class="badge" :style="materialBadgeStyle(d.material)"
+                  x-text="d.material + ' ' + (d.cls_score * 100).toFixed(0) + '%'"></span>
+              </template>
+              <span x-show="result.detections.length === 0"
+                style="font-size:13px;color:var(--tx-muted);font-style:italic;padding:4px 0">
+                Niciun obiect detectat. Încearcă un prag mai mic.
+              </span>
+            </div>
+
+            <!-- Re-run slider -->
+            <div style="margin-top:14px;padding:12px;background:var(--bg-raised);border-radius:10px">
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
+                <span>Ajustează pragul</span>
+                <span style="font-weight:700;color:var(--eco-green-dark)" x-text="rerunConf.toFixed(2)"></span>
+              </div>
+              <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="rerunConf"
+                class="slider" :disabled="isRerunning" style="margin-bottom:8px" />
+              <button @click="rerunDetection()" :disabled="isRerunning"
+                class="btn btn--ghost" style="width:100%;font-size:12px;min-height:36px">
+                <template x-if="isRerunning"><div class="spinner spinner--dark"></div></template>
+                <span x-text="isRerunning ? 'Se re-analizează…' : '↩ Re-detectează cu conf ' + rerunConf.toFixed(2)"></span>
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+    </div><!-- /detect-grid -->
+  </div><!-- /scan tab -->

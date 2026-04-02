@@ -1,0 +1,201 @@
+<!-- ╔═══════════════════════════════╗
+       ║  TAB: RAPOARTE               ║
+       ╚═══════════════════════════════╝ -->
+  <div x-show="activeTab === 'reports'" x-cloak
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0 translate-y-2"
+    x-transition:enter-end="opacity-100 translate-y-0">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h1 class="section-title" style="margin-bottom:0">📋 Rapoarte</h1>
+      <span class="badge badge--gray" x-text="history.total + ' total'"></span>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="card" style="margin-bottom:16px;padding:12px 16px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <input type="text" x-model.debounce.400ms="searchQuery"
+          @input="historyPage=0; loadHistory()"
+          placeholder="🔍 Caută după nume…" class="input" style="flex:1;min-width:160px;min-height:40px;font-size:13px" />
+        <select x-model="filterMaterial" @change="historyPage=0; loadHistory()"
+          class="input" style="flex:0 0 auto;width:auto;font-size:13px;min-height:40px">
+          <option value="">Toate materialele</option>
+          <option value="plastic">Plastic</option>
+          <option value="paper">Paper</option>
+          <option value="glass">Glass</option>
+          <option value="metal">Metal</option>
+          <option value="other">Other</option>
+        </select>
+        <input type="number" x-model.number="filterMinObjects"
+          @input.debounce.400ms="historyPage=0; loadHistory()"
+          placeholder="Min obj." min="0"
+          class="input" style="width:90px;font-size:13px;min-height:40px" />
+      </div>
+    </div>
+
+    <!-- Skeleton -->
+    <template x-if="isLoadingHistory">
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <template x-for="i in 5" :key="i">
+          <div class="card" style="display:flex;gap:12px;padding:12px">
+            <div class="skeleton" style="width:56px;height:56px;border-radius:8px;flex-shrink:0"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px;justify-content:center">
+              <div class="skeleton" style="height:13px;width:60%;border-radius:4px"></div>
+              <div class="skeleton" style="height:11px;width:40%;border-radius:4px"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- Empty state -->
+    <template x-if="!isLoadingHistory && history.items.length === 0">
+      <div class="card">
+        <div class="empty-state">
+          <div class="empty-state__icon">📋</div>
+          <div class="empty-state__text" x-text="searchQuery || filterMaterial ? 'Niciun rezultat pentru filtrele selectate.' : 'Nicio sesiune salvată încă. Fă prima scanare!'"></div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Report cards -->
+    <template x-if="!isLoadingHistory && history.items.length > 0">
+      <div class="card" style="padding:8px 16px">
+        <template x-for="s in history.items" :key="s.id">
+          <div class="report-card" @click="openSessionDetail(s.id)">
+            <template x-if="s.annotated_path">
+              <img :src="getAnnotatedUrl(s.annotated_path)" class="report-card__thumb"
+                @error="$el.style.display='none'" alt="" />
+            </template>
+            <template x-if="!s.annotated_path">
+              <div class="report-card__thumb" style="display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--tx-muted)">🗑️</div>
+            </template>
+            <div class="report-card__body">
+              <div class="report-card__name" x-text="s.filename"></div>
+              <div class="report-card__meta">
+                <template x-if="s.is_resolved">
+                  <span class="badge badge--green" style="margin-right:4px">✅ Soluționat</span>
+                </template>
+                <span :class="`badge sev-${severityFromCount(s.total_objects)}`" x-text="sessionSeverity(s).icon + ' ' + s.total_objects + ' obiecte'"></span>
+                · <span x-text="formatDate(s.upload_time)"></span>
+              </div>
+              <template x-if="s.address">
+                <div style="font-size:11px;color:var(--tx-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="'📍 ' + s.address"></div>
+              </template>
+              <div style="font-size:11px;color:var(--tx-muted);margin-top:2px"
+                x-text="`${s.inference_ms.toFixed(0)} ms · #${s.id}`"></div>
+            </div>
+            <!-- Delete button: only for admins -->
+            <template x-if="isLoggedIn && user.role === 'admin'">
+              <button @click.stop="deleteSession(s.id)" class="btn btn--danger btn--icon" style="flex-shrink:0" title="Șterge">
+                🗑
+              </button>
+            </template>
+          </div>
+        </template>
+
+        <!-- Pagination -->
+        <div class="pagination">
+          <button @click="prevPage()" :disabled="!hasPrev" class="btn btn--ghost" style="font-size:12px;min-height:36px;padding:6px 14px">← Anterior</button>
+          <span class="pagination__info" x-text="`Pagina ${historyPage + 1} / ${totalPages}`"></span>
+          <button @click="nextPage()" :disabled="!hasNext" class="btn btn--ghost" style="font-size:12px;min-height:36px;padding:6px 14px">Următor →</button>
+        </div>
+      </div>
+    </template>
+
+    <!-- Session detail modal -->
+    <div x-show="sessionDetail" x-cloak
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0"
+      x-transition:enter-end="opacity-100"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="modal-bg"
+      @click.self="sessionDetail = null"
+      @keydown.escape.window="sessionDetail = null">
+      <div class="modal" @click.stop x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="translate-y-8 opacity-0"
+        x-transition:enter-end="translate-y-0 opacity-100">
+        <div class="modal__grip"></div>
+        <div class="modal__body" x-if="sessionDetail">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <h3 style="font-size:16px;font-weight:700" x-text="sessionDetail?.filename"></h3>
+            <button @click="sessionDetail=null" class="btn btn--icon">✕</button>
+          </div>
+          <template x-if="sessionDetail">
+            <div>
+              <!-- Annotated image -->
+              <div x-show="sessionDetail.annotated_path" class="result-img-wrap"
+                style="margin-bottom:12px"
+                @click="openLightbox(getAnnotatedUrl(sessionDetail.annotated_path))">
+                <img :src="getAnnotatedUrl(sessionDetail.annotated_path)" alt="" />
+                <div class="result-img-wrap__overlay">
+                  <span class="result-img-wrap__hint">🔍 Mărire</span>
+                </div>
+              </div>
+
+              <!-- Meta info -->
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                <span :class="`badge sev-${severityFromCount(sessionDetail.total_objects)}`"
+                  x-text="sessionDetail.total_objects + ' obiecte'"></span>
+                <span class="badge badge--blue" x-text="sessionDetail.inference_ms.toFixed(0) + ' ms'"></span>
+                <span class="badge badge--gray" x-text="formatDate(sessionDetail.upload_time)"></span>
+                <template x-if="sessionDetail.latitude">
+                  <span class="badge badge--green"
+                    x-text="sessionDetail.address ? `📍 ${sessionDetail.address}` : `📍 ${sessionDetail.latitude?.toFixed(4)}, ${sessionDetail.longitude?.toFixed(4)}`"
+                    :title="`Lat: ${sessionDetail.latitude}, Lng: ${sessionDetail.longitude}`"></span>
+                </template>
+              </div>
+
+              <!-- Detection records -->
+              <template x-if="sessionDetail.records && sessionDetail.records.length > 0">
+                <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--bg-border);margin-bottom:16px">
+                  <table class="eco-table">
+                    <thead>
+                      <tr>
+                        <th>Material</th>
+                        <th>Det. %</th>
+                        <th>Cls. %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-for="d in sessionDetail.records" :key="d.id">
+                        <tr>
+                          <td><span class="badge" :style="materialBadgeStyle(d.material)" x-text="d.material"></span></td>
+                          <td style="font-weight:600" x-text="(d.det_score * 100).toFixed(1) + '%'"></td>
+                          <td x-text="(d.cls_score * 100).toFixed(1) + '%'"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+
+              <!-- Resolve Button -->
+              <div style="margin-top:16px;">
+                <template x-if="sessionDetail.is_resolved">
+                  <div class="badge badge--green" style="padding:12px;display:flex;justify-content:center;font-size:14px;font-weight:700">✅ Acest focar a fost curățat!</div>
+                </template>
+                <!-- Resolve Button: only for logged in users -->
+                <template x-if="!sessionDetail.is_resolved">
+                  <div>
+                    <template x-if="isLoggedIn">
+                      <button @click="resolveSession(sessionDetail.id)" class="btn btn--scan" style="width:100%;height:44px;background:#10b981;border-color:#10b981">
+                        🧹 Marchează ca Soluționat (Curățat)
+                      </button>
+                    </template>
+                    <template x-if="!isLoggedIn">
+                      <button @click="openAuth('login')" class="btn btn--ghost" style="width:100%;height:44px;color:var(-- brand);border:1px dashed var(--brand)">
+                        🔑 Loghează-te pentru a curăța
+                      </button>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div><!-- /reports tab -->

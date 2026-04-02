@@ -1,0 +1,105 @@
+<!-- ╔═══════════════════════════════╗
+       ║  TAB: HARTĂ                  ║
+       ╚═══════════════════════════════╝ -->
+  <div x-show="activeTab === 'map'" x-cloak
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0 translate-y-2"
+    x-transition:enter-end="opacity-100 translate-y-0">
+
+    <h1 class="section-title">🗺️ Hartă poluare</h1>
+
+    <!-- Toolbar -->
+    <div class="map-toolbar">
+      <button @click="setViewMode('zones')" :class="mapViewMode === 'zones' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">🟠 Zone</button>
+      <button @click="setViewMode('heat')"  :class="mapViewMode === 'heat'  ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">🌡️ Heatmap</button>
+      <button @click="setViewMode('markers')" :class="mapViewMode === 'markers' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">📍 Markeri</button>
+      <button @click="centerOnUser()" class="map-view-btn" style="margin-left:auto">
+        <template x-if="geoLoading"><div class="spinner spinner--dark" style="width:14px;height:14px"></div></template>
+        <span x-show="!geoLoading">📍 Locație</span>
+      </button>
+      <button @click="loadMapData()" class="map-view-btn" :disabled="mapLoading">
+        <template x-if="mapLoading"><div class="spinner spinner--dark" style="width:14px;height:14px"></div></template>
+        <span x-show="!mapLoading">🔄</span>
+      </button>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="card" style="margin-bottom:12px;padding:12px 16px">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
+        <div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px;color:var(--eco-green-dark)" x-text="mapStats.total"></div>
+          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Rapoarte</div>
+        </div>
+        <div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px" x-text="mapStats.objects"></div>
+          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Obiecte</div>
+        </div>
+        <div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px;color:#ef4444" x-text="mapStats.highZones"></div>
+          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Zone critice</div>
+        </div>
+        <div>
+          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px" x-text="mapStats.zones"></div>
+          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Zone totale</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div id="ecoMap" style="height:460px;border-radius:14px"></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend" style="margin-top:12px">
+      <span class="legend__item"><span class="legend__dot" style="background:#22c55e"></span> Curat</span>
+      <span class="legend__item"><span class="legend__dot" style="background:#eab308"></span> Scăzut</span>
+      <span class="legend__item"><span class="legend__dot" style="background:#f97316"></span> Mediu</span>
+      <span class="legend__item"><span class="legend__dot" style="background:#ef4444"></span> Ridicat</span>
+    </div>
+
+    <!-- Nearby reports section -->
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h2 style="font-size:15px;font-weight:700">Rapoarte în apropiere</h2>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select x-model.number="nearbyRadius"
+            style="font-size:12px;padding:4px 8px;border-radius:8px;border:1.5px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);min-height:32px">
+            <option value="0.5">500m</option>
+            <option value="1">1 km</option>
+            <option value="2">2 km</option>
+            <option value="5">5 km</option>
+          </select>
+          <button @click="loadNearby()" :disabled="nearbyLoading" class="btn btn--ghost" style="font-size:12px;min-height:32px;padding:4px 12px">
+            <template x-if="nearbyLoading"><div class="spinner spinner--dark" style="width:12px;height:12px"></div></template>
+            <span x-show="!nearbyLoading">Caută</span>
+          </button>
+        </div>
+      </div>
+      <template x-if="nearbyReports.length > 0">
+        <div>
+          <template x-for="r in nearbyReports" :key="r.id">
+            <div class="report-card" style="padding:10px;border-radius:10px">
+              <img x-show="r.annotated_path" :src="getAnnotatedUrl(r.annotated_path)"
+                class="report-card__thumb" @error="$el.style.display='none'" />
+              <div class="report-card__body">
+                <div class="report-card__name" x-text="r.filename"></div>
+                <div class="report-card__meta">
+                  <span :class="`badge sev-${severityFromCount(r.total_objects)}`"
+                    x-text="r.total_objects + ' obiecte'"></span>
+                  · <span x-text="timeAgo(r.upload_time)"></span>
+                </div>
+                <template x-if="r.address">
+                  <div style="font-size:11px;color:var(--tx-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="'📍 ' + r.address"></div>
+                </template>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+      <div x-show="nearbyReports.length === 0 && !nearbyLoading" class="empty-state" style="padding:24px">
+        <div class="empty-state__icon">📍</div>
+        <div class="empty-state__text">Apasă "Caută" pentru rapoarte din apropiere</div>
+      </div>
+    </div>
+  </div><!-- /map tab -->
