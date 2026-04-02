@@ -120,6 +120,23 @@ class VideoSession(Base):
     total_frames_expected = Column(Integer, default=0)      # total frames in source video
 
 
+class Notification(Base):
+    """In-app notification for a user."""
+
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    category = Column(String(32), default="info")   # 'resolved' | 'info' | 'badge'
+    session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=True)
+    is_read = Column(Integer, default=0)             # 0=unread, 1=read
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", foreign_keys=[user_id])
+    session = relationship("DetectionSession", foreign_keys=[session_id])
+
+
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

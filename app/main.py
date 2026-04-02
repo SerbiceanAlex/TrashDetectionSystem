@@ -220,17 +220,16 @@ async def get_session(
     session_id: int,
     session: AsyncSession = Depends(db.get_db),
 ):
-    det_session = await db.get_session_by_id(session, session_id)
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    result = await session.execute(
+        select(db.DetectionSession)
+        .where(db.DetectionSession.id == session_id)
+        .options(selectinload(db.DetectionSession.records))
+    )
+    det_session = result.scalar_one_or_none()
     if det_session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
-
-    # Eagerly load records via relationship
-    from sqlalchemy import select
-    result = await session.execute(
-        select(db.DetectionRecord).where(db.DetectionRecord.session_id == session_id)
-    )
-    records = result.scalars().all()
-    det_session.records = list(records)
     return det_session
 
 
@@ -821,6 +820,14 @@ async def resolve_session(
         reporter = rep_r.scalar_one_or_none()
         if reporter:
             reporter.points += 5
+            # create in-app notification for reporter
+            notif = db.Notification(
+                user_id=reporter.id,
+                message=f"Raportul tău #{session_id} a fost marcat ca rezolvat! +5 puncte.",
+                category="resolved",
+                session_id=session_id,
+            )
+            session.add(notif)
     await session.commit()
     return {"session_id": session_id, "is_resolved": det_session.is_resolved}
 
@@ -876,6 +883,126 @@ async def admin_stats(
     }
 
 
+@app.get("/api/me/stats", summary="Personal stats for the logged-in user")
+async def my_stats(
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    """Returns personal stats: total reports, objects detected, resolved count, points, weekly activity."""
+    from sqlalchemy import select, func
+    from datetime import timedelta
+
+    # Total personal sessions
+    total_sessions = await session.scalar(
+        select(func.count(db.DetectionSession.id))
+        .where(db.DetectionSession.reporter_id == current_user.id)
+    )
+    # Total objects
+    total_objects = await session.scalar(
+        select(func.coalesce(func.sum(db.DetectionSession.total_objects), 0))
+        .where(db.DetectionSession.reporter_id == current_user.id)
+    )
+    # Resolved by user
+    resolved_count = await session.scalar(
+        select(func.count(db.DetectionSession.id))
+        .where(db.DetectionSession.reporter_id == current_user.id)
+        .where(db.DetectionSession.is_resolved == 1)
+    )
+    # Weekly activity: last 7 days, reports per day
+    seven_days_ago = datetime.utcnow() - timedelta(days=6)
+    rows = await session.execute(
+        select(
+            func.date(db.DetectionSession.upload_time).label("day"),
+            func.count(db.DetectionSession.id).label("reports"),
+            func.coalesce(func.sum(db.DetectionSession.total_objects), 0).label("objects"),
+        )
+        .where(db.DetectionSession.reporter_id == current_user.id)
+        .where(db.DetectionSession.upload_time >= seven_days_ago)
+        .group_by(func.date(db.DetectionSession.upload_time))
+        .order_by(func.date(db.DetectionSession.upload_time))
+    )
+    weekly = [{"day": r.day, "reports": r.reports, "objects": int(r.objects)} for r in rows]
+
+    return {
+        "username": current_user.username,
+        "role": current_user.role,
+        "points": current_user.points,
+        "total_sessions": total_sessions or 0,
+        "total_objects": total_objects or 0,
+        "resolved_count": resolved_count or 0,
+        "weekly_activity": weekly,
+    }
+
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+
+@app.get("/api/me/notifications", summary="Get notifications for the current user")
+async def get_notifications(
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+    limit: int = Query(default=20, ge=1, le=100),
+):
+    from sqlalchemy import select
+    rows = await session.execute(
+        select(db.Notification)
+        .where(db.Notification.user_id == current_user.id)
+        .order_by(db.Notification.created_at.desc())
+        .limit(limit)
+    )
+    notifications = rows.scalars().all()
+    unread = sum(1 for n in notifications if n.is_read == 0)
+    return {
+        "unread": unread,
+        "notifications": [
+            {
+                "id": n.id,
+                "message": n.message,
+                "category": n.category,
+                "session_id": n.session_id,
+                "is_read": n.is_read,
+                "created_at": n.created_at.isoformat() if n.created_at else "",
+            }
+            for n in notifications
+        ],
+    }
+
+
+@app.post("/api/me/notifications/{notification_id}/read", summary="Mark a notification as read")
+async def mark_notification_read(
+    notification_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    from sqlalchemy import select
+    row = await session.execute(
+        select(db.Notification)
+        .where(db.Notification.id == notification_id)
+        .where(db.Notification.user_id == current_user.id)
+    )
+    notif = row.scalar_one_or_none()
+    if notif is None:
+        raise HTTPException(status_code=404, detail="Notificarea nu a fost găsită.")
+    notif.is_read = 1
+    await session.commit()
+    return {"ok": True}
+
+
+@app.post("/api/me/notifications/read-all", summary="Mark all notifications as read")
+async def mark_all_notifications_read(
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    from sqlalchemy import update
+    await session.execute(
+        update(db.Notification)
+        .where(db.Notification.user_id == current_user.id)
+        .where(db.Notification.is_read == 0)
+        .values(is_read=1)
+    )
+    await session.commit()
+    return {"ok": True}
+
+
 @app.delete("/api/video/sessions/{session_id}", summary="Delete a video session and files")
 async def delete_video_session(
     session_id: int,
@@ -916,26 +1043,3 @@ async def download_annotated_video(
         raise HTTPException(status_code=410, detail="Annotated video file was deleted.")
 
     return FileResponse(p, media_type="video/mp4", filename=p.name)
-
-@app.post("/api/sessions/{session_id}/resolve", summary="Mark a detection session as resolved (cleaned)")
-async def resolve_session(
-    session_id: int,
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    ds = await db.get_session_by_id(session, session_id)
-    if ds is None:
-        raise HTTPException(status_code=404, detail="Session not found.")
-    
-    if ds.is_resolved:
-        return {"detail": "Acest focar este deja marcat ca fiind curățat."}
-
-    ds.is_resolved = 1
-    ds.resolved_at = datetime.utcnow()
-    ds.resolver_id = current_user.id
-    
-    # Reward points
-    current_user.points += 50
-    
-    await session.commit()
-    return {"detail": "Murdăria a fost marcată ca fiind curățată."}

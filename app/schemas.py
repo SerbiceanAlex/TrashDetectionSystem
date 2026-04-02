@@ -6,25 +6,6 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
-# ── Detection record (single bounding box) ──────────────────────────────────
-
-class DetectionRecordOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    material: str
-    det_score: float
-    cls_score: float
-    box_x1: int
-    box_y1: int
-"""Pydantic v2 schemas for request/response validation."""
-
-from datetime import datetime
-from typing import Optional
-
-from pydantic import BaseModel, ConfigDict
-
-
 # ── Auth & Users ─────────────────────────────────────────────────────────────
 
 class UserCreate(BaseModel):

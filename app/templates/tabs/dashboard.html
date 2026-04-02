@@ -10,7 +10,29 @@
     <p>Raportările tale ajută la menținerea parcurilor curate.</p>
   </div>
 
-  <!-- KPI cards -->
+  <!-- Personal stats row -->
+  <template x-if="dashMyStats">
+    <div class="kpi-grid" style="margin-bottom:16px">
+      <div class="kpi-card" style="position:relative">
+        <span class="kpi-card__label">Rapoartele mele</span>
+        <span class="kpi-card__value text-brand" x-text="dashMyStats.total_sessions"></span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__label">Obiecte detectate</span>
+        <span class="kpi-card__value text-brand" x-text="dashMyStats.total_objects"></span>
+      </div>
+      <div class="kpi-card" style="background:linear-gradient(135deg,rgba(22,163,74,.12),rgba(22,163,74,.04))">
+        <span class="kpi-card__label">Puncte</span>
+        <span class="kpi-card__value" style="color:#16a34a" x-text="dashMyStats.points + ' pts'"></span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-card__label">Rezolvate</span>
+        <span class="kpi-card__value" style="color:#10b981" x-text="dashMyStats.resolved_count"></span>
+      </div>
+    </div>
+  </template>
+
+  <!-- Global KPI cards (skeletons when loading) -->
   <div class="kpi-grid">
 
     <div class="kpi-card">
@@ -65,6 +87,19 @@
       🗺️ Harta comunității
     </button>
   </div>
+
+  <!-- Weekly activity chart -->
+  <template x-if="dashMyStats">
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="font-size:14px;font-weight:700">📅 Activitate săptămânală</h3>
+        <span class="badge badge--gray" x-text="'total: ' + (dashMyStats.weekly_activity?.reduce((s,r)=>s+r.reports,0)||0) + ' rapoarte'"></span>
+      </div>
+      <div style="height:120px;position:relative">
+        <canvas id="dashWeeklyChart"></canvas>
+      </div>
+    </div>
+  </template>
 
   <!-- Material distribution (only if data) -->
   <template x-if="dashStats?.material_distribution?.length > 0">
