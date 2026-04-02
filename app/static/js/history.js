@@ -19,6 +19,14 @@ function historyApp() {
       this.loadHistory();
       // Refresh when a new report comes in from detect tab
       window.addEventListener('eco:newReport', () => this.loadHistory());
+      // Refresh when a session is resolved/unresolved
+      window.addEventListener('eco:resolveChanged', (e) => {
+        const { sessionId, is_resolved } = e.detail;
+        if (this.sessionDetail?.id === sessionId) {
+          this.sessionDetail.is_resolved = is_resolved;
+        }
+        this.loadHistory();
+      });
     },
 
     /* ── Load ─────────────────────────────────────────────────────────── */

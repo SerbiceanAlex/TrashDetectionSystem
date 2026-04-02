@@ -111,10 +111,16 @@ function adminApp() {
 
     /* ── Resolve/unresolve a detection report ─────────────────────────── */
     async resolveSession(sessionId, currentStatus) {
+      const isCurrentlyResolved = currentStatus === 1 || currentStatus === true;
+      const msg = isCurrentlyResolved
+        ? `Marchezi raportul #${sessionId} ca NEREZOLVAT?`
+        : `Marchezi raportul #${sessionId} ca CURĂȚAT? 🧹`;
+      if (!confirm(msg)) return;
       try {
         const res = await fetchAPI(`/api/sessions/${sessionId}/resolve`, { method: 'POST' });
         const action = res.is_resolved === 1 ? 'marcat curățat ✓' : 'marcat nerezolvat';
         showToast(`Raportul ${sessionId} ${action}`);
+        // Notify history tab to refresh local state
         window.dispatchEvent(new CustomEvent('eco:resolveChanged', { detail: { sessionId, is_resolved: res.is_resolved } }));
       } catch (e) {
         showToast(e.message, 'error');

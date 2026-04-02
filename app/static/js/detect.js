@@ -48,11 +48,11 @@ function detectApp() {
       }
     },
 
-    /* ── GPS ────────────────────────────────────────────────────────────── */
-    async requestGeo() {
+    // Force a truly fresh GPS reading (maximumAge=0) — called when user picks a photo
+    async _freshGPS() {
       this.geoStatus = 'loading';
       try {
-        const pos = await requestGPS();
+        const pos = await requestGPS({ maximumAge: 0 });
         this.geoLat = pos.lat;
         this.geoLng = pos.lng;
         this.geoAccuracy = pos.accuracy;
@@ -60,6 +60,11 @@ function detectApp() {
       } catch (_) {
         this.geoStatus = 'error';
       }
+    },
+
+    /* ── GPS ────────────────────────────────────────────────────────────── */
+    async requestGeo() {
+      await this._freshGPS();
     },
 
     get geoLabel() {
@@ -73,11 +78,11 @@ function detectApp() {
     handleDrop(ev) {
       this.isDragging = false;
       const f = ev.dataTransfer?.files?.[0];
-      if (f) this.setFile(f);
+      if (f) { this.setFile(f); this._freshGPS(); }
     },
     handleFileSelect(ev) {
       const f = ev.target?.files?.[0];
-      if (f) this.setFile(f);
+      if (f) { this.setFile(f); this._freshGPS(); }
     },
     setFile(file) {
       this.selectedFile = file;
@@ -113,15 +118,12 @@ function detectApp() {
       }, 180);
 
       try {
-        // Refresh GPS silently before submit
-        if (this.geoStatus !== 'ok') {
-          try {
-            const pos = await requestGPS();
-            this.geoLat = pos.lat;
-            this.geoLng = pos.lng;
-            this.geoAccuracy = pos.accuracy;
-            this.geoStatus = 'ok';
-          } catch (_) {}
+        // If GPS is still fetching (triggered at file-select), wait up to 3s
+        if (this.geoStatus === 'loading') {
+          for (let i = 0; i < 15; i++) {
+            await new Promise(r => setTimeout(r, 200));
+            if (this.geoStatus !== 'loading') break;
+          }
         }
 
         const fd = new FormData();

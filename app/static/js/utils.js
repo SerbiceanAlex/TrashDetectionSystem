@@ -108,7 +108,7 @@ async function fetchAPI(url, options = {}) {
 }
 
 /* ── GPS / geolocation ──────────────────────────────────────────────────── */
-function requestGPS() {
+function requestGPS(options = {}) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(new Error('Geolocation indisponibil'));
@@ -117,7 +117,7 @@ function requestGPS() {
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
       (err) => reject(err),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000, ...options }
     );
   });
 }
