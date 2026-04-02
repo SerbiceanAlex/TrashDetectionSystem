@@ -477,6 +477,7 @@ input[type="range"].slider::-webkit-slider-thumb:active {
 
 .toast--success { background: var(--eco-green-dark); }
 .toast--error   { background: #dc2626; }
+.toast--warning { background: #d97706; }
 
 /* ── Lightbox ────────────────────────────────────────────────────────────── */
 .lightbox {

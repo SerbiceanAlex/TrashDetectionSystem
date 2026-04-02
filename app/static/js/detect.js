@@ -57,8 +57,10 @@ function detectApp() {
         this.geoLng = pos.lng;
         this.geoAccuracy = pos.accuracy;
         this.geoStatus = 'ok';
+        showToast(`📍 GPS capturat (±${Math.round(pos.accuracy || 0)}m) — locația va fi salvată cu raportul`, 'success');
       } catch (_) {
         this.geoStatus = 'error';
+        showToast('⚠️ GPS indisponibil — raportul va fi salvat fără locație', 'warning');
       }
     },
 

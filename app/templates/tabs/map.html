@@ -23,6 +23,33 @@
       </button>
     </div>
 
+    <!-- Filter bar -->
+    <div class="card" style="margin-bottom:12px;padding:10px 14px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span style="font-size:12px;font-weight:600;color:var(--tx-secondary);flex-shrink:0">Filtre:</span>
+        <div style="display:flex;gap:4px">
+          <button @click="mapFilterResolved=''; loadMapData()"
+            :class="mapFilterResolved === '' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">Toate</button>
+          <button @click="mapFilterResolved='0'; loadMapData()"
+            :class="mapFilterResolved === '0' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">🔴 Nerezolvate</button>
+          <button @click="mapFilterResolved='1'; loadMapData()"
+            :class="mapFilterResolved === '1' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">✅ Rezolvate</button>
+        </div>
+        <select x-model="mapFilterMaterial" @change="loadMapData()"
+          style="font-size:12px;padding:4px 8px;border-radius:8px;border:1.5px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);min-height:32px">
+          <option value="">Toate materialele</option>
+          <option value="plastic">Plastic</option>
+          <option value="paper">Paper</option>
+          <option value="glass">Glass</option>
+          <option value="metal">Metal</option>
+          <option value="other">Other</option>
+        </select>
+        <span x-show="mapFilterResolved !== '' || mapFilterMaterial"
+          style="font-size:11px;color:var(--tx-muted);background:rgba(239,68,68,.1);color:#ef4444;padding:3px 8px;border-radius:99px;font-weight:600"
+          x-text="`${mapReports.length} rapoarte filtrate`"></span>
+      </div>
+    </div>
+
     <!-- Stats bar -->
     <div class="card" style="margin-bottom:12px;padding:12px 16px">
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">

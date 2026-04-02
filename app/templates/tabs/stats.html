@@ -60,7 +60,22 @@
     <!-- Export -->
     <div class="card" style="margin-top:16px">
       <h2 style="font-size:14px;font-weight:700;margin-bottom:12px">📥 Export date</h2>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <select x-model="csvResolved"
+          style="font-size:12px;padding:4px 8px;border-radius:8px;border:1.5px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);min-height:32px">
+          <option value="">Toate rapoartele</option>
+          <option value="0">Doar nerezolvate</option>
+          <option value="1">Doar rezolvate</option>
+        </select>
+        <select x-model="csvMaterial"
+          style="font-size:12px;padding:4px 8px;border-radius:8px;border:1.5px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);min-height:32px">
+          <option value="">Toate materialele</option>
+          <option value="plastic">Plastic</option>
+          <option value="paper">Paper</option>
+          <option value="glass">Glass</option>
+          <option value="metal">Metal</option>
+          <option value="other">Other</option>
+        </select>
         <button @click="downloadCsv()" class="btn btn--ghost">
           📊 Descarcă CSV
         </button>

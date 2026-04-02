@@ -240,15 +240,33 @@ async def search_sessions(
 
 # ── Map helpers ──────────────────────────────────────────────────────────
 
-async def get_geolocated_sessions(db: AsyncSession, limit: int = 500):
+async def get_geolocated_sessions(
+    db: AsyncSession,
+    limit: int = 500,
+    resolved: int | None = None,   # None=all, 0=unresolved, 1=resolved
+    material: str | None = None,   # filter to sessions containing this material
+):
     """Return sessions that have GPS coordinates, for map display."""
-    result = await db.execute(
+    from sqlalchemy import exists as sa_exists
+
+    q = (
         select(DetectionSession)
         .where(DetectionSession.latitude.isnot(None))
         .where(DetectionSession.longitude.isnot(None))
-        .order_by(DetectionSession.upload_time.desc())
-        .limit(limit)
     )
+    if resolved is not None:
+        q = q.where(DetectionSession.is_resolved == resolved)
+    if material:
+        q = q.where(
+            sa_exists(
+                select(DetectionRecord.id)
+                .where(DetectionRecord.session_id == DetectionSession.id)
+                .where(DetectionRecord.material == material.lower())
+                .correlate(DetectionSession)
+            )
+        )
+    q = q.order_by(DetectionSession.upload_time.desc()).limit(limit)
+    result = await db.execute(q)
     return result.scalars().all()
 
 

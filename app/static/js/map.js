@@ -27,6 +27,10 @@ function mapApp() {
     nearbyLoading: false,
     nearbyRadius: 1.0,
 
+    // Filters
+    mapFilterResolved: '',     // '' | '0' | '1'
+    mapFilterMaterial: '',     // '' | 'plastic' | 'paper' | 'glass' | 'metal' | 'other'
+
     // Sidebar
     selectedZone: null,
     mapSidebarOpen: false,
@@ -99,8 +103,12 @@ function mapApp() {
     async loadMapData() {
       this.mapLoading = true;
       try {
+        let reportsUrl = '/api/map/reports?limit=500';
+        if (this.mapFilterResolved !== '') reportsUrl += `&resolved=${this.mapFilterResolved}`;
+        if (this.mapFilterMaterial)        reportsUrl += `&material=${encodeURIComponent(this.mapFilterMaterial)}`;
+
         const [reports, zones] = await Promise.all([
-          fetchAPI('/api/map/reports?limit=500'),
+          fetchAPI(reportsUrl),
           fetchAPI('/api/zones'),
         ]);
         this.mapReports = reports;

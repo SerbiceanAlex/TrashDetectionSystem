@@ -9,6 +9,10 @@ function statsApp() {
     barChart: null,
     stackedChart: null,
 
+    // Export filters
+    csvResolved: '',
+    csvMaterial: '',
+
     /* ── Init ─────────────────────────────────────────────────────────── */
     initStats() {
       this.loadStats();
@@ -201,7 +205,12 @@ function statsApp() {
 
     /* ── Export ───────────────────────────────────────────────────────── */
     downloadCsv() {
-      window.location.href = '/api/export/csv';
+      let url = '/api/export/csv';
+      const params = [];
+      if (this.csvResolved !== '') params.push(`resolved=${this.csvResolved}`);
+      if (this.csvMaterial)        params.push(`material=${encodeURIComponent(this.csvMaterial)}`);
+      if (params.length) url += '?' + params.join('&');
+      window.location.href = url;
     },
 
     downloadPdf() {

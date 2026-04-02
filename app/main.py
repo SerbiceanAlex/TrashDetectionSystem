@@ -285,38 +285,57 @@ async def global_stats(session: AsyncSession = Depends(db.get_db)):
 
 
 @app.get("/api/export/csv", summary="Download all detections as CSV")
-async def export_csv(session: AsyncSession = Depends(db.get_db)):
+async def export_csv(
+    resolved: Optional[int] = Query(default=None, ge=0, le=1, description="Filter: 0=unresolved, 1=resolved, omit=all"),
+    material: Optional[str] = Query(default=None, description="Filter by material"),
+    session: AsyncSession = Depends(db.get_db),
+):
     from sqlalchemy import select
     import csv
     import io
 
-    result = await session.execute(
-        select(db.DetectionSession, db.DetectionRecord)
-        .join(db.DetectionRecord, db.DetectionRecord.session_id == db.DetectionSession.id)
+    q = (
+        select(db.DetectionSession, db.DetectionRecord, db.User)
+        .outerjoin(db.DetectionRecord, db.DetectionRecord.session_id == db.DetectionSession.id)
+        .outerjoin(db.User, db.User.id == db.DetectionSession.reporter_id)
         .order_by(db.DetectionSession.upload_time.desc())
     )
-    rows = result.all()
+    if resolved is not None:
+        q = q.where(db.DetectionSession.is_resolved == resolved)
+    if material:
+        q = q.where(db.DetectionRecord.material == material.lower())
+
+    rows = (await session.execute(q)).all()
 
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
         "session_id", "filename", "upload_time", "inference_ms",
+        "latitude", "longitude", "address", "gps_source",
+        "is_resolved", "resolved_at", "reporter",
         "material", "det_score", "cls_score",
         "box_x1", "box_y1", "box_x2", "box_y2",
     ])
-    for s, r in rows:
+    for s, r, u in rows:
         writer.writerow([
-            s.id, s.filename, s.upload_time.isoformat(), s.inference_ms,
-            r.material, r.det_score, r.cls_score,
-            r.box_x1, r.box_y1, r.box_x2, r.box_y2,
+            s.id, s.filename,
+            s.upload_time.isoformat() if s.upload_time else '',
+            s.inference_ms,
+            s.latitude, s.longitude, s.address or '', s.gps_source or '',
+            s.is_resolved, s.resolved_at.isoformat() if s.resolved_at else '',
+            u.username if u else '',
+            r.material if r else '', r.det_score if r else '',
+            r.cls_score if r else '',
+            r.box_x1 if r else '', r.box_y1 if r else '',
+            r.box_x2 if r else '', r.box_y2 if r else '',
         ])
 
     content = output.getvalue()
     from fastapi.responses import Response
     return Response(
         content=content,
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=detections.csv"},
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=trashdet_export.csv"},
     )
 
 
@@ -575,9 +594,11 @@ async def export_pdf(session: AsyncSession = Depends(db.get_db)):
          summary="Get geolocated detection sessions for map display")
 async def map_reports(
     limit: int = Query(default=500, ge=1, le=2000),
+    resolved: Optional[int] = Query(default=None, ge=0, le=1, description="0=unresolved, 1=resolved, omit=all"),
+    material: Optional[str] = Query(default=None, description="Filter by material (plastic/paper/glass/metal/other)"),
     session: AsyncSession = Depends(db.get_db),
 ):
-    items = await db.get_geolocated_sessions(session, limit)
+    items = await db.get_geolocated_sessions(session, limit, resolved=resolved, material=material)
     return items
 
 
