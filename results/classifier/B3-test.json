@@ -1,0 +1,43 @@
+{
+  "model": "parks-cls-B3",
+  "base_model": "yolov8n-cls",
+  "dataset": "mixed_cls",
+  "split": "test",
+  "num_images": 299,
+  "accuracy": 0.9130434782608695,
+  "macro_precision": 0.8714028355186014,
+  "macro_recall": 0.8916333546530222,
+  "macro_f1": 0.8793493338323151,
+  "per_class": {
+    "glass": {
+      "precision": 0.9245283018867925,
+      "recall": 0.9245283018867925,
+      "f1": 0.9245283018867925,
+      "support": 53
+    },
+    "metal": {
+      "precision": 0.9259259259259259,
+      "recall": 0.847457627118644,
+      "f1": 0.8849557522123894,
+      "support": 59
+    },
+    "other": {
+      "precision": 0.65,
+      "recall": 0.8125,
+      "f1": 0.7222222222222222,
+      "support": 16
+    },
+    "paper": {
+      "precision": 0.9491525423728814,
+      "recall": 0.9491525423728814,
+      "f1": 0.9491525423728814,
+      "support": 118
+    },
+    "plastic": {
+      "precision": 0.9074074074074074,
+      "recall": 0.9245283018867925,
+      "f1": 0.9158878504672897,
+      "support": 53
+    }
+  }
+}

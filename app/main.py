@@ -1,5 +1,5 @@
-﻿"""
-FastAPI application â€” Trash Detection System web interface.
+"""
+FastAPI application — Trash Detection System web interface.
 
 Start with:
     .venv\\Scripts\\uvicorn app.main:app --reload --port 8000
@@ -43,7 +43,7 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
-# â”€â”€ Lifespan: load models + create DB tables on startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Lifespan: load models + create DB tables on startup ──────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -72,7 +72,7 @@ app.include_router(auth_router)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-# â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _save_files(original_bytes: bytes, annotated_bytes: bytes, stem: str):
     """Write original + annotated images to disk (runs as a background task)."""
@@ -80,7 +80,7 @@ def _save_files(original_bytes: bytes, annotated_bytes: bytes, stem: str):
     (ANNOTATED_DIR / f"{stem}_annotated.jpg").write_bytes(annotated_bytes)
 
 
-# â”€â”€ Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def index(request: Request):
@@ -240,7 +240,7 @@ async def delete_session(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Numai administratorii pot È™terge raportÄƒri.")
+        raise HTTPException(status_code=403, detail="Numai administratorii pot șterge raportări.")
     det_session = await db.get_session_by_id(session, session_id)
     if det_session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
@@ -337,7 +337,7 @@ async def export_csv(
     )
 
 
-# â”€â”€ Rerun detection on saved image with new confidence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Rerun detection on saved image with new confidence ───────────────────────
 
 @app.post("/api/sessions/{session_id}/rerun", response_model=schemas.DetectResponse,
           summary="Re-run detection on a saved image with a new confidence threshold")
@@ -349,7 +349,7 @@ async def rerun_detection(
     token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ):
     if token is None:
-        raise HTTPException(status_code=401, detail="Autentificare necesarÄƒ pentru a rerula detecÈ›ia.")
+        raise HTTPException(status_code=401, detail="Autentificare necesară pentru a rerula detecția.")
     det_session = await db.get_session_by_id(session, session_id)
     if det_session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
@@ -412,7 +412,7 @@ async def rerun_detection(
     )
 
 
-# â”€â”€ Batch detect â€” multiple images â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Batch detect — multiple images ──────────────────────────────────────────
 
 from typing import List
 
@@ -514,7 +514,7 @@ async def detect_batch(
     )
 
 
-# â”€â”€ Serve original uploaded image â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Serve original uploaded image ────────────────────────────────────────────
 
 @app.get("/api/sessions/{session_id}/original", summary="Get the original uploaded image")
 async def get_original_image(
@@ -532,15 +532,15 @@ async def get_original_image(
     return FileResponse(img_path, media_type="image/jpeg")
 
 
-# â”€â”€ Report export (printable HTML â†’ save-as-PDF via browser) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Report export (printable HTML → save-as-PDF via browser) ────────────────
 
-@app.get("/api/export/report", summary="Download a printable HTML report (open in browser â†’ Print â†’ Save as PDF)")
+@app.get("/api/export/report", summary="Download a printable HTML report (open in browser → Print → Save as PDF)")
 async def export_report(session: AsyncSession = Depends(db.get_db)):
     total_s, total_o, avg_ms = await db.get_global_stats(session)
     materials = await db.get_material_stats(session)
     timeline = await db.get_timeline_stats(session)
 
-    # Printable HTML report â€” open in browser and use Ctrl+P â†’ Save as PDF
+    # Printable HTML report — open in browser and use Ctrl+P → Save as PDF
     mat_rows = ""
     for row in materials:
         pct = (row.cnt / total_o * 100) if total_o > 0 else 0
@@ -567,18 +567,18 @@ async def export_report(session: AsyncSession = Depends(db.get_db)):
   @media print {{ body {{ margin: 0; }} }}
 </style>
 </head><body>
-<h1>ðŸ—‘ï¸ Raport â€” Trash Detection System</h1>
-<p style='color:#6b7280'>Generat automat Â· {__import__('datetime').datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+<h1>🗑️ Raport — Trash Detection System</h1>
+<p style='color:#6b7280'>Generat automat · {__import__('datetime').datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
 
 <div>
   <div class='card'><div class='num'>{total_s}</div><div class='label'>Sesiuni</div></div>
   <div class='card'><div class='num'>{total_o}</div><div class='label'>Obiecte detectate</div></div>
-  <div class='card'><div class='num'>{avg_ms:.1f} ms</div><div class='label'>Timp mediu inferenÈ›Äƒ</div></div>
+  <div class='card'><div class='num'>{avg_ms:.1f} ms</div><div class='label'>Timp mediu inferență</div></div>
 </div>
 
-<h2>DistribuÈ›ie materiale</h2>
+<h2>Distribuție materiale</h2>
 <table>
-  <thead><tr><th>Material</th><th style='text-align:right'>DetecÈ›ii</th><th style='text-align:right'>Procent</th></tr></thead>
+  <thead><tr><th>Material</th><th style='text-align:right'>Detecții</th><th style='text-align:right'>Procent</th></tr></thead>
   <tbody>{mat_rows}</tbody>
 </table>
 
@@ -589,8 +589,8 @@ async def export_report(session: AsyncSession = Depends(db.get_db)):
 </table>
 
 <div class='footer'>
-  Trash Detection System Â· YOLOv8 Â· FastAPI Â· SQLite<br>
-  Proiect licenÈ›Äƒ â€” Detectarea automatÄƒ a deÈ™eurilor Ã®n zone urbane
+  Trash Detection System · YOLOv8 · FastAPI · SQLite<br>
+  Proiect licență — Detectarea automată a deșeurilor în zone urbane
 </div>
 </body></html>"""
 
@@ -603,7 +603,7 @@ async def export_report(session: AsyncSession = Depends(db.get_db)):
     )
 
 
-# â”€â”€ Map endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Map endpoints ──────────────────────────────────────────────────────────
 
 @app.get("/api/map/reports", response_model=list[schemas.MapReport],
          summary="Get geolocated detection sessions for map display")
@@ -649,7 +649,7 @@ async def get_nearby(
     return items
 
 
-# â”€â”€ Video endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Video endpoints ─────────────────────────────────────────────────────────
 
 @app.websocket("/ws/video/live")
 async def ws_video_live(
@@ -683,7 +683,7 @@ async def upload_video(
     stem = uuid.uuid4().hex
     save_path = VIDEOS_DIR / f"{stem}{ext or '.mp4'}"
 
-    # Write to disk in 1 MB chunks â€” avoids loading the entire file into RAM
+    # Write to disk in 1 MB chunks — avoids loading the entire file into RAM
     chunk_size = 1024 * 1024
     video_empty = True
     with open(save_path, "wb") as out_f:
@@ -701,7 +701,7 @@ async def upload_video(
     vs.video_path = str(save_path)
     await session.commit()
 
-    # Process in background â€” fire-and-forget with error logging
+    # Process in background — fire-and-forget with error logging
     task = asyncio.create_task(vid.process_uploaded_video(save_path, det_conf, vs.id))
     task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
 
@@ -735,7 +735,7 @@ async def get_video_session(
     return vs
 
 
-# â”€â”€ ADMIN endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── ADMIN endpoints ───────────────────────────────────────────────────────────
 
 @app.get("/api/admin/users", summary="[Admin] List all users with stats")
 async def admin_list_users(
@@ -743,7 +743,7 @@ async def admin_list_users(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricÈ›ionat â€” doar pentru administratori.")
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
     result = await session.execute(
         select(
             db.User,
@@ -776,13 +776,13 @@ async def admin_update_user(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricÈ›ionat â€” doar pentru administratori.")
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
     if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Nu poÈ›i modifica propriul cont.")
+        raise HTTPException(status_code=400, detail="Nu poți modifica propriul cont.")
     result = await session.execute(select(db.User).where(db.User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost gÄƒsit.")
+        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost găsit.")
     allowed_roles = {"user", "admin"}
     if "role" in body and body["role"] in allowed_roles:
         user.role = body["role"]
@@ -800,16 +800,16 @@ async def admin_delete_user(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricÈ›ionat â€” doar pentru administratori.")
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
     if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Nu poÈ›i È™terge propriul cont.")
+        raise HTTPException(status_code=400, detail="Nu poți șterge propriul cont.")
     result = await session.execute(select(db.User).where(db.User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost gÄƒsit.")
+        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost găsit.")
     await session.delete(user)
     await session.commit()
-    return {"detail": f"Utilizatorul '{user.username}' a fost È™ters."}
+    return {"detail": f"Utilizatorul '{user.username}' a fost șters."}
 
 
 @app.post("/api/sessions/{session_id}/resolve", summary="[Admin] Mark session as resolved/cleaned")
@@ -819,10 +819,10 @@ async def resolve_session(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricÈ›ionat â€” doar pentru administratori.")
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
     det_session = await db.get_session_by_id(session, session_id)
     if det_session is None:
-        raise HTTPException(status_code=404, detail="Sesiunea nu a fost gÄƒsitÄƒ.")
+        raise HTTPException(status_code=404, detail="Sesiunea nu a fost găsită.")
     det_session.is_resolved = 1 if det_session.is_resolved == 0 else 0
     det_session.resolved_at = datetime.now(timezone.utc) if det_session.is_resolved == 1 else None
     det_session.resolver_id = current_user.id if det_session.is_resolved == 1 else None
@@ -835,7 +835,7 @@ async def resolve_session(
             # create in-app notification for reporter
             notif = db.Notification(
                 user_id=reporter.id,
-                message=f"Raportul tÄƒu #{session_id} a fost marcat ca rezolvat! +5 puncte.",
+                message=f"Raportul tău #{session_id} a fost marcat ca rezolvat! +5 puncte.",
                 category="resolved",
                 session_id=session_id,
             )
@@ -878,7 +878,7 @@ async def admin_stats(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricÈ›ionat â€” doar pentru administratori.")
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
     user_count = await session.scalar(select(func.count(db.User.id)))
     resolved_count = await session.scalar(
         select(func.count(db.DetectionSession.id)).where(db.DetectionSession.is_resolved == 1)
@@ -943,7 +943,7 @@ async def my_stats(
     }
 
 
-# â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Notifications ─────────────────────────────────────────────────────────────
 
 @app.get("/api/me/notifications", summary="Get notifications for the current user")
 async def get_notifications(
@@ -988,7 +988,7 @@ async def mark_notification_read(
     )
     notif = row.scalar_one_or_none()
     if notif is None:
-        raise HTTPException(status_code=404, detail="Notificarea nu a fost gÄƒsitÄƒ.")
+        raise HTTPException(status_code=404, detail="Notificarea nu a fost găsită.")
     notif.is_read = 1
     await session.commit()
     return {"ok": True}
@@ -1016,7 +1016,7 @@ async def delete_video_session(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Numai administratorii pot È™terge sesiuni video.")
+        raise HTTPException(status_code=403, detail="Numai administratorii pot șterge sesiuni video.")
     vs = await db.get_video_session_by_id(session, session_id)
     if vs is None:
         raise HTTPException(status_code=404, detail="Video session not found.")

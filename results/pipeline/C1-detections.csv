@@ -1,0 +1,11 @@
+exp,image,det_score,material,material_score,x1,y1,x2,y2
+C1,taco_batch_10_000024.jpg,0.4741,metal,1.0,463,588,1137,1587
+C1,taco_batch_10_000098.jpg,0.2609,paper,0.9922,0,1766,670,2942
+C1,taco_batch_11_000057.jpg,0.2702,metal,0.9853,1134,2001,1962,3146
+C1,taco_batch_13_000081.jpg,0.3172,metal,0.5726,835,1657,2150,2781
+C1,taco_batch_15_000010.jpg,0.3084,metal,0.5237,556,1021,1281,1801
+C1,taco_batch_15_000020.jpg,0.3662,plastic,0.997,0,768,644,1437
+C1,taco_batch_15_000020.jpg,0.3126,plastic,0.9932,0,674,577,1254
+C1,taco_batch_15_000062.jpg,0.5279,plastic,0.8652,1113,1048,1630,1536
+C1,taco_batch_3_IMG_4868.jpg,0.7522,metal,0.9857,700,326,1395,1027
+C1,taco_batch_5_000047.jpg,0.4221,paper,0.4972,0,1610,558,2307

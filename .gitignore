@@ -19,37 +19,35 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Outputs
+# Outputs & training runs
 outputs/
 runs/
+
+# Media files
 *.mp4
 *.avi
 *.mov
-*.csv
+*.mkv
 
-# Ignore JSON except static app files
+# Ignore CSV except results/
+*.csv
+!results/**/*.csv
+
+# Ignore JSON except static app files and results/
 *.json
 !app/static/manifest.json
+!results/**/*.json
 
 # datasets / big files
 datasets/
 TACO/
 UAVVaste/
 
-# videos and model weights
-*.mp4
-*.avi
-*.mov
-*.mkv
+# Model weights
 *.pt
-
-# outputs
-outputs/
-run
 
 # Web app runtime artifacts
 app/trash_detection.db
 app/uploads/
 app/annotated/
 app/videos/
-app/static/index_v2.html
