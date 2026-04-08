@@ -3,7 +3,7 @@ SQLAlchemy 2.0 async database layer.
 Database file: app/trash_detection.db
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import (
@@ -42,7 +42,7 @@ class User(Base):
     hashed_password = Column(String(200), nullable=False)
     role = Column(String(20), default="user") # 'user' or 'admin'
     points = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     reports = relationship("DetectionSession", foreign_keys="[DetectionSession.reporter_id]", back_populates="reporter")
@@ -56,7 +56,7 @@ class DetectionSession(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(255), nullable=False)
-    upload_time = Column(DateTime, default=datetime.utcnow, nullable=False)
+    upload_time = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     image_path = Column(Text, nullable=True)       # original saved
     annotated_path = Column(Text, nullable=True)   # annotated saved
     total_objects = Column(Integer, default=0)
@@ -105,7 +105,7 @@ class VideoSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     source_type = Column(String(16), nullable=False)       # "webcam" or "upload"
     filename = Column(String(255), nullable=True)
-    start_time = Column(DateTime, default=datetime.utcnow, nullable=False)
+    start_time = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     end_time = Column(DateTime, nullable=True)
     duration_sec = Column(Float, default=0.0)
     total_frames = Column(Integer, default=0)
@@ -131,7 +131,7 @@ class Notification(Base):
     category = Column(String(32), default="info")   # 'resolved' | 'info' | 'badge'
     session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=True)
     is_read = Column(Integer, default=0)             # 0=unread, 1=read
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", foreign_keys=[user_id])
     session = relationship("DetectionSession", foreign_keys=[session_id])
@@ -313,7 +313,7 @@ async def finish_video_session(
     vs = (await db.execute(select(VideoSession).where(VideoSession.id == session_id))).scalar_one_or_none()
     if vs is None:
         return
-    vs.end_time = datetime.utcnow()
+    vs.end_time = datetime.now(timezone.utc)
     vs.total_frames = total_frames
     vs.total_objects = total_objects
     vs.avg_fps = round(avg_fps, 1)

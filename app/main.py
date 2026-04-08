@@ -7,7 +7,7 @@ Start with:
 
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -530,16 +530,15 @@ async def get_original_image(
     return FileResponse(img_path, media_type="image/jpeg")
 
 
-# ── PDF export ────────────────────────────────────────────────────────────────
+# ── Report export (printable HTML → save-as-PDF via browser) ────────────────
 
-@app.get("/api/export/pdf", summary="Download a PDF report with statistics")
-async def export_pdf(session: AsyncSession = Depends(db.get_db)):
+@app.get("/api/export/report", summary="Download a printable HTML report (open in browser → Print → Save as PDF)")
+async def export_report(session: AsyncSession = Depends(db.get_db)):
     total_s, total_o, avg_ms = await db.get_global_stats(session)
     materials = await db.get_material_stats(session)
     timeline = await db.get_timeline_stats(session)
 
-    # Build a simple HTML report to serve as downloadable HTML
-    # (avoids heavy wkhtmltopdf/weasyprint dependency, users can print-to-PDF)
+    # Printable HTML report — open in browser and use Ctrl+P → Save as PDF
     mat_rows = ""
     for row in materials:
         pct = (row.cnt / total_o * 100) if total_o > 0 else 0
@@ -595,7 +594,7 @@ async def export_pdf(session: AsyncSession = Depends(db.get_db)):
 
     return Response(
         content=html,
-        media_type="text/html",
+        media_type="text/html; charset=utf-8",
         headers={
             "Content-Disposition": "attachment; filename=raport_trash_detection.html",
         },
@@ -826,7 +825,7 @@ async def resolve_session(
     if det_session is None:
         raise HTTPException(status_code=404, detail="Sesiunea nu a fost găsită.")
     det_session.is_resolved = 1 if det_session.is_resolved == 0 else 0
-    det_session.resolved_at = datetime.utcnow() if det_session.is_resolved == 1 else None
+    det_session.resolved_at = datetime.now(timezone.utc) if det_session.is_resolved == 1 else None
     det_session.resolver_id = current_user.id if det_session.is_resolved == 1 else None
     if det_session.is_resolved == 1 and det_session.reporter_id:
         # +5 bonus points to reporter when their report is cleaned
@@ -924,7 +923,7 @@ async def my_stats(
         .where(db.DetectionSession.is_resolved == 1)
     )
     # Weekly activity: last 7 days, reports per day
-    seven_days_ago = datetime.utcnow() - timedelta(days=6)
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=6)
     rows = await session.execute(
         select(
             func.date(db.DetectionSession.upload_time).label("day"),

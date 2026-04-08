@@ -213,8 +213,8 @@ function statsApp() {
       window.location.href = url;
     },
 
-    downloadPdf() {
-      window.location.href = '/api/export/pdf';
+    downloadReport() {
+      window.location.href = '/api/export/report';
     },
   };
 }
