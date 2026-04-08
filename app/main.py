@@ -98,10 +98,13 @@ async def detect(
     session: AsyncSession = Depends(db.get_db),
     token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ):
+    """
+    Upload a JPEG/PNG image, run the two-stage pipeline, store results in DB,
+    and return the annotated image URL + detection JSON.
+    """
     # Optional User Auth for points
     current_user = None
     if token:
-        from app.auth import decode_access_token
         try:
             payload = decode_access_token(token)
             if payload and "username" in payload:
@@ -110,10 +113,6 @@ async def detect(
                 current_user = res.scalar_one_or_none()
         except Exception:
             pass
-    """
-    Upload a JPEG/PNG image, run the two-stage pipeline, store results in DB,
-    and return the annotated image URL + detection JSON.
-    """
     allowed = {"image/jpeg", "image/png", "image/webp", "image/bmp"}
     if file.content_type not in allowed:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
@@ -198,8 +197,6 @@ async def detect(
         gps_source=gps_src,
         reporter_id=current_user.id if current_user else None
     )
-    if current_user:
-        current_user.points += 10
 
 
 @app.get("/api/sessions", response_model=schemas.SessionsPage, summary="List all detection sessions")
@@ -347,7 +344,10 @@ async def rerun_detection(
     background_tasks: BackgroundTasks,
     det_conf: float = Query(default=0.50, ge=0.05, le=0.95),
     session: AsyncSession = Depends(db.get_db),
+    token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ):
+    if token is None:
+        raise HTTPException(status_code=401, detail="Autentificare necesară pentru a rerula detecția.")
     det_session = await db.get_session_by_id(session, session_id)
     if det_session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
@@ -422,7 +422,19 @@ async def detect_batch(
     files: List[UploadFile] = File(...),
     det_conf: float = Query(default=0.50, ge=0.05, le=0.95),
     session: AsyncSession = Depends(db.get_db),
+    token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ):
+    # Optional User Auth for points
+    current_user = None
+    if token:
+        try:
+            payload = decode_access_token(token)
+            if payload and "username" in payload:
+                from sqlalchemy import select
+                res = await session.execute(select(db.User).where(db.User.username == payload["username"]))
+                current_user = res.scalar_one_or_none()
+        except Exception:
+            pass
     if len(files) > 20:
         raise HTTPException(status_code=400, detail="Maximum 20 files per batch.")
 
@@ -453,7 +465,10 @@ async def detect_batch(
             annotated_path=str(ANNOTATED_DIR / f"{stem}_annotated.jpg"),
             total_objects=len(detections),
             inference_ms=round(elapsed_ms, 2),
+            reporter_id=current_user.id if current_user else None,
         )
+        if current_user:
+            current_user.points += 10
         session.add(det_session)
         await session.flush()
 
