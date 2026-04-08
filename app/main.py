@@ -1,5 +1,5 @@
-"""
-FastAPI application — Trash Detection System web interface.
+﻿"""
+FastAPI application â€” Trash Detection System web interface.
 
 Start with:
     .venv\\Scripts\\uvicorn app.main:app --reload --port 8000
@@ -16,6 +16,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Quer
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import delete as sa_delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import database as db
@@ -37,10 +38,12 @@ UPLOADS_DIR.mkdir(exist_ok=True)
 ANNOTATED_DIR.mkdir(exist_ok=True)
 VIDEOS_DIR.mkdir(exist_ok=True)
 
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
+
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
-# ── Lifespan: load models + create DB tables on startup ──────────────────────
+# â”€â”€ Lifespan: load models + create DB tables on startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -69,7 +72,7 @@ app.include_router(auth_router)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _save_files(original_bytes: bytes, annotated_bytes: bytes, stem: str):
     """Write original + annotated images to disk (runs as a background task)."""
@@ -77,7 +80,7 @@ def _save_files(original_bytes: bytes, annotated_bytes: bytes, stem: str):
     (ANNOTATED_DIR / f"{stem}_annotated.jpg").write_bytes(annotated_bytes)
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+# â”€â”€ Endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def index(request: Request):
@@ -108,7 +111,6 @@ async def detect(
         try:
             payload = decode_access_token(token)
             if payload and "username" in payload:
-                from sqlalchemy import select
                 res = await session.execute(select(db.User).where(db.User.username == payload["username"]))
                 current_user = res.scalar_one_or_none()
         except Exception:
@@ -120,6 +122,8 @@ async def detect(
     image_bytes = await file.read()
     if len(image_bytes) == 0:
         raise HTTPException(status_code=400, detail="Empty file uploaded.")
+    if len(image_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {MAX_UPLOAD_BYTES // 1024 // 1024} MB.")
 
     # ── Determine location (EXIF GPS first, browser GPS fallback) ────────────
     location = await geo.get_image_location(
@@ -217,7 +221,6 @@ async def get_session(
     session_id: int,
     session: AsyncSession = Depends(db.get_db),
 ):
-    from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     result = await session.execute(
         select(db.DetectionSession)
@@ -237,7 +240,7 @@ async def delete_session(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Numai administratorii pot șterge raportări.")
+        raise HTTPException(status_code=403, detail="Numai administratorii pot È™terge raportÄƒri.")
     det_session = await db.get_session_by_id(session, session_id)
     if det_session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
@@ -286,7 +289,6 @@ async def export_csv(
     material: Optional[str] = Query(default=None, description="Filter by material"),
     session: AsyncSession = Depends(db.get_db),
 ):
-    from sqlalchemy import select
     import csv
     import io
 
@@ -335,7 +337,7 @@ async def export_csv(
     )
 
 
-# ── Rerun detection on saved image with new confidence ───────────────────────
+# â”€â”€ Rerun detection on saved image with new confidence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.post("/api/sessions/{session_id}/rerun", response_model=schemas.DetectResponse,
           summary="Re-run detection on a saved image with a new confidence threshold")
@@ -347,7 +349,7 @@ async def rerun_detection(
     token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
 ):
     if token is None:
-        raise HTTPException(status_code=401, detail="Autentificare necesară pentru a rerula detecția.")
+        raise HTTPException(status_code=401, detail="Autentificare necesarÄƒ pentru a rerula detecÈ›ia.")
     det_session = await db.get_session_by_id(session, session_id)
     if det_session is None:
         raise HTTPException(status_code=404, detail="Session not found.")
@@ -367,7 +369,6 @@ async def rerun_detection(
         raise HTTPException(status_code=422, detail=str(exc))
 
     # Delete old records
-    from sqlalchemy import delete as sa_delete
     await session.execute(
         sa_delete(db.DetectionRecord).where(db.DetectionRecord.session_id == session_id)
     )
@@ -411,7 +412,7 @@ async def rerun_detection(
     )
 
 
-# ── Batch detect — multiple images ──────────────────────────────────────────
+# â”€â”€ Batch detect â€” multiple images â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 from typing import List
 
@@ -430,7 +431,6 @@ async def detect_batch(
         try:
             payload = decode_access_token(token)
             if payload and "username" in payload:
-                from sqlalchemy import select
                 res = await session.execute(select(db.User).where(db.User.username == payload["username"]))
                 current_user = res.scalar_one_or_none()
         except Exception:
@@ -450,6 +450,8 @@ async def detect_batch(
         image_bytes = await file.read()
         if not image_bytes:
             continue
+        if len(image_bytes) > MAX_UPLOAD_BYTES:
+            continue  # skip oversized files silently in batch
 
         try:
             detections, annotated_bytes, elapsed_ms = infer.run_pipeline(
@@ -512,7 +514,7 @@ async def detect_batch(
     )
 
 
-# ── Serve original uploaded image ────────────────────────────────────────────
+# â”€â”€ Serve original uploaded image â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/api/sessions/{session_id}/original", summary="Get the original uploaded image")
 async def get_original_image(
@@ -530,15 +532,15 @@ async def get_original_image(
     return FileResponse(img_path, media_type="image/jpeg")
 
 
-# ── Report export (printable HTML → save-as-PDF via browser) ────────────────
+# â”€â”€ Report export (printable HTML â†’ save-as-PDF via browser) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-@app.get("/api/export/report", summary="Download a printable HTML report (open in browser → Print → Save as PDF)")
+@app.get("/api/export/report", summary="Download a printable HTML report (open in browser â†’ Print â†’ Save as PDF)")
 async def export_report(session: AsyncSession = Depends(db.get_db)):
     total_s, total_o, avg_ms = await db.get_global_stats(session)
     materials = await db.get_material_stats(session)
     timeline = await db.get_timeline_stats(session)
 
-    # Printable HTML report — open in browser and use Ctrl+P → Save as PDF
+    # Printable HTML report â€” open in browser and use Ctrl+P â†’ Save as PDF
     mat_rows = ""
     for row in materials:
         pct = (row.cnt / total_o * 100) if total_o > 0 else 0
@@ -565,18 +567,18 @@ async def export_report(session: AsyncSession = Depends(db.get_db)):
   @media print {{ body {{ margin: 0; }} }}
 </style>
 </head><body>
-<h1>🗑️ Raport — Trash Detection System</h1>
-<p style='color:#6b7280'>Generat automat · {__import__('datetime').datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
+<h1>ðŸ—‘ï¸ Raport â€” Trash Detection System</h1>
+<p style='color:#6b7280'>Generat automat Â· {__import__('datetime').datetime.now().strftime('%d.%m.%Y %H:%M')}</p>
 
 <div>
   <div class='card'><div class='num'>{total_s}</div><div class='label'>Sesiuni</div></div>
   <div class='card'><div class='num'>{total_o}</div><div class='label'>Obiecte detectate</div></div>
-  <div class='card'><div class='num'>{avg_ms:.1f} ms</div><div class='label'>Timp mediu inferență</div></div>
+  <div class='card'><div class='num'>{avg_ms:.1f} ms</div><div class='label'>Timp mediu inferenÈ›Äƒ</div></div>
 </div>
 
-<h2>Distribuție materiale</h2>
+<h2>DistribuÈ›ie materiale</h2>
 <table>
-  <thead><tr><th>Material</th><th style='text-align:right'>Detecții</th><th style='text-align:right'>Procent</th></tr></thead>
+  <thead><tr><th>Material</th><th style='text-align:right'>DetecÈ›ii</th><th style='text-align:right'>Procent</th></tr></thead>
   <tbody>{mat_rows}</tbody>
 </table>
 
@@ -587,8 +589,8 @@ async def export_report(session: AsyncSession = Depends(db.get_db)):
 </table>
 
 <div class='footer'>
-  Trash Detection System · YOLOv8 · FastAPI · SQLite<br>
-  Proiect licență — Detectarea automată a deșeurilor în zone urbane
+  Trash Detection System Â· YOLOv8 Â· FastAPI Â· SQLite<br>
+  Proiect licenÈ›Äƒ â€” Detectarea automatÄƒ a deÈ™eurilor Ã®n zone urbane
 </div>
 </body></html>"""
 
@@ -601,7 +603,7 @@ async def export_report(session: AsyncSession = Depends(db.get_db)):
     )
 
 
-# ── Map endpoints ──────────────────────────────────────────────────────────
+# â”€â”€ Map endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/api/map/reports", response_model=list[schemas.MapReport],
          summary="Get geolocated detection sessions for map display")
@@ -647,7 +649,7 @@ async def get_nearby(
     return items
 
 
-# ── Video endpoints ─────────────────────────────────────────────────────────
+# â”€â”€ Video endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.websocket("/ws/video/live")
 async def ws_video_live(
@@ -681,7 +683,7 @@ async def upload_video(
     stem = uuid.uuid4().hex
     save_path = VIDEOS_DIR / f"{stem}{ext or '.mp4'}"
 
-    # Write to disk in 1 MB chunks — avoids loading the entire file into RAM
+    # Write to disk in 1 MB chunks â€” avoids loading the entire file into RAM
     chunk_size = 1024 * 1024
     video_empty = True
     with open(save_path, "wb") as out_f:
@@ -699,7 +701,7 @@ async def upload_video(
     vs.video_path = str(save_path)
     await session.commit()
 
-    # Process in background — fire-and-forget with error logging
+    # Process in background â€” fire-and-forget with error logging
     task = asyncio.create_task(vid.process_uploaded_video(save_path, det_conf, vs.id))
     task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
 
@@ -733,7 +735,7 @@ async def get_video_session(
     return vs
 
 
-# ── ADMIN endpoints ───────────────────────────────────────────────────────────
+# â”€â”€ ADMIN endpoints â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/api/admin/users", summary="[Admin] List all users with stats")
 async def admin_list_users(
@@ -741,8 +743,7 @@ async def admin_list_users(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
-    from sqlalchemy import select, func
+        raise HTTPException(status_code=403, detail="Acces restricÈ›ionat â€” doar pentru administratori.")
     result = await session.execute(
         select(
             db.User,
@@ -775,14 +776,13 @@ async def admin_update_user(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+        raise HTTPException(status_code=403, detail="Acces restricÈ›ionat â€” doar pentru administratori.")
     if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Nu poți modifica propriul cont.")
-    from sqlalchemy import select
+        raise HTTPException(status_code=400, detail="Nu poÈ›i modifica propriul cont.")
     result = await session.execute(select(db.User).where(db.User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost găsit.")
+        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost gÄƒsit.")
     allowed_roles = {"user", "admin"}
     if "role" in body and body["role"] in allowed_roles:
         user.role = body["role"]
@@ -800,17 +800,16 @@ async def admin_delete_user(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+        raise HTTPException(status_code=403, detail="Acces restricÈ›ionat â€” doar pentru administratori.")
     if user_id == current_user.id:
-        raise HTTPException(status_code=400, detail="Nu poți șterge propriul cont.")
-    from sqlalchemy import select
+        raise HTTPException(status_code=400, detail="Nu poÈ›i È™terge propriul cont.")
     result = await session.execute(select(db.User).where(db.User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost găsit.")
+        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost gÄƒsit.")
     await session.delete(user)
     await session.commit()
-    return {"detail": f"Utilizatorul '{user.username}' a fost șters."}
+    return {"detail": f"Utilizatorul '{user.username}' a fost È™ters."}
 
 
 @app.post("/api/sessions/{session_id}/resolve", summary="[Admin] Mark session as resolved/cleaned")
@@ -820,16 +819,15 @@ async def resolve_session(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+        raise HTTPException(status_code=403, detail="Acces restricÈ›ionat â€” doar pentru administratori.")
     det_session = await db.get_session_by_id(session, session_id)
     if det_session is None:
-        raise HTTPException(status_code=404, detail="Sesiunea nu a fost găsită.")
+        raise HTTPException(status_code=404, detail="Sesiunea nu a fost gÄƒsitÄƒ.")
     det_session.is_resolved = 1 if det_session.is_resolved == 0 else 0
     det_session.resolved_at = datetime.now(timezone.utc) if det_session.is_resolved == 1 else None
     det_session.resolver_id = current_user.id if det_session.is_resolved == 1 else None
     if det_session.is_resolved == 1 and det_session.reporter_id:
         # +5 bonus points to reporter when their report is cleaned
-        from sqlalchemy import select
         rep_r = await session.execute(select(db.User).where(db.User.id == det_session.reporter_id))
         reporter = rep_r.scalar_one_or_none()
         if reporter:
@@ -837,7 +835,7 @@ async def resolve_session(
             # create in-app notification for reporter
             notif = db.Notification(
                 user_id=reporter.id,
-                message=f"Raportul tău #{session_id} a fost marcat ca rezolvat! +5 puncte.",
+                message=f"Raportul tÄƒu #{session_id} a fost marcat ca rezolvat! +5 puncte.",
                 category="resolved",
                 session_id=session_id,
             )
@@ -851,7 +849,6 @@ async def leaderboard(
     limit: int = Query(default=10, ge=1, le=50),
     session: AsyncSession = Depends(db.get_db),
 ):
-    from sqlalchemy import select, func
     result = await session.execute(
         select(
             db.User,
@@ -881,8 +878,7 @@ async def admin_stats(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
-    from sqlalchemy import select, func
+        raise HTTPException(status_code=403, detail="Acces restricÈ›ionat â€” doar pentru administratori.")
     user_count = await session.scalar(select(func.count(db.User.id)))
     resolved_count = await session.scalar(
         select(func.count(db.DetectionSession.id)).where(db.DetectionSession.is_resolved == 1)
@@ -903,7 +899,6 @@ async def my_stats(
     session: AsyncSession = Depends(db.get_db),
 ):
     """Returns personal stats: total reports, objects detected, resolved count, points, weekly activity."""
-    from sqlalchemy import select, func
     from datetime import timedelta
 
     # Total personal sessions
@@ -948,7 +943,7 @@ async def my_stats(
     }
 
 
-# ── Notifications ─────────────────────────────────────────────────────────────
+# â”€â”€ Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 @app.get("/api/me/notifications", summary="Get notifications for the current user")
 async def get_notifications(
@@ -956,7 +951,6 @@ async def get_notifications(
     session: AsyncSession = Depends(db.get_db),
     limit: int = Query(default=20, ge=1, le=100),
 ):
-    from sqlalchemy import select
     rows = await session.execute(
         select(db.Notification)
         .where(db.Notification.user_id == current_user.id)
@@ -987,7 +981,6 @@ async def mark_notification_read(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
 ):
-    from sqlalchemy import select
     row = await session.execute(
         select(db.Notification)
         .where(db.Notification.id == notification_id)
@@ -995,7 +988,7 @@ async def mark_notification_read(
     )
     notif = row.scalar_one_or_none()
     if notif is None:
-        raise HTTPException(status_code=404, detail="Notificarea nu a fost găsită.")
+        raise HTTPException(status_code=404, detail="Notificarea nu a fost gÄƒsitÄƒ.")
     notif.is_read = 1
     await session.commit()
     return {"ok": True}
@@ -1006,7 +999,6 @@ async def mark_all_notifications_read(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
 ):
-    from sqlalchemy import update
     await session.execute(
         update(db.Notification)
         .where(db.Notification.user_id == current_user.id)
@@ -1024,7 +1016,7 @@ async def delete_video_session(
     session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Numai administratorii pot șterge sesiuni video.")
+        raise HTTPException(status_code=403, detail="Numai administratorii pot È™terge sesiuni video.")
     vs = await db.get_video_session_by_id(session, session_id)
     if vs is None:
         raise HTTPException(status_code=404, detail="Video session not found.")
