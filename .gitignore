@@ -52,4 +52,13 @@ backend/uploads/
 backend/annotated/
 backend/videos/
 
+# Temporary files
 tmp/
+
+# Tunneling tools & logs
+*.exe
+*.zip
+*.log
+ngrok/
+cloudflared*
+pinggy*

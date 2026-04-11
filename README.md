@@ -89,8 +89,7 @@ Imagine/Video → [Stage 1: Detector YOLO] → bounding boxes (clasa: trash)
 ```
 TrashDetectionSystem/
 ├── src/
-│   ├── detect_two_stage.py      # Pipeline two-stage (CLI + modul importabil de backend/)
-│   └── detect_video_yolo.py     # Inferență video baseline (un singur detector)
+│   └── detect_two_stage.py      # Pipeline two-stage (CLI + modul importabil de backend/)
 ├── backend/
 │   ├── main.py                  # FastAPI router, endpoint-uri REST + WebSocket
 │   ├── auth.py                  # JWT (PyJWT), bcrypt, OTP, rate limiting, password policy
@@ -107,11 +106,9 @@ TrashDetectionSystem/
 │   ├── train_classifier.py      # Antrenare clasificator (apelat din notebook)
 │   ├── evaluate_classifier.py   # Evaluare clasificator (apelat din notebook)
 │   ├── export_yolo_crops.py     # Export crops din detecții
-│   ├── split_yolo_detection_dataset.py   # Split all→train/val/test (detecție)
 │   ├── split_classification_dataset.py   # Split all→train/val/test (clasificare)
 │   ├── merge_classification_datasets.py  # Merge TrashNet + parks crops
 │   ├── validate_yolo_dataset.py          # Validare format dataset YOLO
-│   ├── report_yolo_dataset_stats.py      # Statistici dataset detecție
 │   └── report_classification_dataset_stats.py  # Statistici dataset clasificare
 ├── notebooks/
 │   ├── data/                    # Pregătire date
@@ -180,9 +177,6 @@ pip install -r requirements.txt
 ### Inferență pe video/webcam (CLI)
 
 ```bash
-# Detector simplu (un singur model)
-python -m src.detect_video_yolo --source 0 --model runs/detect/parks-trash-A3-final/weights/best.pt --show
-
 # Pipeline two-stage complet (detector + clasificator material)
 python -m src.detect_two_stage --source path/to/video.mp4 \
     --detector runs/detect/parks-trash-A3-final/weights/best.pt \
@@ -213,9 +207,6 @@ notebooks/evaluation/05_thesis_figures.ipynb       → figuri și tabele finale 
 ### Pregătire dataset
 
 ```bash
-# Split dataset detecție (din all/ → train/val/test)
-python scripts/split_yolo_detection_dataset.py --clear
-
 # Split dataset clasificare
 python scripts/split_classification_dataset.py \
     --source-root datasets/parks_cls_unsorted \
@@ -225,6 +216,5 @@ python scripts/split_classification_dataset.py \
 python scripts/validate_yolo_dataset.py
 
 # Statistici dataset
-python scripts/report_yolo_dataset_stats.py
 python scripts/report_classification_dataset_stats.py
 ```
