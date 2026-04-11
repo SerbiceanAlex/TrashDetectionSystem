@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from backend import auth, database as db, schemas
+from backend.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -143,7 +144,7 @@ async def login_step1(
 
     # Generate new OTP
     otp_code = auth.generate_otp()
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=auth.OTP_EXPIRE_MINUTES)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.OTP_EXPIRE_MINUTES)
 
     new_otp = db.OTPCode(
         user_id=user.id,
@@ -214,7 +215,7 @@ async def login_step2(
     auth.reset_login_attempts(otp_key)
 
     # Issue JWT
-    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
         data={"username": user.username, "role": user.role, "id": user.id},
         expires_delta=access_token_expires
@@ -243,7 +244,7 @@ async def resend_otp(
 
     # Generate new
     otp_code = auth.generate_otp()
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=auth.OTP_EXPIRE_MINUTES)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.OTP_EXPIRE_MINUTES)
     new_otp = db.OTPCode(user_id=user.id, code=otp_code, expires_at=expires_at)
     session.add(new_otp)
     await session.commit()
