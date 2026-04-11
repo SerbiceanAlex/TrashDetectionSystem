@@ -11,10 +11,7 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-# ── Paths to the best trained weights ────────────────────────────────────────
-REPO_ROOT = Path(__file__).parent.parent
-DETECTOR_PT  = REPO_ROOT / "runs/detect/parks-trash-A3-final/weights/best.pt"
-CLASSIFIER_PT = REPO_ROOT / "runs/classify/parks-cls-B2/weights/best.pt"
+from backend.config import settings
 
 # Lazy-loaded singletons (populated on first load_models() call)
 _detector   = None
@@ -23,12 +20,6 @@ _cls_names: dict[int, str] = {}
 
 # Serialise model calls — YOLO/PyTorch is not thread-safe when sharing weights
 _inference_lock = threading.Lock()
-
-# Max image dimension before resize (prevents OOM on huge images)
-MAX_DIM = 1920
-
-# For live webcam inference use smaller size = more FPS
-LIVE_IMGSZ = 320
 
 # Auto-detect best device: CUDA GPU > Apple MPS > CPU
 import torch  # noqa: E402
@@ -39,10 +30,10 @@ def load_models():
     """Load YOLO models into memory on the best available device (GPU if present)."""
     global _detector, _classifier, _cls_names
     if _detector is None:
-        _detector = YOLO(str(DETECTOR_PT))
+        _detector = YOLO(str(settings.detector_path))
         _detector.to(_DEVICE)
     if _classifier is None:
-        _classifier = YOLO(str(CLASSIFIER_PT))
+        _classifier = YOLO(str(settings.classifier_path))
         _classifier.to(_DEVICE)
         raw = getattr(_classifier, "names", {})
         if isinstance(raw, dict):
@@ -55,9 +46,9 @@ def load_models():
 
 def _resize_if_needed(frame: np.ndarray) -> np.ndarray:
     h, w = frame.shape[:2]
-    if max(h, w) <= MAX_DIM:
+    if max(h, w) <= settings.MAX_IMAGE_DIM:
         return frame
-    scale = MAX_DIM / max(h, w)
+    scale = settings.MAX_IMAGE_DIM / max(h, w)
     return cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
 
 
@@ -76,7 +67,7 @@ def run_pipeline(
         elapsed_ms  — inference time in milliseconds
     """
     import sys
-    sys.path.insert(0, str(REPO_ROOT))
+    sys.path.insert(0, str(settings.REPO_ROOT))
     from src.detect_two_stage import detect_and_classify, draw_detections
 
     # Decode bytes → numpy BGR frame
@@ -106,7 +97,7 @@ def run_pipeline(
 def run_pipeline_frame(
     frame: np.ndarray,
     det_conf: float = 0.25,
-    det_imgsz: int = LIVE_IMGSZ,   # 320 by default for live — faster on GPU
+    det_imgsz: int = settings.LIVE_IMGSZ,   # 320 by default for live — faster on GPU
     cls_imgsz: int = 224,
 ) -> tuple[list[dict], np.ndarray, float]:
     """
@@ -119,7 +110,7 @@ def run_pipeline_frame(
         elapsed_ms  — inference time in milliseconds
     """
     import sys
-    sys.path.insert(0, str(REPO_ROOT))
+    sys.path.insert(0, str(settings.REPO_ROOT))
     from src.detect_two_stage import detect_and_classify, draw_detections
 
     frame = _resize_if_needed(frame)

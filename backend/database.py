@@ -1,10 +1,8 @@
 """
 SQLAlchemy 2.0 async database layer.
-Database file: app/trash_detection.db
 """
 
 from datetime import datetime, timezone
-from pathlib import Path
 
 from sqlalchemy import (
     Column,
@@ -20,10 +18,9 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, relationship
 
-DB_PATH = Path(__file__).parent / "trash_detection.db"
-DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
+from backend.config import settings
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(settings.db_url, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 

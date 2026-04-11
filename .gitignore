@@ -19,6 +19,9 @@ venv/
 .DS_Store
 Thumbs.db
 
+# Environment
+.env
+
 # Outputs & training runs
 outputs/
 runs/

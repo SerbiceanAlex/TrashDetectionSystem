@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-import os
 import re
 import secrets
 import logging
@@ -8,27 +7,9 @@ import logging
 import bcrypt
 import jwt
 
+from backend.config import settings
+
 logger = logging.getLogger(__name__)
-
-# Load secret from environment; fall back to a dev-only default if not set.
-SECRET_KEY = os.environ.get("TRASHDET_SECRET_KEY", "SUPER_SECRET_TRASHDET_KEY")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
-
-# OTP settings
-OTP_LENGTH = 6
-OTP_EXPIRE_MINUTES = 5
-
-# SMTP settings (set env vars for real email; otherwise prints to console)
-SMTP_HOST = os.environ.get("SMTP_HOST", "")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
-SMTP_USER = os.environ.get("SMTP_USER", "")
-SMTP_PASS = os.environ.get("SMTP_PASS", "")
-SMTP_FROM = os.environ.get("SMTP_FROM", "noreply@trashdet.local")
-
-# Rate limiting: max failed attempts before lockout
-MAX_LOGIN_ATTEMPTS = 5
-LOGIN_LOCKOUT_MINUTES = 15
 
 # In-memory rate-limit store  {username: (fail_count, locked_until)}
 _login_attempts: dict[str, tuple[int, datetime]] = {}
@@ -75,13 +56,13 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 
 def decode_access_token(token: str) -> dict:
     try:
-        decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        decoded = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return decoded
     except jwt.PyJWTError:
         return {}
@@ -91,7 +72,7 @@ def decode_access_token(token: str) -> dict:
 
 def generate_otp() -> str:
     """Generate a cryptographically secure 6-digit OTP code."""
-    return "".join(secrets.choice("0123456789") for _ in range(OTP_LENGTH))
+    return "".join(secrets.choice("0123456789") for _ in range(settings.OTP_LENGTH))
 
 
 # ── Email sending ────────────────────────────────────────────────────────────
@@ -102,28 +83,28 @@ async def send_otp_email(to_email: str, otp_code: str, username: str) -> bool:
     body = (
         f"Salut {username},\n\n"
         f"Codul tău de verificare este: {otp_code}\n\n"
-        f"Codul expiră în {OTP_EXPIRE_MINUTES} minute.\n"
+        f"Codul expiră în {settings.OTP_EXPIRE_MINUTES} minute.\n"
         f"Dacă nu ai solicitat acest cod, ignoră mesajul.\n\n"
         f"─ TrashDet"
     )
 
     # If SMTP is configured, send real email
-    if SMTP_HOST and SMTP_USER:
+    if settings.SMTP_HOST and settings.SMTP_USER:
         try:
             import aiosmtplib
             from email.mime.text import MIMEText
 
             msg = MIMEText(body, "plain", "utf-8")
             msg["Subject"] = subject
-            msg["From"] = SMTP_FROM
+            msg["From"] = settings.SMTP_FROM
             msg["To"] = to_email
 
             await aiosmtplib.send(
                 msg,
-                hostname=SMTP_HOST,
-                port=SMTP_PORT,
-                username=SMTP_USER,
-                password=SMTP_PASS,
+                hostname=settings.SMTP_HOST,
+                port=settings.SMTP_PORT,
+                username=settings.SMTP_USER,
+                password=settings.SMTP_PASS,
                 start_tls=True,
             )
             logger.info(f"OTP email trimis la {to_email}")
@@ -137,14 +118,14 @@ async def send_otp_email(to_email: str, otp_code: str, username: str) -> bool:
         f"\n{'='*50}\n"
         f"  [DEV] OTP pentru {username} ({to_email})\n"
         f"  COD: {otp_code}\n"
-        f"  Expiră în {OTP_EXPIRE_MINUTES} minute\n"
+        f"  Expiră în {settings.OTP_EXPIRE_MINUTES} minute\n"
         f"{'='*50}"
     )
     print(
         f"\n{'='*50}\n"
         f"  [DEV] OTP pentru {username} ({to_email})\n"
         f"  COD: {otp_code}\n"
-        f"  Expiră în {OTP_EXPIRE_MINUTES} minute\n"
+        f"  Expiră în {settings.OTP_EXPIRE_MINUTES} minute\n"
         f"{'='*50}"
     )
     return True
@@ -181,8 +162,8 @@ def record_failed_login(username: str):
     else:
         fail_count, _ = entry
         fail_count += 1
-        if fail_count >= MAX_LOGIN_ATTEMPTS:
-            locked_until = now + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)
+        if fail_count >= settings.MAX_LOGIN_ATTEMPTS:
+            locked_until = now + timedelta(minutes=settings.LOGIN_LOCKOUT_MINUTES)
             _login_attempts[username] = (fail_count, locked_until)
         else:
             _login_attempts[username] = (fail_count, None)

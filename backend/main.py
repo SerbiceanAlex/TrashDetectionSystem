@@ -25,21 +25,21 @@ from backend import inference as infer
 from backend import schemas
 from backend.auth_router import router as auth_router, get_current_active_user, oauth2_scheme
 from backend.auth import decode_access_token
+from backend.config import settings
 from backend import video as vid
 
 APP_DIR = Path(__file__).parent
-REPO_ROOT = APP_DIR.parent
 UPLOADS_DIR = APP_DIR / "uploads"
 ANNOTATED_DIR = APP_DIR / "annotated"
 VIDEOS_DIR = APP_DIR / "videos"
-STATIC_DIR = REPO_ROOT / "frontend" / "static"
-TEMPLATES_DIR = REPO_ROOT / "frontend" / "templates"
+STATIC_DIR = settings.REPO_ROOT / "frontend" / "static"
+TEMPLATES_DIR = settings.REPO_ROOT / "frontend" / "templates"
 
 UPLOADS_DIR.mkdir(exist_ok=True)
 ANNOTATED_DIR.mkdir(exist_ok=True)
 VIDEOS_DIR.mkdir(exist_ok=True)
 
-MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
+MAX_UPLOAD_BYTES = settings.max_upload_bytes
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
