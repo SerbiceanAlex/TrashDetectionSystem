@@ -35,6 +35,24 @@ class TokenData(BaseModel):
     role: Optional[str] = None
     id: Optional[int] = None
 
+
+# ── OTP (Two-Factor) ────────────────────────────────────────────────────────
+
+class OTPRequired(BaseModel):
+    """Returned when password is correct but OTP verification is needed."""
+    otp_required: bool = True
+    email_hint: str          # masked email, e.g. "a***@gmail.com"
+    message: str = "Cod de verificare trimis pe email"
+
+class OTPVerify(BaseModel):
+    """Client sends this to verify the OTP code."""
+    username: str
+    code: str
+
+class PasswordErrors(BaseModel):
+    """Returned when password doesn't meet policy."""
+    errors: list[str]
+
 # ── Detection record (single bounding box) ──────────────────────────────────
 
 class DetectionRecordOut(BaseModel):
@@ -214,3 +232,67 @@ class NearbyReport(BaseModel):
     address: Optional[str] = None
     gps_source: Optional[str] = None
     is_resolved: int = 0
+
+
+# ── Leaderboard ───────────────────────────────────────────────────────────────
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    username: str
+    role: str
+    points: int
+    total_reports: int
+
+
+# ── Admin stats ───────────────────────────────────────────────────────────────
+
+class AdminStats(BaseModel):
+    total_users: int
+    total_sessions: int
+    total_objects: int
+    resolved_reports: int
+    avg_inference_ms: float
+
+
+# ── Personal stats ────────────────────────────────────────────────────────────
+
+class WeeklyPoint(BaseModel):
+    day: str
+    reports: int
+    objects: int
+
+
+class PersonalStats(BaseModel):
+    username: str
+    role: str
+    points: int
+    total_sessions: int
+    total_objects: int
+    resolved_count: int
+    weekly_activity: list[WeeklyPoint]
+
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+
+class NotificationOut(BaseModel):
+    id: int
+    message: str
+    category: Optional[str] = None
+    session_id: Optional[int] = None
+    is_read: int
+    created_at: str
+
+
+class NotificationsResponse(BaseModel):
+    unread: int
+    notifications: list[NotificationOut]
+
+
+# ── Generic responses ─────────────────────────────────────────────────────────
+
+class OkResponse(BaseModel):
+    ok: bool
+
+
+class DetailResponse(BaseModel):
+    detail: str

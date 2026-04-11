@@ -35,7 +35,7 @@ runs/
 
 # Ignore JSON except static app files and results/
 *.json
-!app/static/manifest.json
+!frontend/static/manifest.json
 !results/**/*.json
 
 # datasets / big files
@@ -47,7 +47,9 @@ UAVVaste/
 *.pt
 
 # Web app runtime artifacts
-app/trash_detection.db
-app/uploads/
-app/annotated/
-app/videos/
+backend/trash_detection.db
+backend/uploads/
+backend/annotated/
+backend/videos/
+
+tmp/

@@ -15,8 +15,8 @@ import numpy as np
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import database as db
-from app import inference as infer
+from backend import database as db
+from backend import inference as infer
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,55 @@
+﻿<!DOCTYPE html>
+<html lang="ro" x-data="ecoApp()" x-init="init()" :class="darkMode ? 'dark' : ''">
+<head>
+  {% include 'partials/_head.html' %}
+</head>
+
+<body>
+
+{% include 'partials/_overlays.html' %}
+
+<!-- Auth screen (login / OTP / register) -->
+{% include 'partials/_auth.html' %}
+
+<!-- Main application shell -->
+<div x-show="isLoggedIn" x-cloak class="app-shell">
+
+  {% include 'partials/_sidebar.html' %}
+
+  <div class="td-main">
+    {% include 'partials/_header.html' %}
+
+    <main class="td-content">
+      {% include 'tabs/dashboard.html' %}
+      {% include 'tabs/scan.html' %}
+      {% include 'tabs/live.html' %}
+      {% include 'tabs/map.html' %}
+      {% include 'tabs/history.html' %}
+      {% include 'tabs/stats.html' %}
+      {% include 'tabs/leaderboard.html' %}
+      {% include 'tabs/admin.html' %}
+      {% include 'tabs/settings.html' %}
+      {% include 'tabs/about.html' %}
+    </main>
+
+    <nav class="td-bottom-nav">
+      <template x-for="tab in tabs" :key="tab.id">
+        <button @click="goTo(tab.id)" class="td-bottom-btn" :class="activeTab === tab.id ? 'td-bottom-btn--active' : ''">
+          <svg class="td-bottom-btn__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path :d="tab.svgPath"></path>
+          </svg>
+          <span x-text="tab.short"></span>
+        </button>
+      </template>
+    </nav>
+  </div>
+</div>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+  }
+</script>
+
+</body>
+</html>

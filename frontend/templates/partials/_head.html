@@ -1,0 +1,42 @@
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#059669" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="description" content="TrashDet — Detectare AI și raportare deșeuri în timp real pentru comunitate." />
+<title>TrashDet — AI Trash Detection</title>
+
+<!-- PWA -->
+<link rel="manifest" href="/static/manifest.json" />
+
+<!-- Google Fonts: Inter -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<!-- App CSS -->
+<link rel="stylesheet" href="/static/css/style.css" />
+
+<!-- Alpine.js -->
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<!-- Leaflet + heat -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<!-- App JS (order matters: utils first) -->
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/detect.js"></script>
+<script src="/static/js/map.js"></script>
+<script src="/static/js/history.js"></script>
+<script src="/static/js/stats.js"></script>
+<script src="/static/js/video.js"></script>
+<script src="/static/js/admin.js"></script>
+<script src="/static/js/auth.js"></script>
+<script src="/static/js/app.js"></script>

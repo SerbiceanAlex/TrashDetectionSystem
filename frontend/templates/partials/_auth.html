@@ -1,0 +1,190 @@
+<!-- Auth screen: login, OTP verification, register -->
+<div x-show="!isLoggedIn" class="auth-screen">
+
+  <!-- LEFT: Brand visual (desktop only) -->
+  <div class="auth-visual">
+    <div class="auth-visual__bg-glow"></div>
+
+    <div class="td-logo td-logo--auth">
+      <div class="td-logo__frame">
+        <div class="td-logo__inner">
+          <div class="td-logo__scan-line"></div>
+          <div class="td-logo__center-dot">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="td-logo__leaf-icon"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8h-5a7 7 0 0 1-5 10Z"/></svg>
+          </div>
+        </div>
+        <span class="td-logo__c td-logo__c--tl"></span>
+        <span class="td-logo__c td-logo__c--tr"></span>
+        <span class="td-logo__c td-logo__c--bl"></span>
+        <span class="td-logo__c td-logo__c--br"></span>
+      </div>
+      <div class="td-logo__wordmark">Trash<span>Det</span></div>
+    </div>
+
+    <h2 class="auth-visual__title">Monitorizare urbană bazată pe viziune artificială.</h2>
+    <p class="auth-visual__desc">Raportează deșeuri din parcuri cu telefonul. AI-ul detectează automat materialul și înregistrează locația GPS.</p>
+
+    <div class="auth-visual__pills">
+      <span class="auth-pill">YOLOv8 Two-Stage</span>
+      <span class="auth-pill">FastAPI · SQLite</span>
+      <span class="auth-pill">GPS · Leaflet</span>
+      <span class="auth-pill">Comunitate urbană</span>
+    </div>
+  </div>
+
+  <!-- RIGHT: Forms -->
+  <div class="auth-forms">
+
+    <!-- LOGIN -->
+    <div x-show="authMode === 'login'" class="auth-card"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 translate-y-3"
+      x-transition:enter-end="opacity-100 translate-y-0">
+      <div class="auth-card__head">
+        <div class="td-logo td-logo--mobile-auth">
+          <div class="td-logo__frame">
+            <div class="td-logo__inner"><div class="td-logo__scan-line"></div><div class="td-logo__center-dot"><svg viewBox="0 0 24 24" fill="currentColor" class="td-logo__leaf-icon"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8h-5a7 7 0 0 1-5 10Z"/></svg></div></div>
+            <span class="td-logo__c td-logo__c--tl"></span><span class="td-logo__c td-logo__c--tr"></span><span class="td-logo__c td-logo__c--bl"></span><span class="td-logo__c td-logo__c--br"></span>
+          </div>
+          <span class="td-logo__wordmark">Trash<span>Det</span></span>
+        </div>
+        <h3 class="auth-card__title">Conectare</h3>
+        <p class="auth-card__sub">Accesează panoul comunității TrashDet.</p>
+      </div>
+      <form @submit.prevent="login()" class="auth-form">
+        <div class="form-group">
+          <label class="form-label">Utilizator</label>
+          <input type="text" x-model="loginData.username" class="input" required placeholder="utilizator" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Parolă</label>
+          <input type="password" x-model="loginData.password" class="input" required placeholder="••••••••" autocomplete="current-password" />
+        </div>
+        <button type="submit" class="btn btn--brand btn--full btn--lg" :disabled="authLoading">
+          <span x-show="!authLoading">Intră în cont →</span>
+          <span x-show="authLoading" style="display:inline-flex;align-items:center;gap:8px"><span class="spinner"></span>Se verifică…</span>
+        </button>
+      </form>
+      <p class="auth-switch">Nu ai cont? <button @click="authMode='register'" class="auth-link">Înregistrează-te</button></p>
+    </div>
+
+    <!-- OTP VERIFICATION -->
+    <div x-show="authMode === 'otp'" class="auth-card"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 translate-y-3"
+      x-transition:enter-end="opacity-100 translate-y-0">
+      <div class="auth-card__head">
+        <div style="font-size:48px;text-align:center;margin-bottom:12px">🔐</div>
+        <h3 class="auth-card__title">Verificare email</h3>
+        <p class="auth-card__sub">Am trimis un cod de 6 cifre la <strong x-text="otpEmailHint"></strong></p>
+      </div>
+
+      <form @submit.prevent="verifyOTP()" class="auth-form">
+        <div style="display:flex;gap:8px;justify-content:center;margin:16px 0 24px" @paste="handleOtpPaste($event)">
+          <template x-for="(digit, idx) in otpDigits" :key="idx">
+            <input
+              type="text"
+              inputmode="numeric"
+              maxlength="1"
+              :class="'input otp-input-' + idx"
+              :value="otpDigits[idx]"
+              @input="handleOtpInput(idx, $event)"
+              @keydown="handleOtpKeydown(idx, $event)"
+              style="width:48px;height:56px;text-align:center;font-size:24px;font-weight:800;letter-spacing:0;padding:0;border-radius:12px"
+              autocomplete="one-time-code"
+            />
+          </template>
+        </div>
+
+        <button type="submit" class="btn btn--brand btn--full btn--lg" :disabled="authLoading || otpDigits.some(d => d === '')">
+          <span x-show="!authLoading">Verifică codul →</span>
+          <span x-show="authLoading" style="display:inline-flex;align-items:center;gap:8px"><span class="spinner"></span>Se verifică…</span>
+        </button>
+      </form>
+
+      <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--tx-muted)">
+        <template x-if="!otpResendAvailable">
+          <span>Retrimite codul în <strong x-text="otpCountdown + 's'"></strong></span>
+        </template>
+        <template x-if="otpResendAvailable">
+          <button @click="resendOTP()" class="auth-link" style="font-size:13px">Retrimite codul</button>
+        </template>
+      </div>
+
+      <p class="auth-switch" style="margin-top:8px">
+        <button @click="backToLogin()" class="auth-link">← Înapoi la conectare</button>
+      </p>
+    </div>
+
+    <!-- REGISTER -->
+    <div x-show="authMode === 'register'" class="auth-card"
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 translate-y-3"
+      x-transition:enter-end="opacity-100 translate-y-0">
+      <div class="auth-card__head">
+        <div class="td-logo td-logo--mobile-auth">
+          <div class="td-logo__frame">
+            <div class="td-logo__inner"><div class="td-logo__scan-line"></div><div class="td-logo__center-dot"><svg viewBox="0 0 24 24" fill="currentColor" class="td-logo__leaf-icon"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8h-5a7 7 0 0 1-5 10Z"/></svg></div></div>
+            <span class="td-logo__c td-logo__c--tl"></span><span class="td-logo__c td-logo__c--tr"></span><span class="td-logo__c td-logo__c--bl"></span><span class="td-logo__c td-logo__c--br"></span>
+          </div>
+          <span class="td-logo__wordmark">Trash<span>Det</span></span>
+        </div>
+        <h3 class="auth-card__title">Înregistrare</h3>
+        <p class="auth-card__sub">Alătură-te comunității TrashDet.</p>
+      </div>
+      <form @submit.prevent="register()" class="auth-form">
+        <div class="form-group">
+          <label class="form-label">Nume utilizator</label>
+          <input type="text" x-model="registerData.username" class="input" required placeholder="nicu_eco" autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" x-model="registerData.email" class="input" required placeholder="email@exemplu.com" autocomplete="email" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Parolă</label>
+          <input type="password" x-model="registerData.password" @input="checkPasswordStrength(registerData.password)" class="input" required placeholder="Minim 8 caractere" minlength="8" autocomplete="new-password" />
+
+          <!-- Password strength bar -->
+          <div x-show="showPasswordRules" x-transition style="margin-top:8px">
+            <div style="display:flex;gap:4px;margin-bottom:6px">
+              <template x-for="i in 5" :key="i">
+                <div style="flex:1;height:4px;border-radius:2px;transition:background .2s"
+                  :style="'background:' + (i <= passwordScore ? getPasswordStrengthLabel().color : 'var(--bg-border)')">
+                </div>
+              </template>
+            </div>
+            <p style="font-size:11px;font-weight:700;margin:0 0 8px"
+              :style="'color:' + getPasswordStrengthLabel().color"
+              x-text="getPasswordStrengthLabel().text"></p>
+
+            <!-- Rule checklist -->
+            <div style="display:flex;flex-direction:column;gap:3px;font-size:12px">
+              <div :style="'color:' + (passwordRules.minLength ? '#16a34a' : 'var(--tx-muted)')">
+                <span x-text="passwordRules.minLength ? '✓' : '○'"></span> Minim 8 caractere
+              </div>
+              <div :style="'color:' + (passwordRules.hasUpper ? '#16a34a' : 'var(--tx-muted)')">
+                <span x-text="passwordRules.hasUpper ? '✓' : '○'"></span> O literă mare (A-Z)
+              </div>
+              <div :style="'color:' + (passwordRules.hasLower ? '#16a34a' : 'var(--tx-muted)')">
+                <span x-text="passwordRules.hasLower ? '✓' : '○'"></span> O literă mică (a-z)
+              </div>
+              <div :style="'color:' + (passwordRules.hasDigit ? '#16a34a' : 'var(--tx-muted)')">
+                <span x-text="passwordRules.hasDigit ? '✓' : '○'"></span> O cifră (0-9)
+              </div>
+              <div :style="'color:' + (passwordRules.hasSpecial ? '#16a34a' : 'var(--tx-muted)')">
+                <span x-text="passwordRules.hasSpecial ? '✓' : '○'"></span> Un caracter special (!@#$%...)
+              </div>
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="btn btn--brand btn--full btn--lg" :disabled="authLoading || passwordScore < 5">
+          <span x-show="!authLoading">Creează cont →</span>
+          <span x-show="authLoading" style="display:inline-flex;align-items:center;gap:8px"><span class="spinner"></span>Se creează…</span>
+        </button>
+      </form>
+      <p class="auth-switch">Ai deja cont? <button @click="authMode='login'" class="auth-link">Loghează-te</button></p>
+    </div>
+
+  </div>
+</div>

@@ -3,7 +3,7 @@ import sys
 import traceback
 
 try:
-    from app.inference import load_models, run_pipeline_frame
+    from backend.inference import load_models, run_pipeline_frame
     import cv2
     import numpy as np
 

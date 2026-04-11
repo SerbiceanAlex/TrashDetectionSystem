@@ -1,0 +1,49 @@
+<!-- Sidebar navigation -->
+<aside class="td-sidebar" :class="sidebarOpen ? 'td-sidebar--open' : ''">
+
+  <div class="td-sidebar__header" @click="goTo('dashboard'); sidebarOpen=false">
+    <div class="td-logo td-logo--sidebar">
+      <div class="td-logo__frame">
+        <div class="td-logo__inner"><div class="td-logo__scan-line"></div><div class="td-logo__center-dot"><svg viewBox="0 0 24 24" fill="currentColor" class="td-logo__leaf-icon"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8h-5a7 7 0 0 1-5 10Z"/></svg></div></div>
+        <span class="td-logo__c td-logo__c--tl"></span><span class="td-logo__c td-logo__c--tr"></span><span class="td-logo__c td-logo__c--bl"></span><span class="td-logo__c td-logo__c--br"></span>
+      </div>
+      <span class="td-logo__wordmark">Trash<span>Det</span></span>
+    </div>
+  </div>
+
+  <nav class="td-sidebar__nav">
+    <template x-for="tab in tabs" :key="tab.id">
+      <button @click="goTo(tab.id); sidebarOpen=false"
+        class="td-sidebar__item"
+        :class="activeTab === tab.id ? 'td-sidebar__item--active' : ''">
+        <svg class="td-sidebar__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path :d="tab.svgPath"></path>
+        </svg>
+        <span x-text="tab.label"></span>
+        <span x-show="tab.id === 'scan'" class="td-sidebar__badge">AI</span>
+        <span x-show="tab.id === 'admin'" class="td-sidebar__badge" style="background:rgba(239,68,68,.2);color:#ef4444">ADMIN</span>
+      </button>
+    </template>
+  </nav>
+
+  <div class="td-sidebar__footer">
+    <div class="td-sidebar__user-row">
+      <div class="td-sidebar__avatar" x-text="user ? user.username.slice(0,2).toUpperCase() : '?'"></div>
+      <div class="td-sidebar__user-meta">
+        <span class="td-sidebar__username" x-text="user?.username ?? ''"></span>
+        <span class="td-sidebar__role" x-text="(user?.role ?? '') + ' · ⭐ ' + (user?.points ?? 0)"></span>
+      </div>
+      <button @click="logout()" class="td-sidebar__logout" title="Deconectare">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px">
+          <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</aside>
+
+<!-- Sidebar backdrop (mobile) -->
+<div x-show="sidebarOpen" x-cloak @click="sidebarOpen=false" class="td-sidebar__backdrop"
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+</div>

@@ -89,19 +89,20 @@ Imagine/Video → [Stage 1: Detector YOLO] → bounding boxes (clasa: trash)
 ```
 TrashDetectionSystem/
 ├── src/
-│   ├── detect_two_stage.py      # Pipeline two-stage (CLI + modul importabil de app/)
+│   ├── detect_two_stage.py      # Pipeline two-stage (CLI + modul importabil de backend/)
 │   └── detect_video_yolo.py     # Inferență video baseline (un singur detector)
-├── app/
+├── backend/
 │   ├── main.py                  # FastAPI router, endpoint-uri REST + WebSocket
-│   ├── auth.py                  # JWT (PyJWT), bcrypt, secret din variabilă de mediu
-│   ├── auth_router.py           # Endpoint-uri /auth/register, /auth/login, /auth/me
+│   ├── auth.py                  # JWT (PyJWT), bcrypt, OTP, rate limiting, password policy
+│   ├── auth_router.py           # Endpoint-uri /auth/register, /auth/login, /auth/verify-otp, /auth/me
 │   ├── inference.py             # Thread-safe two-stage pipeline (singleton)
 │   ├── video.py                 # WebSocket handler pentru inferență live pe video
 │   ├── database.py              # SQLAlchemy async engine + modele ORM
 │   ├── schemas.py               # Pydantic schemas
-│   ├── geo.py                   # Geocodare coordonate GPS (Nominatim)
+│   └── geo.py                   # Geocodare coordonate GPS (Nominatim)
+├── frontend/
 │   ├── static/                  # CSS, JS, manifest PWA, service worker
-│   └── templates/               # HTML (Jinja2) — pagini principale
+│   └── templates/               # HTML (Jinja2) — base + partials + tabs
 ├── scripts/
 │   ├── train_classifier.py      # Antrenare clasificator (apelat din notebook)
 │   ├── evaluate_classifier.py   # Evaluare clasificator (apelat din notebook)
@@ -139,7 +140,7 @@ Interfață web fullstack cu autentificare, GPS, video live și statistici inter
 
 ```bash
 # Pornire server (din directorul rădăcină al proiectului)
-.venv\Scripts\uvicorn app.main:app --reload --port 8000
+.venv\Scripts\uvicorn backend.main:app --reload --port 8000
 ```
 
 Deschide `http://127.0.0.1:8000` în browser.

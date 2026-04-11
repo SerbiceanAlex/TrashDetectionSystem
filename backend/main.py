@@ -2,7 +2,7 @@
 FastAPI application — Trash Detection System web interface.
 
 Start with:
-    .venv\\Scripts\\uvicorn app.main:app --reload --port 8000
+    .venv\\Scripts\\uvicorn backend.main:app --reload --port 8000
 """
 
 import asyncio
@@ -19,20 +19,21 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete as sa_delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import database as db
-from app import geo
-from app import inference as infer
-from app import schemas
-from app.auth_router import router as auth_router, get_current_active_user, oauth2_scheme
-from app.auth import decode_access_token
-from app import video as vid
+from backend import database as db
+from backend import geo
+from backend import inference as infer
+from backend import schemas
+from backend.auth_router import router as auth_router, get_current_active_user, oauth2_scheme
+from backend.auth import decode_access_token
+from backend import video as vid
 
 APP_DIR = Path(__file__).parent
+REPO_ROOT = APP_DIR.parent
 UPLOADS_DIR = APP_DIR / "uploads"
 ANNOTATED_DIR = APP_DIR / "annotated"
 VIDEOS_DIR = APP_DIR / "videos"
-STATIC_DIR = APP_DIR / "static"
-TEMPLATES_DIR = APP_DIR / "templates"
+STATIC_DIR = REPO_ROOT / "frontend" / "static"
+TEMPLATES_DIR = REPO_ROOT / "frontend" / "templates"
 
 UPLOADS_DIR.mkdir(exist_ok=True)
 ANNOTATED_DIR.mkdir(exist_ok=True)
@@ -793,7 +794,7 @@ async def admin_update_user(
     return {"id": user.id, "username": user.username, "role": user.role, "points": user.points}
 
 
-@app.delete("/api/admin/users/{user_id}", summary="[Admin] Delete a user account")
+@app.delete("/api/admin/users/{user_id}", response_model=schemas.DetailResponse, summary="[Admin] Delete a user account")
 async def admin_delete_user(
     user_id: int,
     current_user: Annotated[db.User, Depends(get_current_active_user)],
@@ -844,7 +845,7 @@ async def resolve_session(
     return {"session_id": session_id, "is_resolved": det_session.is_resolved}
 
 
-@app.get("/api/leaderboard", summary="Top users by community points")
+@app.get("/api/leaderboard", response_model=list[schemas.LeaderboardEntry], summary="Top users by community points")
 async def leaderboard(
     limit: int = Query(default=10, ge=1, le=50),
     session: AsyncSession = Depends(db.get_db),
@@ -872,7 +873,7 @@ async def leaderboard(
     ]
 
 
-@app.get("/api/admin/stats", summary="[Admin] Global platform stats")
+@app.get("/api/admin/stats", response_model=schemas.AdminStats, summary="[Admin] Global platform stats")
 async def admin_stats(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
@@ -893,7 +894,7 @@ async def admin_stats(
     }
 
 
-@app.get("/api/me/stats", summary="Personal stats for the logged-in user")
+@app.get("/api/me/stats", response_model=schemas.PersonalStats, summary="Personal stats for the logged-in user")
 async def my_stats(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
@@ -945,7 +946,7 @@ async def my_stats(
 
 # ── Notifications ─────────────────────────────────────────────────────────────
 
-@app.get("/api/me/notifications", summary="Get notifications for the current user")
+@app.get("/api/me/notifications", response_model=schemas.NotificationsResponse, summary="Get notifications for the current user")
 async def get_notifications(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
@@ -975,7 +976,7 @@ async def get_notifications(
     }
 
 
-@app.post("/api/me/notifications/{notification_id}/read", summary="Mark a notification as read")
+@app.post("/api/me/notifications/{notification_id}/read", response_model=schemas.OkResponse, summary="Mark a notification as read")
 async def mark_notification_read(
     notification_id: int,
     current_user: Annotated[db.User, Depends(get_current_active_user)],
@@ -994,7 +995,7 @@ async def mark_notification_read(
     return {"ok": True}
 
 
-@app.post("/api/me/notifications/read-all", summary="Mark all notifications as read")
+@app.post("/api/me/notifications/read-all", response_model=schemas.OkResponse, summary="Mark all notifications as read")
 async def mark_all_notifications_read(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
@@ -1009,7 +1010,7 @@ async def mark_all_notifications_read(
     return {"ok": True}
 
 
-@app.delete("/api/video/sessions/{session_id}", summary="Delete a video session and files")
+@app.delete("/api/video/sessions/{session_id}", response_model=schemas.DetailResponse, summary="Delete a video session and files")
 async def delete_video_session(
     session_id: int,
     current_user: Annotated[db.User, Depends(get_current_active_user)],

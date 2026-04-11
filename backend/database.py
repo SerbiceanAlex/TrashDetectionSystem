@@ -137,6 +137,21 @@ class Notification(Base):
     session = relationship("DetectionSession", foreign_keys=[session_id])
 
 
+class OTPCode(Base):
+    """One-time password codes for two-factor login."""
+
+    __tablename__ = "otp_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    code = Column(String(6), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime, nullable=False)
+    is_used = Column(Integer, default=0)  # 0=unused, 1=used
+
+    user = relationship("User", foreign_keys=[user_id])
+
+
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
