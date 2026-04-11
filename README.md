@@ -92,16 +92,22 @@ TrashDetectionSystem/
 │   └── detect_two_stage.py      # Pipeline two-stage (CLI + modul importabil de backend/)
 ├── backend/
 │   ├── main.py                  # FastAPI router, endpoint-uri REST + WebSocket
+│   ├── config.py                # Pydantic BaseSettings — config centralizat din .env
 │   ├── auth.py                  # JWT (PyJWT), bcrypt, OTP, rate limiting, password policy
 │   ├── auth_router.py           # Endpoint-uri /auth/register, /auth/login, /auth/verify-otp, /auth/me
 │   ├── inference.py             # Thread-safe two-stage pipeline (singleton)
 │   ├── video.py                 # WebSocket handler pentru inferență live pe video
-│   ├── database.py              # SQLAlchemy async engine + modele ORM
-│   ├── schemas.py               # Pydantic schemas
+│   ├── database.py              # SQLAlchemy async engine + modele ORM (6 tabele)
+│   ├── schemas.py               # Pydantic schemas (30+ modele)
 │   └── geo.py                   # Geocodare coordonate GPS (Nominatim)
 ├── frontend/
-│   ├── static/                  # CSS, JS, manifest PWA, service worker
+│   ├── static/                  # CSS, JS (Alpine.js modules), manifest PWA, service worker
 │   └── templates/               # HTML (Jinja2) — base + partials + tabs
+├── tests/
+│   ├── conftest.py              # Fixtures pytest (in-memory DB, async client)
+│   ├── test_auth.py             # 14 teste auth (register, OTP, JWT, password policy)
+│   ├── test_api.py              # 10 teste endpoints (sessions, stats, map, export)
+│   └── test_config.py           # 4 teste config
 ├── scripts/
 │   ├── train_classifier.py      # Antrenare clasificator (apelat din notebook)
 │   ├── evaluate_classifier.py   # Evaluare clasificator (apelat din notebook)
@@ -123,6 +129,10 @@ TrashDetectionSystem/
 │   ├── detector/                # JSON metrici A22, A3-final
 │   ├── classifier/              # JSON metrici B2, B3
 │   └── pipeline/                # JSON/CSV sumare C1, C2
+├── .env.example                 # Template configurație (SECRET_KEY, SMTP, etc.)
+├── Dockerfile                   # Container imagine Docker
+├── docker-compose.yml           # Orchestrare Docker cu volume persistente
+├── create_admin.py              # Utilitar creare user admin/demo
 ├── requirements.txt
 └── README.md
 ```
@@ -143,7 +153,7 @@ Interfață web fullstack cu autentificare, GPS, video live și statistici inter
 Deschide `http://127.0.0.1:8000` în browser.
 
 **Funcționalități:**
-- **Autentificare** — înregistrare/login cu JWT, parole hashed bcrypt, roluri user/admin
+- **Autentificare** — înregistrare/login cu JWT + OTP email (2FA), parole hashed bcrypt, password policy, rate limiting, roluri user/admin
 - **Detectare imagine** — upload drag & drop (limită 20 MB), slider confidence, imagine adnotată instant, coordonate GPS opționale
 - **Detectare batch** — upload multiple imagini simultan, raport agregat per sesiune
 - **Video live** — inferență two-stage în timp real prin WebSocket (stream MJPEG)
@@ -155,7 +165,7 @@ Deschide `http://127.0.0.1:8000` în browser.
 - **PWA** — Progressive Web App, instalabil pe mobil/desktop (manifest + service worker)
 - **API docs** — Swagger UI la `/docs`, ReDoc la `/redoc`
 
-> Variabila de mediu `TRASHDET_SECRET_KEY` poate înlocui cheia JWT implicită în producție.
+> Configurare prin fișier `.env` (vezi `.env.example`). SECRET_KEY, SMTP, model paths, DATABASE_URL.
 
 ---
 
@@ -217,4 +227,22 @@ python scripts/validate_yolo_dataset.py
 
 # Statistici dataset
 python scripts/report_classification_dataset_stats.py
+```
+
+### Teste
+
+```bash
+# Rulare suite completă (28 teste, ~2s)
+python -m pytest tests/ -v
+```
+
+### Docker
+
+```bash
+# Build + start
+docker compose up -d
+
+# Sau manual
+docker build -t trashdet .
+docker run -p 8000:8000 --env-file .env -v ./runs:/app/runs:ro trashdet
 ```
