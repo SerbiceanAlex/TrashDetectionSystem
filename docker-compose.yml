@@ -1,0 +1,16 @@
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist database and uploads across restarts
+      - db-data:/app/backend
+      # Mount model weights from host (not copied into image)
+      - ./runs:/app/runs:ro
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  db-data:
