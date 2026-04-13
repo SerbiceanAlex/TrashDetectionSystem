@@ -199,16 +199,27 @@ function mapApp() {
     _renderMarkers() {
       if (!this.markersLayer) return;
 
-      const sevColors = ['#22c55e', '#eab308', '#f97316', '#ef4444'];
+      const statusColors = {
+        pending: '#eab308',
+        verified: '#10b981',
+        in_progress: '#3b82f6',
+        cleaned: '#22c55e',
+        fake: '#ef4444',
+        expired: '#6b7280',
+      };
 
       for (const r of this.mapReports) {
-        let color = '#3b82f6'; // default
-        if (r.is_resolved) {
-          color = '#10b981'; // Solved -> Green
+        let color;
+        if (r.status && statusColors[r.status]) {
+          color = statusColors[r.status];
+        } else if (r.is_resolved) {
+          color = '#10b981';
         } else {
           const sev = severityFromCount(r.total_objects);
-          color = sevColors[sev];
+          color = ['#22c55e', '#eab308', '#f97316', '#ef4444'][sev] || '#3b82f6';
         }
+
+        const statusLabel = r.status ? r.status.replace('_', ' ') : (r.is_resolved ? 'rezolvat' : 'activ');
 
         const icon = L.divIcon({
           className: '',
@@ -221,7 +232,8 @@ function mapApp() {
           <div style="min-width:200px;font-family:'Inter',sans-serif">
             <strong style="font-size:13px">${r.filename}</strong><br>
             <span style="color:${color};font-weight:700">${r.total_objects} obiecte</span>
-            <span style="color:#9ca3af"> · ${r.inference_ms.toFixed(0)} ms</span><br>
+            <span style="color:#9ca3af"> · ${r.inference_ms.toFixed(0)} ms</span>
+            <span style="display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;color:#fff;background:${color}">${statusLabel}</span><br>
             <small style="color:#6b7280">${timeAgo(r.upload_time)}</small>
             ${r.address ? `<div style="font-size:11px;color:#6b7280;margin-top:4px;line-height:1.2;white-space:normal">📍 ${r.address}</div>` : ''}
             ${r.annotated_path ? `<br><img src="${getAnnotatedUrl(r.annotated_path)}" style="width:100%;margin-top:6px;border-radius:6px;max-height:120px;object-fit:cover" />` : ''}

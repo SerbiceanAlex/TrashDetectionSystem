@@ -5,15 +5,19 @@ SQLAlchemy 2.0 async database layer.
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    Boolean,
     Column,
+    Date,
     DateTime,
     Float,
     ForeignKey,
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
     select,
+    text as sa_text,
 )
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, relationship
@@ -41,9 +45,29 @@ class User(Base):
     points = Column(Integer, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+    # Community / EcoScore fields
+    eco_score = Column(Integer, default=0)
+    rank = Column(String(32), default="Novice")
+    streak_days = Column(Integer, default=0)
+    last_active_date = Column(Date, nullable=True)
+    anonymous_reports = Column(Boolean, default=False)
+    hide_exact_location = Column(Boolean, default=False)
+    trust_weight = Column(Float, default=1.0)
+
+    # Avatar & onboarding
+    avatar_path = Column(Text, nullable=True)
+    onboarding_done = Column(Boolean, default=False)
+
+    # Authority role fields (only for role='authority')
+    authority_area_lat = Column(Float, nullable=True)
+    authority_area_lng = Column(Float, nullable=True)
+    authority_area_radius_km = Column(Float, nullable=True)
+
     # Relationships
     reports = relationship("DetectionSession", foreign_keys="[DetectionSession.reporter_id]", back_populates="reporter")
     resolutions = relationship("DetectionSession", foreign_keys="[DetectionSession.resolver_id]", back_populates="resolver")
+    votes = relationship("CommunityVote", back_populates="user")
+    material_suggestions = relationship("MaterialSuggestion", back_populates="user")
 
 
 class DetectionSession(Base):
@@ -64,12 +88,26 @@ class DetectionSession(Base):
     gps_source = Column(String(16), nullable=True) # 'exif' | 'browser' | 'manual'
     is_resolved = Column(Integer, default=0)       # 0=dirty, 1=cleaned
     resolved_at = Column(DateTime, nullable=True)
-    
+
+    # Community lifecycle fields
+    status = Column(String(20), default="pending")  # pending/verified/in_progress/cleaned/fake/expired
+    cluster_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=True)
+    claimed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    claimed_at = Column(DateTime, nullable=True)
+    cleaned_image_path = Column(Text, nullable=True)
+    cleaned_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    verification_score = Column(Float, default=0.0)
+    user_note = Column(Text, nullable=True)  # user's description/context for the report
+
     reporter_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     resolver_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     reporter = relationship("User", foreign_keys=[reporter_id], back_populates="reports")
     resolver = relationship("User", foreign_keys=[resolver_id], back_populates="resolutions")
+    claimer = relationship("User", foreign_keys=[claimed_by])
+    cluster_parent = relationship("DetectionSession", remote_side="DetectionSession.id", foreign_keys=[cluster_id])
+    votes = relationship("CommunityVote", back_populates="session")
 
     records = relationship(
         "DetectionRecord", back_populates="session", cascade="all, delete-orphan"
@@ -90,8 +128,62 @@ class DetectionRecord(Base):
     box_y1 = Column(Integer, nullable=False)
     box_x2 = Column(Integer, nullable=False)
     box_y2 = Column(Integer, nullable=False)
+    estimated_weight_kg = Column(Float, default=0.0)
 
     session = relationship("DetectionSession", back_populates="records")
+    material_suggestions = relationship("MaterialSuggestion", back_populates="record")
+
+
+class CommunityVote(Base):
+    """One vote per user per detection session."""
+
+    __tablename__ = "community_votes"
+    __table_args__ = (
+        UniqueConstraint("user_id", "session_id", name="uq_vote_user_session"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=False, index=True)
+    vote_type = Column(String(10), nullable=False)  # 'confirm' or 'fake'
+    weight = Column(Float, nullable=False)           # trust_weight at vote time
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", back_populates="votes")
+    session = relationship("DetectionSession", back_populates="votes")
+
+
+class MaterialSuggestion(Base):
+    """Material correction suggestion from community."""
+
+    __tablename__ = "material_suggestions"
+    __table_args__ = (
+        UniqueConstraint("record_id", "user_id", name="uq_suggestion_record_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    record_id = Column(Integer, ForeignKey("detection_records.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    suggested_material = Column(String(64), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    record = relationship("DetectionRecord", back_populates="material_suggestions")
+    user = relationship("User", back_populates="material_suggestions")
+
+
+class Comment(Base):
+    """User comment on a detection session (report)."""
+
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    text = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    user = relationship("User", foreign_keys=[user_id])
+    session = relationship("DetectionSession", foreign_keys=[session_id])
 
 
 class VideoSession(Base):
@@ -146,6 +238,88 @@ class OTPCode(Base):
     expires_at = Column(DateTime, nullable=False)
     is_used = Column(Integer, default=0)  # 0=unused, 1=used
 
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class AuthorityContact(Base):
+    """External authority/municipality contact for report forwarding."""
+
+    __tablename__ = "authority_contacts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(200), nullable=False)
+    area_description = Column(Text, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class WebhookConfig(Base):
+    """Webhook endpoint config — fires on report lifecycle events."""
+
+    __tablename__ = "webhook_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    url = Column(Text, nullable=False)
+    secret = Column(String(128), nullable=False)
+    events = Column(Text, default="verified")  # comma-separated: verified,cleaned,fake
+    active = Column(Boolean, default=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class Campaign(Base):
+    """Cleanup campaign / challenge with area and timeline."""
+
+    __tablename__ = "campaigns"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    target_reports = Column(Integer, default=50)
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=False)
+    area_lat = Column(Float, nullable=True)
+    area_lng = Column(Float, nullable=True)
+    area_radius_km = Column(Float, default=5.0)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    participants = relationship("CampaignParticipant", back_populates="campaign")
+    creator = relationship("User", foreign_keys=[created_by])
+
+
+class CampaignParticipant(Base):
+    """User participation in a campaign."""
+
+    __tablename__ = "campaign_participants"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "user_id", name="uq_campaign_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    joined_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    campaign = relationship("Campaign", back_populates="participants")
+    user = relationship("User", foreign_keys=[user_id])
+
+
+class ReportPhoto(Base):
+    """Additional photo attached to a detection session (gallery)."""
+
+    __tablename__ = "report_photos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    image_path = Column(Text, nullable=False)
+    caption = Column(Text, nullable=True)
+    photo_type = Column(String(20), default="additional")  # 'additional' | 'cleanup'
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    session = relationship("DetectionSession", foreign_keys=[session_id])
     user = relationship("User", foreign_keys=[user_id])
 
 

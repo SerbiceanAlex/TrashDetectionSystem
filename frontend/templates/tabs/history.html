@@ -73,9 +73,8 @@
             <div class="report-card__body">
               <div class="report-card__name" x-text="s.filename"></div>
               <div class="report-card__meta">
-                <template x-if="s.is_resolved">
-                  <span class="badge badge--green" style="margin-right:4px">✅ Soluționat</span>
-                </template>
+                <span :class="'badge ' + statusBadgeClass(s.status || 'pending')" style="margin-right:4px"
+                  x-text="statusLabel(s.status || 'pending')"></span>
                 <span :class="`badge sev-${severityFromCount(s.total_objects)}`" x-text="sessionSeverity(s).icon + ' ' + s.total_objects + ' obiecte'"></span>
                 · <span x-text="formatDate(s.upload_time)"></span>
               </div>
@@ -125,22 +124,111 @@
           </div>
           <template x-if="sessionDetail">
             <div>
-              <!-- Annotated image -->
-              <div x-show="sessionDetail.annotated_path" class="result-img-wrap"
-                style="margin-bottom:12px"
-                @click="openLightbox(getAnnotatedUrl(sessionDetail.annotated_path))">
-                <img :src="getAnnotatedUrl(sessionDetail.annotated_path)" alt="" />
-                <div class="result-img-wrap__overlay">
-                  <span class="result-img-wrap__hint">🔍 Mărire</span>
+              <!-- ═══ Before/After Comparison ═══════════════════════════════ -->
+              <div x-show="sessionDetail.annotated_path" style="margin-bottom:12px">
+                <!-- Toggle buttons -->
+                <div style="display:flex;gap:6px;margin-bottom:8px">
+                  <button @click="detailViewMode = 'annotated'" :class="detailViewMode === 'annotated' ? 'btn btn--primary' : 'btn btn--ghost'"
+                    style="flex:1;font-size:11px;min-height:32px;padding:4px 10px">🔍 Cu detecții</button>
+                  <button @click="detailViewMode = 'original'" :class="detailViewMode === 'original' ? 'btn btn--primary' : 'btn btn--ghost'"
+                    style="flex:1;font-size:11px;min-height:32px;padding:4px 10px">📷 Originală</button>
+                  <button x-show="sessionDetail.status === 'cleaned'" @click="detailViewMode = 'cleaned'" :class="detailViewMode === 'cleaned' ? 'btn btn--primary' : 'btn btn--ghost'"
+                    style="flex:1;font-size:11px;min-height:32px;padding:4px 10px">✅ Curățat</button>
+                  <button x-show="sessionDetail.status === 'cleaned'" @click="detailViewMode = 'compare'" :class="detailViewMode === 'compare' ? 'btn btn--primary' : 'btn btn--ghost'"
+                    style="flex:1;font-size:11px;min-height:32px;padding:4px 10px">⚡ Compară</button>
+                </div>
+
+                <!-- Single image views -->
+                <div x-show="detailViewMode !== 'compare'" class="result-img-wrap"
+                  @click="openLightbox(
+                    detailViewMode === 'original' ? `/api/sessions/${sessionDetail.id}/original` :
+                    detailViewMode === 'cleaned' ? `/api/sessions/${sessionDetail.id}/clean-image` :
+                    getAnnotatedUrl(sessionDetail.annotated_path)
+                  )">
+                  <img :src="
+                    detailViewMode === 'original' ? `/api/sessions/${sessionDetail.id}/original` :
+                    detailViewMode === 'cleaned' ? `/api/sessions/${sessionDetail.id}/clean-image` :
+                    getAnnotatedUrl(sessionDetail.annotated_path)
+                  " alt="" />
+                  <div class="result-img-wrap__overlay">
+                    <span class="result-img-wrap__hint">🔍 Mărire</span>
+                  </div>
+                </div>
+
+                <!-- Side-by-side compare view -->
+                <div x-show="detailViewMode === 'compare'" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <div style="text-align:center">
+                    <div style="font-size:10px;font-weight:700;color:var(--tx-muted);margin-bottom:4px;text-transform:uppercase">🔴 Înainte</div>
+                    <div class="result-img-wrap" @click="openLightbox(getAnnotatedUrl(sessionDetail.annotated_path))">
+                      <img :src="getAnnotatedUrl(sessionDetail.annotated_path)" alt="Înainte" style="border-radius:8px" />
+                    </div>
+                  </div>
+                  <div style="text-align:center">
+                    <div style="font-size:10px;font-weight:700;color:var(--tx-muted);margin-bottom:4px;text-transform:uppercase">🟢 După</div>
+                    <div class="result-img-wrap" @click="openLightbox(`/api/sessions/${sessionDetail.id}/clean-image`)">
+                      <img :src="`/api/sessions/${sessionDetail.id}/clean-image`" alt="După" style="border-radius:8px" />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <!-- Meta info -->
+              <!-- ═══ User Note ════════════════════════════════════════════ -->
+              <template x-if="sessionDetail.user_note">
+                <div style="margin-bottom:12px;padding:10px 14px;border-radius:10px;background:var(--bg-raised);border-left:3px solid var(--eco-green-dark)">
+                  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:4px">📝 Descriere reporter</div>
+                  <div style="font-size:13px;color:var(--tx-primary);line-height:1.5" x-text="sessionDetail.user_note"></div>
+                </div>
+              </template>
+              <!-- Editable note (own report only) -->
+              <template x-if="!sessionDetail.user_note && isLoggedIn && sessionDetail.reporter_id === user?.id">
+                <div style="margin-bottom:12px">
+                  <div style="display:flex;gap:8px">
+                    <input type="text" x-model="editNoteText" placeholder="Adaugă o descriere (ex: lângă parc, mulți PET-uri)..."
+                      class="input" style="flex:1;font-size:12px;min-height:36px" maxlength="500" />
+                    <button @click="saveUserNote()" :disabled="!editNoteText.trim()" class="btn btn--ghost" style="font-size:12px;min-height:36px;padding:4px 12px">💾</button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- ═══ Share Buttons ═════════════════════════════════════════ -->
+              <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+                <button @click="shareReport('copy')" class="btn btn--ghost" style="font-size:11px;padding:4px 10px;min-height:30px">📋 Copiază link</button>
+                <button @click="shareReport('facebook')" class="btn btn--ghost" style="font-size:11px;padding:4px 10px;min-height:30px;color:#1877f2">📘 Facebook</button>
+                <button @click="shareReport('twitter')" class="btn btn--ghost" style="font-size:11px;padding:4px 10px;min-height:30px;color:#1da1f2">🐦 Twitter</button>
+                <button @click="shareReport('whatsapp')" class="btn btn--ghost" style="font-size:11px;padding:4px 10px;min-height:30px;color:#25d366">💬 WhatsApp</button>
+              </div>
+
+              <!-- ═══ Photo Gallery ═════════════════════════════════════════ -->
+              <div style="margin-bottom:12px;padding:12px;border-radius:12px;background:var(--bg-raised)" x-init="$watch('sessionDetail', sd => { if (sd) loadSessionPhotos(sd.id); })">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                  <h4 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted)">📸 Galerie foto</h4>
+                  <template x-if="isLoggedIn && sessionPhotos.length < 5">
+                    <label class="btn btn--ghost" style="font-size:11px;padding:2px 10px;min-height:28px;cursor:pointer">
+                      <span x-show="!photoUploading">+ Adaugă</span>
+                      <span x-show="photoUploading">⏳</span>
+                      <input type="file" accept="image/*" @change="uploadSessionPhoto($event, sessionDetail.id)" style="display:none" :disabled="photoUploading" />
+                    </label>
+                  </template>
+                </div>
+                <div x-show="sessionPhotosLoading" class="skeleton" style="height:60px;border-radius:8px"></div>
+                <div x-show="!sessionPhotosLoading && sessionPhotos.length === 0"
+                  style="text-align:center;font-size:12px;color:var(--tx-muted);padding:8px">Nicio fotografie suplimentară.</div>
+                <div x-show="!sessionPhotosLoading && sessionPhotos.length > 0"
+                  style="display:flex;gap:8px;overflow-x:auto;padding:4px 0">
+                  <template x-for="photo in sessionPhotos" :key="photo.id">
+                    <img :src="photo.photo_url" @click="openLightbox(photo.photo_url)" alt="Foto"
+                      style="width:80px;height:80px;border-radius:10px;object-fit:cover;cursor:pointer;flex-shrink:0;border:1px solid var(--bg-border)" />
+                  </template>
+                </div>
+              </div>
+
+              <!-- Status Badge -->
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
                 <span :class="`badge sev-${severityFromCount(sessionDetail.total_objects)}`"
                   x-text="sessionDetail.total_objects + ' obiecte'"></span>
                 <span class="badge badge--blue" x-text="sessionDetail.inference_ms.toFixed(0) + ' ms'"></span>
                 <span class="badge badge--gray" x-text="formatDate(sessionDetail.upload_time)"></span>
+                <span :class="'badge ' + statusBadgeClass(sessionDetail.status)" x-text="statusLabel(sessionDetail.status)"></span>
                 <template x-if="sessionDetail.latitude">
                   <span class="badge badge--green"
                     x-text="sessionDetail.address ? `📍 ${sessionDetail.address}` : `📍 ${sessionDetail.latitude?.toFixed(4)}, ${sessionDetail.longitude?.toFixed(4)}`"
@@ -157,6 +245,7 @@
                         <th>Material</th>
                         <th>Det. %</th>
                         <th>Cls. %</th>
+                        <th style="width:90px" x-show="myProfile && ['Guardian','Ranger','Champion','Legend'].includes(myProfile.rank)">Corectare</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -165,6 +254,18 @@
                           <td><span class="badge" :style="materialBadgeStyle(d.material)" x-text="d.material"></span></td>
                           <td style="font-weight:600" x-text="(d.det_score * 100).toFixed(1) + '%'"></td>
                           <td x-text="(d.cls_score * 100).toFixed(1) + '%'"></td>
+                          <td x-show="myProfile && ['Guardian','Ranger','Champion','Legend'].includes(myProfile.rank)">
+                            <select @change="suggestMaterial(d.id, $event.target.value); $event.target.value=''"
+                              style="font-size:11px;padding:2px 4px;border-radius:6px;border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);min-height:26px;cursor:pointer"
+                              :disabled="!isLoggedIn">
+                              <option value="">—</option>
+                              <option value="plastic">Plastic</option>
+                              <option value="paper">Paper</option>
+                              <option value="glass">Glass</option>
+                              <option value="metal">Metal</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </td>
                         </tr>
                       </template>
                     </tbody>
@@ -172,24 +273,158 @@
                 </div>
               </template>
 
-              <!-- Resolve Button -->
+              <!-- Community Voting & Actions -->
               <div style="margin-top:16px;">
-                <template x-if="sessionDetail.is_resolved">
-                  <div class="badge badge--green" style="padding:12px;display:flex;justify-content:center;font-size:14px;font-weight:700">✅ Acest focar a fost curățat!</div>
+
+                <!-- Vote Summary -->
+                <template x-if="voteSummary && (sessionDetail.status === 'pending' || sessionDetail.status === 'verified')">
+                  <div class="card" style="padding:12px;margin-bottom:12px;background:var(--bg-card-alt, var(--bg-card))">
+                    <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--tx-muted)">🗳️ Voturi comunitate</div>
+                    <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+                      <span class="badge badge--green" x-text="'✅ ' + (voteSummary.confirms || 0) + ' confirmări'"></span>
+                      <span class="badge badge--red" x-text="'🚩 ' + (voteSummary.fakes || 0) + ' false'"></span>
+                    </div>
+                    <div style="height:6px;background:var(--bg-border);border-radius:3px;overflow:hidden">
+                      <div style="height:100%;background:#10b981;border-radius:3px;transition:width 0.3s"
+                        :style="`width:${Math.max(0, Math.min(100, ((voteSummary.total_weight_confirm || 0) / Math.max(1, (voteSummary.total_weight_confirm || 0) + (voteSummary.total_weight_fake || 0))) * 100))}%`"></div>
+                    </div>
+                  </div>
                 </template>
-                <!-- Resolve Button: only for logged in users -->
-                <template x-if="!sessionDetail.is_resolved">
+
+                <!-- Vote Buttons (pending/verified, not own report, not already voted) -->
+                <template x-if="isLoggedIn && (sessionDetail.status === 'pending' || sessionDetail.status === 'verified') && sessionDetail.reporter_id !== user?.id && !voteSummary?.user_vote">
+                  <div style="display:flex;gap:8px;margin-bottom:12px">
+                    <button @click="voteOnSession('confirm')" :disabled="isVoting"
+                      class="btn btn--scan" style="flex:1;height:40px;background:#10b981;border-color:#10b981;font-size:13px">
+                      <span x-show="!isVoting">✅ Confirm</span>
+                      <span x-show="isVoting">⏳</span>
+                    </button>
+                    <button @click="voteOnSession('fake')" :disabled="isVoting"
+                      class="btn btn--danger" style="flex:1;height:40px;font-size:13px">
+                      <span x-show="!isVoting">🚩 Fals</span>
+                      <span x-show="isVoting">⏳</span>
+                    </button>
+                  </div>
+                </template>
+
+                <!-- Already voted indicator -->
+                <template x-if="voteSummary?.user_vote">
+                  <div class="badge" style="width:100%;padding:10px;text-align:center;margin-bottom:12px;font-size:13px"
+                    :class="voteSummary.user_vote === 'confirm' ? 'badge--green' : 'badge--red'"
+                    x-text="voteSummary.user_vote === 'confirm' ? '✅ Ai confirmat acest raport' : '🚩 Ai marcat ca fals'">
+                  </div>
+                </template>
+
+                <!-- Claim Cleanup (verified status, logged in, rank >= Ranger) -->
+                <template x-if="isLoggedIn && sessionDetail.status === 'verified' && !sessionDetail.claimed_by && myProfile && ['Ranger','Champion','Legend'].includes(myProfile.rank)">
+                  <button @click="claimSession()" :disabled="isClaiming"
+                    class="btn btn--scan" style="width:100%;height:44px;background:#3b82f6;border-color:#3b82f6;font-size:14px">
+                    <span x-show="!isClaiming">🧹 Revendică Curățarea</span>
+                    <span x-show="isClaiming">⏳ Se revendică...</span>
+                  </button>
+                </template>
+                <!-- Claim Cleanup — rank too low hint -->
+                <template x-if="isLoggedIn && sessionDetail.status === 'verified' && !sessionDetail.claimed_by && myProfile && !['Ranger','Champion','Legend'].includes(myProfile.rank)">
+                  <div style="text-align:center;font-size:12px;color:var(--tx-muted);padding:8px;background:var(--bg-raised);border-radius:10px">
+                    🔒 Ai nevoie de rang <strong>Ranger</strong> (500+ EcoScore) pentru a revendica curățări.
+                  </div>
+                </template>
+
+                <!-- In Progress — Upload Clean Proof (only claimer) -->
+                <template x-if="isLoggedIn && sessionDetail.status === 'in_progress' && sessionDetail.claimed_by === user?.id">
                   <div>
-                    <template x-if="isLoggedIn">
-                      <button @click="resolveSession(sessionDetail.id)" class="btn btn--scan" style="width:100%;height:44px;background:#10b981;border-color:#10b981">
-                        🧹 Marchează ca Soluționat (Curățat)
-                      </button>
-                    </template>
-                    <template x-if="!isLoggedIn">
-                      <button @click="openAuth('login')" class="btn btn--ghost" style="width:100%;height:44px;color:var(-- brand);border:1px dashed var(--brand)">
-                        🔑 Loghează-te pentru a curăța
-                      </button>
-                    </template>
+                    <label class="btn btn--scan" style="width:100%;height:44px;background:#10b981;border-color:#10b981;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer">
+                      <span x-show="!isCleanUploading">📸 Upload Dovadă Curățare</span>
+                      <span x-show="isCleanUploading">⏳ Se încarcă...</span>
+                      <input type="file" accept="image/*" capture="environment" @change="uploadCleanProof($event)" style="display:none" />
+                    </label>
+                  </div>
+                </template>
+
+                <!-- In Progress — Waiting for claimer (other user view) -->
+                <template x-if="sessionDetail.status === 'in_progress' && sessionDetail.claimed_by !== user?.id">
+                  <div class="badge badge--blue" style="width:100%;padding:12px;text-align:center;font-size:14px">
+                    🔧 Cineva curăță această zonă...
+                  </div>
+                </template>
+
+                <!-- Cleaned status -->
+                <template x-if="sessionDetail.status === 'cleaned'">
+                  <div class="badge badge--green" style="padding:12px;display:flex;justify-content:center;font-size:14px;font-weight:700;width:100%">✅ Acest focar a fost curățat!</div>
+                </template>
+
+                <!-- Fake status -->
+                <template x-if="sessionDetail.status === 'fake'">
+                  <div class="badge badge--red" style="padding:12px;display:flex;justify-content:center;font-size:14px;font-weight:700;width:100%">🔴 Raport marcat ca fals</div>
+                </template>
+
+                <!-- Expired status -->
+                <template x-if="sessionDetail.status === 'expired'">
+                  <div class="badge badge--gray" style="padding:12px;display:flex;justify-content:center;font-size:14px;font-weight:700;width:100%">⏰ Raport expirat</div>
+                </template>
+
+                <!-- Login prompt for non-logged users -->
+                <template x-if="!isLoggedIn && (sessionDetail.status === 'pending' || sessionDetail.status === 'verified')">
+                  <button @click="openAuth('login')" class="btn btn--ghost" style="width:100%;height:44px;color:var(--brand);border:1px dashed var(--brand)">
+                    🔑 Loghează-te pentru a vota sau curăța
+                  </button>
+                </template>
+
+                <!-- Admin resolve (legacy) -->
+                <template x-if="isLoggedIn && user?.role === 'admin' && sessionDetail.status === 'pending'">
+                  <button @click="resolveSession(sessionDetail.id)" class="btn btn--ghost" style="width:100%;height:36px;margin-top:8px;font-size:12px;color:var(--tx-muted)">
+                    ⚙️ Admin: Marchează manual ca rezolvat
+                  </button>
+                </template>
+              </div>
+
+              <!-- ═══ COMMENTS SECTION ═══════════════════════════════════ -->
+              <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bg-border)">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                  <h4 style="font-size:13px;font-weight:700;color:var(--tx-secondary)">💬 Comentarii <span x-show="sessionComments.length > 0" style="font-weight:400;color:var(--tx-muted)" x-text="'(' + sessionComments.length + ')'"></span></h4>
+                  <button @click="loadComments(sessionDetail.id)" class="btn btn--ghost" style="font-size:10px;padding:2px 8px;min-height:24px">↻</button>
+                </div>
+
+                <!-- Comments list -->
+                <div x-show="sessionComments.length > 0" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;max-height:200px;overflow-y:auto">
+                  <template x-for="c in sessionComments" :key="c.id">
+                    <div style="display:flex;gap:10px;padding:8px 12px;border-radius:10px;background:var(--bg-raised)">
+                      <div style="width:32px;height:32px;border-radius:8px;background:rgba(5,150,105,.12);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:var(--eco-green-dark);flex-shrink:0"
+                        x-text="c.username.slice(0,2).toUpperCase()"></div>
+                      <div style="flex:1;min-width:0">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+                          <span style="font-weight:700;font-size:12px" x-text="c.username"></span>
+                          <span style="font-size:10px;color:var(--tx-muted)" x-text="timeAgo(c.created_at)"></span>
+                          <button x-show="c.user_id === user?.id || user?.role === 'admin'" @click="deleteComment(c.id)"
+                            style="margin-left:auto;background:none;border:none;font-size:12px;cursor:pointer;color:var(--tx-muted);padding:0" title="Șterge">🗑</button>
+                        </div>
+                        <div style="font-size:12px;color:var(--tx-primary);line-height:1.4;word-break:break-word" x-text="c.text"></div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Empty state -->
+                <div x-show="sessionComments.length === 0 && !commentsLoading" style="text-align:center;padding:12px;font-size:12px;color:var(--tx-muted)">
+                  Niciun comentariu încă. Fii primul care comentează!
+                </div>
+
+                <!-- Add comment form -->
+                <template x-if="isLoggedIn">
+                  <div style="display:flex;gap:8px">
+                    <input type="text" x-model="newCommentText" @keydown.enter="postComment()"
+                      placeholder="Scrie un comentariu..." class="input"
+                      style="flex:1;font-size:12px;min-height:36px" maxlength="500" />
+                    <button @click="postComment()" :disabled="!newCommentText.trim() || commentPosting"
+                      class="btn btn--primary" style="font-size:12px;min-height:36px;padding:4px 14px">
+                      <span x-show="!commentPosting">Trimite</span>
+                      <span x-show="commentPosting">⏳</span>
+                    </button>
+                  </div>
+                </template>
+                <template x-if="!isLoggedIn">
+                  <div style="text-align:center;font-size:12px;color:var(--tx-muted);padding:8px">
+                    <button @click="openAuth('login')" class="btn btn--ghost" style="font-size:12px">🔑 Loghează-te pentru a comenta</button>
                   </div>
                 </template>
               </div>

@@ -1,6 +1,6 @@
 /* EcoAlert — Service Worker */
 
-const CACHE = 'ecoalert-v1';
+const CACHE = 'ecoalert-v3';
 const SHELL = [
   '/',
   '/static/css/style.css',
@@ -8,7 +8,10 @@ const SHELL = [
   '/static/js/detect.js',
   '/static/js/map.js',
   '/static/js/history.js',
-  '/static/js/stats.js',
+  '/static/js/video.js',
+  '/static/js/admin.js',
+  '/static/js/auth.js',
+  '/static/js/community.js',
   '/static/js/app.js',
 ];
 
@@ -29,18 +32,17 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
-  // Network-first for API calls
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/annotated/')) {
-    e.respondWith(
-      fetch(e.request).catch(() => new Response('{"error":"offline"}', {
-        headers: { 'Content-Type': 'application/json' }
-      }))
-    );
-    return;
-  }
-
-  // Cache-first for static assets
+  // Network-first for everything (API + static assets)
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    fetch(e.request)
+      .then(response => {
+        // Cache successful responses for offline use
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(e.request).then(cached => cached || new Response('offline', { status: 503 })))
   );
 });

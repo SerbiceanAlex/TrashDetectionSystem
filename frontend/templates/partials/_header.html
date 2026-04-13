@@ -44,7 +44,11 @@
             :style="n.is_read ? '' : 'background:rgba(22,163,74,.06)'"
             @mouseenter="$el.style.background='var(--bg-hover)'"
             @mouseleave="$el.style.background=n.is_read?'':'rgba(22,163,74,.06)'">
-            <span style="font-size:18px;flex-shrink:0" x-text="n.category==='resolved' ? '✅' : n.category==='badge' ? '🏆' : 'ℹ️'"></span>
+            <span style="font-size:18px;flex-shrink:0" x-text="({
+              rank_up:'🎉', streak:'🔥', vote:'🗳️', nearby:'📍',
+              cleaned:'🟢', verified:'✅', rejected:'🚫', motivation:'⚠️',
+              resolved:'✅', badge:'🏆', broadcast:'📢'
+            })[n.category] || 'ℹ️'"></span>
             <div style="flex:1;min-width:0">
               <p style="font-size:12px;margin:0;line-height:1.4" x-text="n.message"></p>
               <p style="font-size:10px;color:var(--tx-muted);margin:3px 0 0" x-text="formatNotifDate(n.created_at)"></p>

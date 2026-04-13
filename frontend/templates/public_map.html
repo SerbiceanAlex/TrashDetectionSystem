@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TrashDet — Hartă publică deșeuri</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', 'Segoe UI', sans-serif; background: #f0fdf4; }
+    .header {
+      background: linear-gradient(135deg, #059669, #047857);
+      color: #fff; padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      box-shadow: 0 2px 12px rgba(0,0,0,.15);
+      position: relative; z-index: 1000;
+    }
+    .header h1 { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+    .header .subtitle { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+    .header a {
+      color: #fff; text-decoration: none; font-size: 13px; font-weight: 600;
+      background: rgba(255,255,255,.18); padding: 6px 14px; border-radius: 8px;
+      transition: background .2s;
+    }
+    .header a:hover { background: rgba(255,255,255,.3); }
+    #map { width: 100%; height: calc(100vh - 56px); }
+    .legend {
+      position: absolute; bottom: 24px; left: 24px; z-index: 1000;
+      background: #fff; border-radius: 12px; padding: 14px 18px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.15); font-size: 12px;
+    }
+    .legend h3 { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: #374151; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .stats-bar {
+      position: absolute; top: 66px; left: 50%; transform: translateX(-50%); z-index: 1000;
+      background: rgba(255,255,255,.95); backdrop-filter: blur(8px);
+      border-radius: 12px; padding: 10px 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.12);
+      display: flex; gap: 24px; font-size: 13px;
+    }
+    .stats-bar .stat { text-align: center; }
+    .stats-bar .stat-num { font-weight: 800; font-size: 18px; color: #059669; }
+    .stats-bar .stat-label { font-size: 11px; color: #6b7280; }
+    .popup-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+    .popup-meta { font-size: 12px; color: #6b7280; margin-bottom: 2px; }
+    .popup-status { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+    .popup-img { width: 100%; max-width: 240px; border-radius: 8px; margin-top: 6px; }
+    .export-bar {
+      position: absolute; top: 66px; right: 24px; z-index: 1000;
+      display: flex; gap: 8px;
+    }
+    .export-btn {
+      background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
+      padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+      color: #374151; transition: all .2s;
+    }
+    .export-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🗑️ TrashDet — Rapoarte deșeuri comunitare</h1>
+    <div class="subtitle">Hartă publică — date colectate de comunitate cu AI</div>
+  </div>
+  <a href="/">Deschide aplicația →</a>
+</div>
+
+<div id="map"></div>
+
+<div class="stats-bar" id="statsBar">
+  <div class="stat"><div class="stat-num" id="statReports">—</div><div class="stat-label">Rapoarte</div></div>
+  <div class="stat"><div class="stat-num" id="statObjects">—</div><div class="stat-label">Obiecte</div></div>
+  <div class="stat"><div class="stat-num" id="statVerified">—</div><div class="stat-label">Verificate</div></div>
+  <div class="stat"><div class="stat-num" id="statCleaned">—</div><div class="stat-label">Curățate</div></div>
+</div>
+
+<div class="export-bar">
+  <button class="export-btn" onclick="downloadCSV()">📥 CSV</button>
+  <button class="export-btn" onclick="downloadGeoJSON()">🗺️ GeoJSON</button>
+</div>
+
+<div class="legend">
+  <h3>Legendă status</h3>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> În așteptare</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Verificat</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div> În progres</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Curățat</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Fals</div>
+</div>
+
+<script>
+const statusColors = {
+  pending: '#f59e0b', verified: '#3b82f6', in_progress: '#8b5cf6',
+  cleaned: '#10b981', fake: '#ef4444', expired: '#9ca3af',
+  acknowledged: '#6366f1', scheduled: '#0ea5e9'
+};
+const statusLabels = {
+  pending: 'În așteptare', verified: 'Verificat', in_progress: 'În progres',
+  cleaned: 'Curățat', fake: 'Fals', expired: 'Expirat',
+  acknowledged: 'Confirmat', scheduled: 'Programat'
+};
+
+const map = L.map('map').setView([44.43, 26.1], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  maxZoom: 19
+}).addTo(map);
+
+let heatLayer = null;
+
+async function loadReports() {
+  try {
+    const [reports, zones, stats] = await Promise.all([
+      fetch('/api/map/reports?limit=2000').then(r => r.json()),
+      fetch('/api/zones').then(r => r.json()),
+      fetch('/api/stats').then(r => r.json()),
+    ]);
+
+    // Stats bar
+    document.getElementById('statReports').textContent = stats.total_sessions || 0;
+    document.getElementById('statObjects').textContent = stats.total_objects || 0;
+
+    // Count by status
+    let verified = 0, cleaned = 0;
+    reports.forEach(r => {
+      if (r.status === 'verified' || r.status === 'in_progress') verified++;
+      if (r.status === 'cleaned') cleaned++;
+    });
+    document.getElementById('statVerified').textContent = verified;
+    document.getElementById('statCleaned').textContent = cleaned;
+
+    // Add markers
+    reports.forEach(r => {
+      const color = statusColors[r.status] || '#6b7280';
+      const label = statusLabels[r.status] || r.status;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)"></div>`,
+        iconSize: [14, 14], iconAnchor: [7, 7]
+      });
+      const marker = L.marker([r.latitude, r.longitude], { icon }).addTo(map);
+      let popup = `<div class="popup-title">${r.total_objects} obiect(e) detectate</div>`;
+      popup += `<div class="popup-meta">${r.address || 'Locație necunoscută'}</div>`;
+      popup += `<div class="popup-meta">${new Date(r.upload_time).toLocaleDateString('ro-RO')}</div>`;
+      popup += `<span class="popup-status" style="background:${color}22;color:${color}">${label}</span>`;
+      if (r.annotated_path) {
+        const fname = r.annotated_path.split(/[/\\]/).pop();
+        popup += `<br><img class="popup-img" src="/annotated/${fname}" loading="lazy" />`;
+      }
+      marker.bindPopup(popup, { maxWidth: 280 });
+    });
+
+    // Heatmap from zones
+    if (zones.length > 0) {
+      const heatData = zones.map(z => [z.lat, z.lng, z.severity * 0.5]);
+      heatLayer = L.heatLayer(heatData, { radius: 30, blur: 20, maxZoom: 15, max: 1.5 }).addTo(map);
+    }
+
+    // Fit bounds
+    if (reports.length > 0) {
+      const bounds = reports.map(r => [r.latitude, r.longitude]);
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    }
+  } catch (e) {
+    console.error('Failed to load map data:', e);
+  }
+}
+
+function downloadCSV() { window.open('/api/export/csv', '_blank'); }
+function downloadGeoJSON() { window.open('/api/export/geojson', '_blank'); }
+
+loadReports();
+</script>
+
+</body>
+</html>

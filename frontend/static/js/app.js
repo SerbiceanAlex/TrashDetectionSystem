@@ -9,9 +9,9 @@ function ecoApp() {
     ...detectApp(),
     ...mapApp(),
     ...historyApp(),
-    ...statsApp(),
     ...videoApp(),
     ...adminApp(),
+    ...communityApp(),
 
     /* ── Global state ─────────────────────────────────────────────────── */
     activeTab: 'dashboard',
@@ -28,14 +28,14 @@ function ecoApp() {
     dashStats: null,
     dashLoading: false,
 
-    /* ── Nav tabs (with Heroicons SVG paths) ──────────────────────────── */
+    /* ── Nav tabs (6 tabs — with Heroicons SVG paths) ────────────────── */
     tabs: [
       {
-        id: 'dashboard', label: 'Dashboard', short: 'Acasă',
-        svgPath: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z'
+        id: 'dashboard', label: 'Acasă', short: 'Acasă',
+        svgPath: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z'
       },
       {
-        id: 'scan', label: 'Scanează', short: 'Scanează',
+        id: 'scan', label: 'Scanare', short: 'Scanare',
         svgPath: 'M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z'
       },
       {
@@ -43,28 +43,43 @@ function ecoApp() {
         svgPath: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7'
       },
       {
+        id: 'community', label: 'Comunitate', short: 'Comunitate',
+        svgPath: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'
+      },
+      {
         id: 'reports', label: 'Rapoarte', short: 'Rapoarte',
-        svgPath: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+        svgPath: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'
       },
       {
-        id: 'leaderboard', label: 'Leaderboard', short: 'Top',
-        svgPath: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
-      },
-      {
-        id: 'about', label: 'Despre', short: 'Info',
-        svgPath: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
-      },
-      {
-        id: 'settings', label: 'Setări', short: 'Setări',
-        svgPath: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z'
+        id: 'more', label: 'Mai mult', short: 'Mai mult',
+        svgPath: 'M4 6h16M4 12h16M4 18h16'
       },
     ],
 
-    // Admin-only tab (appended dynamically after login based on role)
+    // Admin-only tab (accessed from "Mai mult" page, not in bottom nav)
     adminTab: {
       id: 'admin', label: 'Admin', short: 'Admin',
       svgPath: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'
     },
+
+    // Sub-navigation state
+    scanMode: 'foto',             // 'foto' | 'live' | 'batch'
+    communitySubTab: 'feed',      // 'feed' | 'top' | 'announcements' | 'campaigns'
+
+    // Onboarding
+    onboardingOpen: false,
+    onboardingStep: 1,
+
+    // Impact metrics
+    impactMetrics: null,
+
+    // Avatar upload
+    avatarUploading: false,
+
+    // Photo gallery
+    sessionPhotos: [],
+    sessionPhotosLoading: false,
+    photoUploading: false,
 
     /* ── Init ─────────────────────────────────────────────────────────── */
     async init() {
@@ -78,16 +93,21 @@ function ecoApp() {
       this.initAuth();
       this.initDetect();
       this.initHistory();
-      this.initStats();
       this.initMap();
       this.initVideo();
       this.initAdmin();
+      this.initCommunity();
 
       if (this.isLoggedIn) {
         await this.loadDashboard();
         this._setupAdminTab();
         this.loadNotifications();
         this._notifInterval = setInterval(() => this.loadNotifications(), 30000);
+        this.loadImpactMetrics();
+        // Check onboarding
+        if (this.myProfile && !this.myProfile.onboarding_done) {
+          this.onboardingOpen = true;
+        }
       }
 
       window.addEventListener('eco:authChanged', async () => {
@@ -112,13 +132,28 @@ function ecoApp() {
 
       this.$watch('activeTab', (tab) => {
         if (tab === 'map') this.ensureMap();
-        if (tab === 'stats') setTimeout(() => this.renderCharts(), 150);
         if (tab === 'reports') this.loadHistory();
         if (tab === 'dashboard') this.loadDashboard();
-        if (tab === 'leaderboard') this.loadLeaderboard();
+        if (tab === 'community') {
+          if (this.communitySubTab === 'top') this.loadLeaderboard();
+          else this.loadCommunityFeed();
+        }
         if (tab === 'admin') this.loadAdminAll();
-        if (tab !== 'live' && this.webcamActive) this.stopWebcam();
+        if (tab === 'more') this.loadPrivacySettings();
+        // Stop webcam when leaving scan tab or switching away from live mode
+        if (tab !== 'scan' && this.webcamActive) this.stopWebcam();
         this.sidebarOpen = false;
+      });
+
+      this.$watch('scanMode', (mode) => {
+        if (mode !== 'live' && this.webcamActive) this.stopWebcam();
+      });
+
+      this.$watch('communitySubTab', (sub) => {
+        if (this.activeTab !== 'community') return;
+        if (sub === 'top') this.loadLeaderboard();
+        else if (sub === 'feed') this.loadCommunityFeed();
+        else if (sub === 'campaigns') this.loadCampaigns();
       });
 
       this.$watch('darkMode', (dark) => {
@@ -183,18 +218,23 @@ function ecoApp() {
       return d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' });
     },
     dashWeeklyChart: null,
+    myProfile: null,
 
     async loadDashboard() {
       this.dashLoading = true;
       try {
-        const [global, personal] = await Promise.all([
+        const [global, personal, profile] = await Promise.all([
           fetch('/api/stats').then(r => r.ok ? r.json() : null),
           fetch('/api/me/stats', {
+            headers: { Authorization: 'Bearer ' + this.token }
+          }).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch('/api/me/profile', {
             headers: { Authorization: 'Bearer ' + this.token }
           }).then(r => r.ok ? r.json() : null).catch(() => null),
         ]);
         if (global)   this.dashStats   = global;
         if (personal) this.dashMyStats  = personal;
+        if (profile)  this.myProfile    = profile;
         await this.$nextTick();
         this._renderWeeklyChart();
       } catch (_) {}
@@ -243,23 +283,75 @@ function ecoApp() {
       });
     },
 
+    /* ── Impact metrics ───────────────────────────────────────────────── */
+    async loadImpactMetrics() {
+      try {
+        this.impactMetrics = await fetch('/api/impact').then(r => r.ok ? r.json() : null);
+      } catch (_) {}
+    },
+
+    /* ── Onboarding ───────────────────────────────────────────────────── */
+    async finishOnboarding() {
+      this.onboardingOpen = false;
+      try {
+        await fetchAPI('/api/me/onboarding-done', { method: 'POST' });
+      } catch (_) {}
+    },
+
+    /* ── Avatar upload ────────────────────────────────────────────────── */
+    async uploadAvatar(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      this.avatarUploading = true;
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetchAPI('/api/me/avatar', { method: 'POST', body: form });
+        if (this.myProfile) this.myProfile.avatar_url = res.avatar_url;
+        showToast('Avatar actualizat ✓');
+      } catch (e) {
+        showToast(e.message, 'error');
+      } finally {
+        this.avatarUploading = false;
+      }
+    },
+
+    /* ── Photo gallery ────────────────────────────────────────────────── */
+    async loadSessionPhotos(sessionId) {
+      this.sessionPhotosLoading = true;
+      try {
+        this.sessionPhotos = await fetchAPI(`/api/sessions/${sessionId}/photos`);
+      } catch (_) {
+        this.sessionPhotos = [];
+      } finally {
+        this.sessionPhotosLoading = false;
+      }
+    },
+
+    async uploadSessionPhoto(event, sessionId) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      this.photoUploading = true;
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const photo = await fetchAPI(`/api/sessions/${sessionId}/photos`, { method: 'POST', body: form });
+        this.sessionPhotos.push(photo);
+        showToast('Foto adăugată ✓');
+      } catch (e) {
+        showToast(e.message, 'error');
+      } finally {
+        this.photoUploading = false;
+      }
+    },
+
     /* ── Tab navigation ───────────────────────────────────────────────── */
     goTo(tab) { this.activeTab = tab; },
 
-    /* ── Admin tab injection (only for admin role) ────────────────────── */
+    /* ── Admin check (admin accessible from "Mai mult" page) ────────── */
+    get isAdmin() { return this.user?.role === 'admin'; },
     _setupAdminTab() {
-      const hasAdmin = this.tabs.some(t => t.id === 'admin');
-      if (this.user?.role === 'admin' && !hasAdmin) {
-        // Insert admin tab before settings
-        const settingsIdx = this.tabs.findIndex(t => t.id === 'settings');
-        if (settingsIdx >= 0) {
-          this.tabs.splice(settingsIdx, 0, this.adminTab);
-        } else {
-          this.tabs.push(this.adminTab);
-        }
-      } else if (this.user?.role !== 'admin' && hasAdmin) {
-        this.tabs = this.tabs.filter(t => t.id !== 'admin');
-      }
+      // Admin is now accessed from the "Mai mult" page, no tab injection needed
     },
 
     /* ── Dark mode ────────────────────────────────────────────────────── */

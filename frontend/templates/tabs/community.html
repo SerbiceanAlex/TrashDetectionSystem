@@ -1,0 +1,329 @@
+<!-- ══ Community Tab (sub-tabs: Feed | Top | Anunțuri | Campanii) ═════════ -->
+<div x-show="activeTab === 'community'" x-cloak
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0 translate-y-2"
+  x-transition:enter-end="opacity-100 translate-y-0">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+    <div>
+      <h1 style="font-size:22px;font-weight:800;letter-spacing:-0.4px">👥 Comunitate</h1>
+      <p style="font-size:13px;color:var(--tx-muted);margin-top:3px">Activitate, clasamente și noutăți.</p>
+    </div>
+  </div>
+
+  <!-- Sub-tab pills -->
+  <div class="sub-tab-pills" style="margin-bottom:20px">
+    <button class="sub-tab-pill" :class="communitySubTab === 'feed' ? 'sub-tab-pill--active' : ''"
+      @click="communitySubTab = 'feed'">📋 Feed</button>
+    <button class="sub-tab-pill" :class="communitySubTab === 'top' ? 'sub-tab-pill--active' : ''"
+      @click="communitySubTab = 'top'">🏆 Top</button>
+    <button class="sub-tab-pill" :class="communitySubTab === 'announcements' ? 'sub-tab-pill--active' : ''"
+      @click="communitySubTab = 'announcements'">📢 Anunțuri</button>
+    <button class="sub-tab-pill" :class="communitySubTab === 'campaigns' ? 'sub-tab-pill--active' : ''"
+      @click="communitySubTab = 'campaigns'">🏕️ Campanii</button>
+  </div>
+
+  <!-- ═══ SUB-TAB: FEED ═══════════════════════════════════════════════ -->
+  <div x-show="communitySubTab === 'feed'" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button @click="loadCommunityFeed()" class="btn btn--ghost" style="gap:6px" :disabled="communityLoading">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Reîmprospătare
+      </button>
+    </div>
+
+    <!-- Rank definitions overview -->
+    <div x-show="rankDefinitions.length > 0" class="card" style="margin-bottom:16px;padding:14px">
+      <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:12px">Ranguri EcoScore</h4>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <template x-for="rk in rankDefinitions" :key="rk.name">
+          <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:10px;font-size:12px;font-weight:600;border:1.5px solid var(--bg-border)"
+            :style="`border-color:${rankColor(rk.name)}30;background:${rankColor(rk.name)}10;color:${rankColor(rk.name)}`">
+            <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0" :style="`background:${rankColor(rk.name)}`"></span>
+            <span x-text="rk.name"></span>
+            <span style="font-weight:400;opacity:.7" x-text="rk.max_score ? rk.min_score + '-' + rk.max_score : rk.min_score + '+'"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Loading skeleton -->
+    <div x-show="communityLoading" style="display:flex;flex-direction:column;gap:10px">
+      <template x-for="i in [1,2,3,4,5]" :key="i">
+        <div class="skeleton" style="height:72px;border-radius:14px"></div>
+      </template>
+    </div>
+
+    <!-- Feed list -->
+    <div x-show="!communityLoading && communityFeed.length > 0" style="display:flex;flex-direction:column;gap:10px">
+      <template x-for="item in communityFeed" :key="item.session_id + '_' + item.event_type + '_' + item.timestamp">
+        <div class="card" style="padding:14px;display:flex;align-items:flex-start;gap:12px">
+          <div style="width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"
+            :style="item.event_type === 'report' ? 'background:rgba(59,130,246,.12)' :
+                    item.event_type === 'verified' ? 'background:rgba(16,185,129,.12)' :
+                    item.event_type === 'cleaned' ? 'background:rgba(34,197,94,.12)' :
+                    'background:rgba(245,158,11,.12)'"
+            x-text="feedEventIcon(item.event_type)"></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+              <span style="font-weight:700;font-size:13px" x-text="item.username || 'Anonim'"></span>
+              <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px"
+                :style="item.event_type === 'report' ? 'background:rgba(59,130,246,.12);color:#3b82f6' :
+                        item.event_type === 'verified' ? 'background:rgba(16,185,129,.12);color:#10b981' :
+                        item.event_type === 'cleaned' ? 'background:rgba(34,197,94,.12);color:#22c55e' :
+                        'background:rgba(245,158,11,.12);color:#f59e0b'"
+                x-text="feedEventLabel(item.event_type)"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--tx-muted)">
+              <span x-show="item.total_objects" x-text="'🔍 ' + item.total_objects + ' obiecte'"></span>
+              <span x-show="item.status" style="font-size:11px;padding:1px 6px;border-radius:99px;font-weight:600"
+                :style="item.status === 'verified' ? 'background:rgba(16,185,129,.12);color:#10b981' :
+                        item.status === 'cleaned' ? 'background:rgba(34,197,94,.12);color:#22c55e' :
+                        item.status === 'in_progress' ? 'background:rgba(59,130,246,.12);color:#3b82f6' :
+                        item.status === 'fake' ? 'background:rgba(239,68,68,.12);color:#ef4444' :
+                        'background:rgba(245,158,11,.12);color:#f59e0b'"
+                x-text="item.status"></span>
+              <span style="font-size:11px;color:var(--tx-muted)" x-text="timeAgo(item.timestamp)"></span>
+            </div>
+          </div>
+          <button @click="goTo('reports')" class="btn btn--ghost" style="padding:4px 10px;font-size:11px;flex-shrink:0">
+            #<span x-text="item.session_id"></span>
+          </button>
+        </div>
+      </template>
+    </div>
+
+    <!-- Empty state -->
+    <div x-show="!communityLoading && communityFeed.length === 0" class="empty-state" style="padding:40px 20px">
+      <div class="empty-state__icon">👥</div>
+      <p class="empty-state__text">Nicio activitate recentă în comunitate.<br>Fii primul care raportează!</p>
+      <button @click="goTo('scan')" class="btn btn--brand" style="margin-top:12px">Raportează acum</button>
+    </div>
+
+    <!-- Pagination -->
+    <div x-show="communityFeed.length >= communityLimit" style="display:flex;justify-content:center;gap:10px;margin-top:16px">
+      <button @click="communityPage = Math.max(0, communityPage - 1); loadCommunityFeed()" :disabled="communityPage === 0"
+        class="btn btn--ghost" style="font-size:13px">← Mai vechi</button>
+      <span style="display:flex;align-items:center;font-size:12px;color:var(--tx-muted)">Pagina <span x-text="communityPage + 1"></span></span>
+      <button @click="communityPage++; loadCommunityFeed()"
+        class="btn btn--ghost" style="font-size:13px">Mai noi →</button>
+    </div>
+  </div><!-- /feed sub-tab -->
+
+  <!-- ═══ SUB-TAB: TOP (Leaderboard) ═════════════════════════════════ -->
+  <div x-show="communitySubTab === 'top'" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button @click="loadLeaderboard()" class="btn btn--ghost" style="gap:6px">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        Reîmprospătare
+      </button>
+    </div>
+
+    <!-- My position card -->
+    <template x-if="user && leaderboard.length > 0">
+      <div class="card kpi-card--accent" style="margin-bottom:16px;display:flex;align-items:center;gap:14px">
+        <div style="width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#fff;flex-shrink:0"
+          :style="`background:${rankColor(myProfile?.rank || 'Novice')}`"
+          x-text="user.username.slice(0,2).toUpperCase()"></div>
+        <div style="flex:1">
+          <p style="font-size:12px;color:var(--tx-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Poziția ta</p>
+          <div style="display:flex;align-items:center;gap:6px">
+            <p style="font-weight:800;font-size:16px" x-text="user.username"></p>
+            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;color:#fff"
+              :style="`background:${rankColor(myProfile?.rank || 'Novice')}`"
+              x-text="myProfile?.rank || 'Novice'"></span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <p style="font-size:24px;font-weight:900" :style="`color:${rankColor(myProfile?.rank || 'Novice')}`">
+            <span x-text="myProfile?.eco_score ?? user.points"></span>
+          </p>
+          <p style="font-size:11px;color:var(--tx-muted)">EcoScore</p>
+        </div>
+      </div>
+    </template>
+
+    <!-- Leaderboard list -->
+    <div class="card">
+      <template x-if="leaderboardLoading">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <template x-for="i in [1,2,3,4,5]" :key="i">
+            <div class="skeleton" style="height:52px;border-radius:12px"></div>
+          </template>
+        </div>
+      </template>
+
+      <template x-if="!leaderboardLoading && leaderboard.length === 0">
+        <div class="empty-state">
+          <div class="empty-state__icon">🏆</div>
+          <p class="empty-state__text">Nicio raportare încă.<br>Fii primul din comunitate!</p>
+          <button @click="goTo('scan')" class="btn btn--brand" style="margin-top:12px">Raportează acum</button>
+        </div>
+      </template>
+
+      <template x-if="!leaderboardLoading && leaderboard.length > 0">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <template x-for="entry in leaderboard" :key="entry.rank">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;transition:background .15s"
+              :style="entry.username === user?.username ? 'background:rgba(5,150,105,.1);border:1.5px solid rgba(5,150,105,.25)' : 'background:var(--bg-raised)'">
+              <div style="width:36px;text-align:center;font-size:22px;flex-shrink:0"
+                x-text="entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : '#' + entry.rank"
+                :style="entry.rank > 3 ? 'font-size:14px;font-weight:700;color:var(--tx-muted)' : ''"></div>
+              <div style="width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff;flex-shrink:0"
+                :style="`background:${rankColor(entry.user_rank || 'Novice')}`"
+                x-text="entry.username.slice(0,2).toUpperCase()"></div>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                  <span style="font-weight:700;font-size:14px" x-text="entry.username"></span>
+                  <span x-show="entry.username === user?.username" style="font-size:10px;background:rgba(5,150,105,.2);color:#059669;padding:2px 7px;border-radius:99px;font-weight:700">Tu</span>
+                  <span x-show="entry.role === 'admin'" style="font-size:10px;background:rgba(59,130,246,.15);color:#3b82f6;padding:2px 7px;border-radius:99px;font-weight:700">Admin</span>
+                  <span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;color:#fff"
+                    :style="`background:${rankColor(entry.user_rank || 'Novice')}`"
+                    x-text="entry.user_rank || 'Novice'"></span>
+                </div>
+                <p style="font-size:11px;color:var(--tx-muted);margin-top:2px">
+                  <span x-text="entry.total_reports + ' raportări'"></span>
+                  <span x-show="entry.streak_days > 0" x-text="' · ' + streakEmoji(entry.streak_days) + ' ' + entry.streak_days + 'z'"></span>
+                </p>
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <p style="font-weight:900;font-size:16px" :style="`color:${rankColor(entry.user_rank || 'Novice')}`" x-text="entry.eco_score ?? entry.points"></p>
+                <p style="font-size:9px;color:var(--tx-muted);font-weight:600">EcoScore</p>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <!-- EcoScore explanation -->
+    <div class="card" style="margin-top:12px">
+      <h4 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:12px">Cum câștigi EcoScore?</h4>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:28px;text-align:center">📸</span>
+          <span style="flex:1">Raportezi deșeuri (per obiect detectat)</span>
+          <span style="font-weight:800;color:#10b981">+10/obj</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:28px;text-align:center">🗳️</span>
+          <span style="flex:1">Votezi pe rapoartele altor utilizatori</span>
+          <span style="font-weight:800;color:#10b981">+2</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:28px;text-align:center">✅</span>
+          <span style="flex:1">Raportul tău este verificat de comunitate</span>
+          <span style="font-weight:800;color:#10b981">+15</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:28px;text-align:center">🟢</span>
+          <span style="flex:1">Curățare zonă raportată</span>
+          <span style="font-weight:800;color:#10b981">+25</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:28px;text-align:center">🔬</span>
+          <span style="flex:1">Corectezi materialul detectat</span>
+          <span style="font-weight:800;color:#10b981">+5</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:28px;text-align:center">🔥</span>
+          <span style="flex:1">Streak activ (multiplică tot)</span>
+          <span style="font-weight:800;color:#f59e0b">×1.0–2.0</span>
+        </div>
+      </div>
+    </div>
+  </div><!-- /top sub-tab -->
+
+  <!-- ═══ SUB-TAB: ANUNȚURI ══════════════════════════════════════════ -->
+  <div x-show="communitySubTab === 'announcements'" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+    <div class="empty-state" style="padding:48px 20px">
+      <div class="empty-state__icon">📢</div>
+      <p class="empty-state__text">Niciun anunț momentan.<br>Organizatorii vor posta aici noutăți.</p>
+    </div>
+  </div><!-- /announcements sub-tab -->
+
+  <!-- ═══ SUB-TAB: CAMPANII ══════════════════════════════════════════ -->
+  <div x-show="communitySubTab === 'campaigns'" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
+
+    <!-- Create campaign (admin only) -->
+    <template x-if="user?.role === 'admin'">
+      <div class="card" style="margin-bottom:16px">
+        <h4 style="font-size:13px;font-weight:700;margin-bottom:10px">+ Campanie nouă</h4>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input type="text" x-model="newCampaign.title" placeholder="Titlu campanie" class="input" style="font-size:13px;min-height:38px" maxlength="200" />
+          <textarea x-model="newCampaign.description" placeholder="Descriere (opțional)" class="input" style="font-size:13px;min-height:60px;resize:vertical" maxlength="1000"></textarea>
+          <div style="display:flex;gap:8px">
+            <input type="date" x-model="newCampaign.start_date" class="input" style="flex:1;font-size:12px;min-height:36px" />
+            <input type="date" x-model="newCampaign.end_date" class="input" style="flex:1;font-size:12px;min-height:36px" />
+          </div>
+          <button @click="createCampaign()" :disabled="campaignCreating" class="btn btn--brand" style="align-self:flex-end">
+            <span x-show="!campaignCreating">Creează</span>
+            <span x-show="campaignCreating">⏳</span>
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- Refresh -->
+    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+      <button @click="loadCampaigns()" class="btn btn--ghost" style="gap:6px">🔄 Reîmprospătare</button>
+    </div>
+
+    <!-- Loading -->
+    <div x-show="campaignsLoading" style="display:flex;flex-direction:column;gap:10px">
+      <template x-for="i in [1,2,3]" :key="i">
+        <div class="skeleton" style="height:100px;border-radius:14px"></div>
+      </template>
+    </div>
+
+    <!-- Empty -->
+    <div x-show="!campaignsLoading && campaigns.length === 0" class="empty-state" style="padding:40px 20px">
+      <div class="empty-state__icon">🏕️</div>
+      <p class="empty-state__text">Nicio campanie activă momentan.<br>Revenți curând!</p>
+    </div>
+
+    <!-- Campaign cards -->
+    <div x-show="!campaignsLoading && campaigns.length > 0" style="display:flex;flex-direction:column;gap:12px">
+      <template x-for="c in campaigns" :key="c.id">
+        <div class="card" style="padding:16px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;color:#fff"
+              :style="`background:${campaignStatus(c).color}`"
+              x-text="campaignStatus(c).label"></span>
+            <h4 style="flex:1;font-size:15px;font-weight:700" x-text="c.title"></h4>
+          </div>
+          <p x-show="c.description" style="font-size:12px;color:var(--tx-muted);margin-bottom:10px;line-height:1.4" x-text="c.description"></p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--tx-muted);margin-bottom:12px">
+            <span x-show="c.start_date" x-text="'🗓️ ' + new Date(c.start_date).toLocaleDateString('ro-RO')"></span>
+            <span x-show="c.end_date" x-text="'→ ' + new Date(c.end_date).toLocaleDateString('ro-RO')"></span>
+            <span style="font-weight:600" x-text="'👥 ' + (c.participant_count || 0) + ' participanți'"></span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button @click="joinCampaign(c.id)" class="btn btn--brand" style="font-size:12px;padding:6px 16px">Înscrie-te</button>
+            <button @click="loadCampaignLeaderboard(c.id)" class="btn btn--ghost" style="font-size:12px;padding:6px 12px">🏆 Clasament</button>
+          </div>
+
+          <!-- Inline campaign leaderboard -->
+          <div x-show="selectedCampaignId === c.id" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--bg-border)">
+            <div x-show="campaignLeaderboardLoading" class="skeleton" style="height:80px;border-radius:10px"></div>
+            <div x-show="!campaignLeaderboardLoading && campaignLeaderboard.length === 0"
+              style="text-align:center;font-size:12px;color:var(--tx-muted);padding:12px">Niciun participant încă.</div>
+            <div x-show="!campaignLeaderboardLoading && campaignLeaderboard.length > 0" style="display:flex;flex-direction:column;gap:6px">
+              <template x-for="(entry, idx) in campaignLeaderboard" :key="entry.user_id">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:var(--bg-raised)">
+                  <span style="font-size:14px;font-weight:900;width:24px;text-align:center;flex-shrink:0"
+                    x-text="idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '#' + (idx + 1)"></span>
+                  <span style="flex:1;font-weight:600;font-size:13px" x-text="entry.username"></span>
+                  <span style="font-weight:800;font-size:14px;color:var(--eco-green-dark)" x-text="entry.reports_count + ' rapoarte'"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div><!-- /campaigns sub-tab -->
+
+</div>

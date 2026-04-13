@@ -113,10 +113,23 @@ async def test_login_nonexistent_user(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_login_correct_returns_otp_required(client: AsyncClient):
-    """Correct password should trigger OTP step, not return token directly."""
+async def test_login_admin_gets_direct_token(client: AsyncClient):
+    """Admin login should return JWT directly (skip OTP)."""
     resp = await client.post("/api/auth/login", data={
         "username": "admin_test",
+        "password": "TestPass1!",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+
+
+@pytest.mark.asyncio
+async def test_login_regular_user_requires_otp(client: AsyncClient):
+    """Regular user login should trigger OTP step."""
+    resp = await client.post("/api/auth/login", data={
+        "username": "user_test",
         "password": "TestPass1!",
     })
     assert resp.status_code == 200
@@ -139,13 +152,13 @@ async def test_verify_otp_wrong_code(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_verify_otp_correct_code(client: AsyncClient, session):
-    """Full flow: login → get OTP from DB → verify → get JWT."""
+    """Full flow: login regular user → get OTP from DB → verify → get JWT."""
     from backend.database import OTPCode
     from sqlalchemy import select
 
-    # Step 1: Login to trigger OTP generation
+    # Step 1: Login regular user to trigger OTP generation
     resp = await client.post("/api/auth/login", data={
-        "username": "admin_test",
+        "username": "user_test",
         "password": "TestPass1!",
     })
     assert resp.status_code == 200
@@ -159,7 +172,7 @@ async def test_verify_otp_correct_code(client: AsyncClient, session):
 
     # Step 3: Verify OTP → get JWT
     resp = await client.post("/api/auth/verify-otp", json={
-        "username": "admin_test",
+        "username": "user_test",
         "code": code,
     })
     assert resp.status_code == 200
@@ -177,27 +190,12 @@ async def test_me_without_token(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_me_with_valid_token(client: AsyncClient, session):
-    """Full auth flow → access /me."""
-    from backend.database import OTPCode
-    from sqlalchemy import select
-
-    # Login
-    await client.post("/api/auth/login", data={
+async def test_me_with_valid_token(client: AsyncClient):
+    """Admin gets direct token → access /me."""
+    # Admin login returns JWT directly
+    resp = await client.post("/api/auth/login", data={
         "username": "admin_test",
         "password": "TestPass1!",
-    })
-
-    # Get OTP
-    result = await session.execute(
-        select(OTPCode).where(OTPCode.is_used == 0).order_by(OTPCode.created_at.desc())
-    )
-    otp = result.scalar_one()
-
-    # Verify OTP → get token
-    resp = await client.post("/api/auth/verify-otp", json={
-        "username": "admin_test",
-        "code": otp.code,
     })
     token = resp.json()["access_token"]
 

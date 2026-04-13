@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # ── Upload limits ────────────────────────────────────────────────────────
     MAX_UPLOAD_MB: int = 20
 
+    # ── File retention (days before auto-cleanup) ────────────────────────────
+    RETENTION_DAYS_FAKE: int = 30
+    RETENTION_DAYS_EXPIRED: int = 60
+    RETENTION_DAYS_CLEANED: int = 365
+
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = ""  # computed in property if empty
 

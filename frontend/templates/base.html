@@ -22,14 +22,11 @@
     <main class="td-content">
       {% include 'tabs/dashboard.html' %}
       {% include 'tabs/scan.html' %}
-      {% include 'tabs/live.html' %}
       {% include 'tabs/map.html' %}
       {% include 'tabs/history.html' %}
-      {% include 'tabs/stats.html' %}
-      {% include 'tabs/leaderboard.html' %}
+      {% include 'tabs/community.html' %}
       {% include 'tabs/admin.html' %}
-      {% include 'tabs/settings.html' %}
-      {% include 'tabs/about.html' %}
+      {% include 'tabs/more.html' %}
     </main>
 
     <nav class="td-bottom-nav">
@@ -46,8 +43,12 @@
 </div>
 
 <script>
+  // Unregister old service workers and clear caches to fix stale content
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => r.unregister());
+    });
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
   }
 </script>
 

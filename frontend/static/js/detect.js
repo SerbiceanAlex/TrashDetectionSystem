@@ -23,6 +23,9 @@ function detectApp() {
     rerunConf: 0.50,
     isRerunning: false,
 
+    // User note
+    userNote: '',
+
     // Batch state
     batchMode: false,
     batchFiles: [],
@@ -134,6 +137,9 @@ function detectApp() {
         let url = `/api/detect?det_conf=${this.detConf}`;
         if (this.geoLat !== null && this.geoLng !== null) {
           url += `&latitude=${this.geoLat}&longitude=${this.geoLng}`;
+        }
+        if (this.userNote.trim()) {
+          url += `&user_note=${encodeURIComponent(this.userNote.trim())}`;
         }
 
         const data = await fetchAPI(url, { method: 'POST', body: fd });

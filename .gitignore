@@ -51,9 +51,12 @@ UAVVaste/
 
 # Web app runtime artifacts
 backend/trash_detection.db
+backend/trashdet.db
 backend/uploads/
 backend/annotated/
 backend/videos/
+backend/avatars/
+backend/photos/
 
 # Temporary files
 tmp/

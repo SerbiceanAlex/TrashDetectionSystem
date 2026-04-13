@@ -132,6 +132,15 @@ async def login_step1(
     # Password correct → reset rate limiter
     auth.reset_login_attempts(username)
 
+    # Admin accounts skip OTP — issue JWT directly
+    if user.role == "admin":
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = auth.create_access_token(
+            data={"username": user.username, "role": user.role, "id": user.id},
+            expires_delta=access_token_expires
+        )
+        return {"access_token": access_token, "token_type": "bearer"}
+
     # Invalidate any existing unused OTP codes for this user
     old_codes = await session.execute(
         select(db.OTPCode).where(

@@ -24,6 +24,9 @@ class UserOut(BaseModel):
     email: str
     role: str
     points: int
+    eco_score: int = 0
+    rank: str = "Novice"
+    streak_days: int = 0
     created_at: datetime
 
 class Token(BaseModel):
@@ -66,6 +69,7 @@ class DetectionRecordOut(BaseModel):
     box_y1: int
     box_x2: int
     box_y2: int
+    estimated_weight_kg: float = 0.0
 
 
 # ── Session (one uploaded image) ────────────────────────────────────────────
@@ -87,6 +91,12 @@ class DetectionSessionOut(BaseModel):
     resolved_at: Optional[datetime] = None
     reporter_id: Optional[int] = None
     resolver_id: Optional[int] = None
+    status: str = "pending"
+    verification_score: float = 0.0
+    claimed_by: Optional[int] = None
+    claimed_at: Optional[datetime] = None
+    cleaned_at: Optional[datetime] = None
+    user_note: Optional[str] = None
 
 
 class DetectionSessionDetail(DetectionSessionOut):
@@ -110,7 +120,12 @@ class DetectResponse(BaseModel):
     resolved_at: Optional[datetime] = None
     reporter_id: Optional[int] = None
     resolver_id: Optional[int] = None
-
+    status: str = "pending"
+    verification_score: float = 0.0
+    claimed_by: Optional[int] = None
+    claimed_at: Optional[datetime] = None
+    cleaned_at: Optional[datetime] = None
+    user_note: Optional[str] = None
 
 # ── Stats ────────────────────────────────────────────────────────────────────
 
@@ -202,6 +217,7 @@ class MapReport(BaseModel):
     address: Optional[str] = None
     gps_source: Optional[str] = None
     is_resolved: int = 0
+    status: str = "pending"
 
 
 # ── Zone / community schemas ───────────────────────────────────────
@@ -232,6 +248,7 @@ class NearbyReport(BaseModel):
     address: Optional[str] = None
     gps_source: Optional[str] = None
     is_resolved: int = 0
+    status: str = "pending"
 
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
@@ -241,6 +258,9 @@ class LeaderboardEntry(BaseModel):
     username: str
     role: str
     points: int
+    eco_score: int = 0
+    user_rank: str = "Novice"
+    streak_days: int = 0
     total_reports: int
 
 
@@ -252,6 +272,12 @@ class AdminStats(BaseModel):
     total_objects: int
     resolved_reports: int
     avg_inference_ms: float
+    total_votes: int = 0
+    pending_reports: int = 0
+    verified_reports: int = 0
+    cleaned_reports: int = 0
+    fake_reports: int = 0
+    in_progress_reports: int = 0
 
 
 # ── Personal stats ────────────────────────────────────────────────────────────
@@ -266,6 +292,10 @@ class PersonalStats(BaseModel):
     username: str
     role: str
     points: int
+    eco_score: int = 0
+    rank: str = "Novice"
+    streak_days: int = 0
+    trust_weight: float = 1.0
     total_sessions: int
     total_objects: int
     resolved_count: int
@@ -296,3 +326,208 @@ class OkResponse(BaseModel):
 
 class DetailResponse(BaseModel):
     detail: str
+
+
+# ── Community / EcoScore ──────────────────────────────────────────────────────
+
+class VoteRequest(BaseModel):
+    vote_type: str  # 'confirm' or 'fake'
+
+class VoteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    user_id: int
+    session_id: int
+    vote_type: str
+    weight: float
+    created_at: datetime
+
+class VoteSummary(BaseModel):
+    confirms: int
+    fakes: int
+    total_weight_confirm: float
+    total_weight_fake: float
+    user_vote: Optional[str] = None  # user's own vote if any
+
+class MaterialSuggestionRequest(BaseModel):
+    suggested_material: str
+
+class MaterialSuggestionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    record_id: int
+    user_id: int
+    suggested_material: str
+    created_at: datetime
+
+class ProfileOut(BaseModel):
+    id: int
+    username: str
+    role: str
+    eco_score: int
+    rank: str
+    streak_days: int
+    trust_weight: float
+    total_reports: int
+    total_objects: int
+    verified_reports: int
+    cleaned_reports: int
+    total_votes: int
+    anonymous_reports: bool
+    hide_exact_location: bool
+    onboarding_done: bool = False
+    avatar_url: Optional[str] = None
+    created_at: datetime
+
+class PrivacySettings(BaseModel):
+    anonymous_reports: Optional[bool] = None
+    hide_exact_location: Optional[bool] = None
+
+class CommunityFeedItem(BaseModel):
+    event_type: str  # 'report', 'verified', 'cleaned', 'vote'
+    session_id: int
+    username: Optional[str] = None
+    timestamp: datetime
+    total_objects: Optional[int] = None
+    status: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+class RankInfo(BaseModel):
+    name: str
+    min_score: int
+    max_score: Optional[int] = None
+    trust_weight: float
+    benefits: list[str]
+
+
+# ── Comments ──────────────────────────────────────────────────────────────────
+
+class CommentCreate(BaseModel):
+    text: str
+
+class CommentOut(BaseModel):
+    id: int
+    session_id: int
+    user_id: int
+    username: str
+    text: str
+    created_at: str
+
+class UserNoteUpdate(BaseModel):
+    user_note: str
+
+
+# ── Authority contacts ────────────────────────────────────────────────────────
+
+class AuthorityContactCreate(BaseModel):
+    name: str
+    email: str
+    area_description: str = ""
+
+class AuthorityContactOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    email: str
+    area_description: Optional[str] = None
+    created_by: int
+    created_at: datetime
+
+
+# ── Webhooks ──────────────────────────────────────────────────────────────────
+
+class WebhookCreate(BaseModel):
+    url: str
+    secret: str = ""
+    events: str = "verified"
+    active: bool = True
+
+class WebhookUpdate(BaseModel):
+    url: Optional[str] = None
+    events: Optional[str] = None
+    active: Optional[bool] = None
+
+class WebhookOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    url: str
+    secret: str
+    events: str
+    active: bool
+    created_by: int
+    created_at: datetime
+
+
+# ── Campaigns ─────────────────────────────────────────────────────────────────
+
+class CampaignCreate(BaseModel):
+    title: str
+    description: str = ""
+    target_reports: int = 50
+    start_date: datetime
+    end_date: datetime
+    area_lat: Optional[float] = None
+    area_lng: Optional[float] = None
+    area_radius_km: float = 5.0
+
+class CampaignOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    description: Optional[str] = None
+    target_reports: int
+    start_date: datetime
+    end_date: datetime
+    area_lat: Optional[float] = None
+    area_lng: Optional[float] = None
+    area_radius_km: float
+    created_by: int
+    created_at: datetime
+    participant_count: int = 0
+    report_count: int = 0
+    creator_username: str = ""
+
+class CampaignLeaderboardEntry(BaseModel):
+    username: str
+    report_count: int
+    objects_detected: int
+
+
+# ── Report photos ─────────────────────────────────────────────────────────────
+
+class ReportPhotoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    session_id: int
+    user_id: int
+    image_path: str
+    caption: Optional[str] = None
+    photo_type: str
+    created_at: datetime
+
+
+# ── Impact metrics ────────────────────────────────────────────────────────────
+
+class ImpactMetrics(BaseModel):
+    total_weight_kg: float
+    co2_saved_kg: float
+    items_collected: int
+
+
+# ── Storage stats (admin) ────────────────────────────────────────────────────
+
+class StorageStats(BaseModel):
+    uploads_count: int
+    uploads_size_mb: float
+    annotated_count: int
+    annotated_size_mb: float
+    cleaned_count: int
+    cleaned_size_mb: float
+    thumbnails_count: int
+    thumbnails_size_mb: float
+    avatars_count: int
+    avatars_size_mb: float
+    videos_count: int
+    videos_size_mb: float
+    total_size_mb: float
