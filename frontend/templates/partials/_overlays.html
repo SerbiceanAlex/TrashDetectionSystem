@@ -29,7 +29,10 @@
       x-transition:leave-start="opacity-100"
       x-transition:leave-end="opacity-0"
       :class="toast.type === 'error' ? 'toast toast--error' : 'toast toast--success'">
-      <span style="font-weight:800;font-size:14px;flex-shrink:0" x-text="toast.type === 'error' ? '✕' : '✓'"></span>
+      <span style="font-weight:800;font-size:14px;flex-shrink:0">
+        <template x-if="toast.type === 'error'"><i data-lucide="x" class="icon icon--sm"></i></template>
+        <template x-if="toast.type !== 'error'"><i data-lucide="check" class="icon icon--sm"></i></template>
+      </span>
       <span x-text="toast.message"></span>
     </div>
   </template>
@@ -42,5 +45,5 @@
   @click="closeLightbox()" @keydown.escape.window="closeLightbox()"
   class="lightbox">
   <img :src="lightboxSrc" @click.stop />
-  <button @click="closeLightbox()" class="lightbox__close">✕</button>
+  <button @click="closeLightbox()" class="lightbox__close"><i data-lucide="x" class="icon icon--md"></i></button>
 </div>

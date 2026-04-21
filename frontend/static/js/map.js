@@ -235,7 +235,7 @@ function mapApp() {
             <span style="color:#9ca3af"> · ${r.inference_ms.toFixed(0)} ms</span>
             <span style="display:inline-block;margin-left:6px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;color:#fff;background:${color}">${statusLabel}</span><br>
             <small style="color:#6b7280">${timeAgo(r.upload_time)}</small>
-            ${r.address ? `<div style="font-size:11px;color:#6b7280;margin-top:4px;line-height:1.2;white-space:normal">📍 ${r.address}</div>` : ''}
+            ${r.address ? `<div style="font-size:11px;color:#6b7280;margin-top:4px;line-height:1.2;white-space:normal">${r.address}</div>` : ''}
             ${r.annotated_path ? `<br><img src="${getAnnotatedUrl(r.annotated_path)}" style="width:100%;margin-top:6px;border-radius:6px;max-height:120px;object-fit:cover" />` : ''}
           </div>
         `;
@@ -296,7 +296,7 @@ function mapApp() {
         zIndexOffset: 1000,
       })
         .addTo(this.mapInstance)
-        .bindPopup('<div style="font-family:Inter,sans-serif;font-size:12px">📍 Locația ta</div>');
+        .bindPopup('<div style="font-family:Inter,sans-serif;font-size:12px">Locația ta</div>');
     },
 
     centerOnUser() {

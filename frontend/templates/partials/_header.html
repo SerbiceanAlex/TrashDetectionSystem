@@ -1,7 +1,7 @@
 <!-- Top header bar -->
 <header class="td-header">
   <button @click="sidebarOpen = !sidebarOpen" class="td-header__hamburger">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    <i data-lucide="menu" class="icon icon--lg"></i>
   </button>
 
   <span class="td-header__title" x-text="tabs.find(t=>t.id===activeTab)?.label ?? ''"></span>
@@ -9,18 +9,14 @@
   <span style="flex:1"></span>
 
   <div x-show="isLoggedIn" x-cloak class="td-header__points">
-    <span>⭐</span><span x-text="user?.points ?? 0"></span>
+    <i data-lucide="star" class="icon icon--sm"></i><span x-text="user?.points ?? 0"></span>
   </div>
 
   <!-- Notification bell -->
-  <div x-show="isLoggedIn" x-cloak style="position:relative">
-    <button @click="notifOpen = !notifOpen" class="td-header__dark-btn" title="Notificări"
-      style="position:relative">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px">
-        <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-      </svg>
-      <span x-show="unreadNotifications > 0" x-cloak
-        style="position:absolute;top:2px;right:2px;min-width:16px;height:16px;background:#ef4444;color:#fff;border-radius:99px;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1;padding:0 3px"
+  <div x-show="isLoggedIn" x-cloak class="notif-wrapper">
+    <button @click="notifOpen = !notifOpen" class="td-header__dark-btn notif-bell" title="Notificări">
+      <i data-lucide="bell" class="icon icon--md"></i>
+      <span x-show="unreadNotifications > 0" x-cloak class="notif-badge"
         x-text="unreadNotifications > 9 ? '9+' : unreadNotifications"></span>
     </button>
 
@@ -29,31 +25,30 @@
       x-transition:enter="transition ease-out duration-150"
       x-transition:enter-start="opacity-0 scale-95"
       x-transition:enter-end="opacity-100 scale-100"
-      style="position:absolute;right:0;top:calc(100% + 8px);width:300px;z-index:200;background:var(--bg-card);border:1px solid var(--bg-border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);overflow:hidden">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--bg-border)">
-        <span style="font-size:13px;font-weight:700">Notificări</span>
-        <button x-show="unreadNotifications > 0" @click="markAllRead()" style="font-size:11px;color:var(--eco-green-dark);font-weight:600;background:none;border:none;cursor:pointer;padding:0">Marchează toate citite</button>
+      class="notif-panel">
+      <div class="notif-panel__header">
+        <span class="notif-panel__title">Notificări</span>
+        <button x-show="unreadNotifications > 0" @click="markAllRead()" class="notif-panel__mark-read">Marchează toate citite</button>
       </div>
-      <div style="max-height:320px;overflow-y:auto">
+      <div class="notif-panel__list">
         <template x-if="notifications.length === 0">
-          <div style="padding:24px;text-align:center;color:var(--tx-muted);font-size:13px">Nicio notificare</div>
+          <div class="notif-panel__empty">Nicio notificare</div>
         </template>
         <template x-for="n in notifications" :key="n.id">
           <div @click="markRead(n)"
-            style="display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--bg-border);cursor:pointer;transition:background .15s"
-            :style="n.is_read ? '' : 'background:rgba(22,163,74,.06)'"
-            @mouseenter="$el.style.background='var(--bg-hover)'"
-            @mouseleave="$el.style.background=n.is_read?'':'rgba(22,163,74,.06)'">
-            <span style="font-size:18px;flex-shrink:0" x-text="({
-              rank_up:'🎉', streak:'🔥', vote:'🗳️', nearby:'📍',
-              cleaned:'🟢', verified:'✅', rejected:'🚫', motivation:'⚠️',
-              resolved:'✅', badge:'🏆', broadcast:'📢'
-            })[n.category] || 'ℹ️'"></span>
-            <div style="flex:1;min-width:0">
-              <p style="font-size:12px;margin:0;line-height:1.4" x-text="n.message"></p>
-              <p style="font-size:10px;color:var(--tx-muted);margin:3px 0 0" x-text="formatNotifDate(n.created_at)"></p>
+            :class="'notif-item' + (n.is_read ? '' : ' notif-item--unread')">
+            <span class="notif-item__icon">
+              <i :data-lucide="({
+                rank_up:'trending-up', streak:'flame', vote:'vote', nearby:'map-pin',
+                cleaned:'circle-check', verified:'badge-check', rejected:'x-circle', motivation:'bell-ring',
+                resolved:'check-circle', badge:'award', broadcast:'megaphone'
+              })[n.category] || 'info'" class="icon icon--md"></i>
+            </span>
+            <div class="notif-item__body">
+              <p class="notif-item__message" x-text="n.message"></p>
+              <p class="notif-item__time" x-text="formatNotifDate(n.created_at)"></p>
             </div>
-            <span x-show="!n.is_read" style="width:7px;height:7px;border-radius:50%;background:#16a34a;flex-shrink:0;margin-top:4px"></span>
+            <span x-show="!n.is_read" class="notif-item__dot"></span>
           </div>
         </template>
       </div>
@@ -61,15 +56,12 @@
   </div>
 
   <button @click="toggleDark()" class="td-header__dark-btn" :title="darkMode ? 'Mod luminos' : 'Mod întunecat'">
-    <span x-show="!darkMode">🌙</span>
-    <span x-show="darkMode" x-cloak>☀️</span>
+    <i x-show="!darkMode" data-lucide="moon" class="icon icon--md"></i>
+    <i x-show="darkMode" x-cloak data-lucide="sun" class="icon icon--md"></i>
   </button>
 
   <button @click="goTo('scan')" class="td-header__scan-cta">
-    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px">
-      <path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-      <circle cx="12" cy="13" r="3"/>
-    </svg>
+    <i data-lucide="camera" class="icon icon--sm"></i>
     <span>Scanează</span>
   </button>
 </header>

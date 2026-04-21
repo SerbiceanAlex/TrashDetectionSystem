@@ -60,6 +60,10 @@ function adminApp() {
       // Loaded on demand when tab is opened
     },
 
+    _refreshAdminIcons() {
+      this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+    },
+
     /* ── Load admin stats KPIs ────────────────────────────────────────── */
     async loadAdminStats() {
       this.adminStatsLoading = true;
@@ -81,6 +85,7 @@ function adminApp() {
         showToast(e.message, 'error');
       } finally {
         this.adminUsersLoading = false;
+        this._refreshAdminIcons();
       }
     },
 
@@ -93,6 +98,7 @@ function adminApp() {
         showToast(e.message, 'error');
       } finally {
         this.leaderboardLoading = false;
+        this._refreshAdminIcons();
       }
     },
 
@@ -155,11 +161,11 @@ function adminApp() {
       const isCurrentlyResolved = currentStatus === 1 || currentStatus === true;
       const msg = isCurrentlyResolved
         ? `Marchezi raportul #${sessionId} ca NEREZOLVAT?`
-        : `Marchezi raportul #${sessionId} ca CURĂȚAT? 🧹`;
+        : `Marchezi raportul #${sessionId} ca CURĂȚAT?`;
       if (!confirm(msg)) return;
       try {
         const res = await fetchAPI(`/api/sessions/${sessionId}/resolve`, { method: 'POST' });
-        const action = res.is_resolved === 1 ? 'marcat curățat ✓' : 'marcat nerezolvat';
+        const action = res.is_resolved === 1 ? 'marcat curățat' : 'marcat nerezolvat';
         showToast(`Raportul ${sessionId} ${action}`);
         // Refresh reports list
         this.loadAdminReports();
@@ -188,6 +194,7 @@ function adminApp() {
         showToast(e.message, 'error');
       } finally {
         this.adminReportsLoading = false;
+        this._refreshAdminIcons();
       }
     },
 
@@ -238,6 +245,7 @@ function adminApp() {
         showToast(e.message, 'error');
       } finally {
         this.adminActivityLoading = false;
+        this._refreshAdminIcons();
       }
     },
 
@@ -376,7 +384,7 @@ function adminApp() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: this.adminBroadcastMsg.trim() }),
         });
-        showToast(`Notificare trimisă la ${res.sent_to} utilizatori ✓`);
+        showToast(`Notificare trimisă la ${res.sent_to} utilizatori`);
         this.adminBroadcastMsg = '';
       } catch (e) {
         showToast(e.message, 'error');
@@ -403,6 +411,7 @@ function adminApp() {
         showToast(e.message, 'error');
       } finally {
         this.adminAuthoritiesLoading = false;
+        this._refreshAdminIcons();
       }
     },
 
@@ -417,7 +426,8 @@ function adminApp() {
         });
         this.adminAuthorities.push(auth);
         this.adminNewAuthority = { name: '', email: '', area_description: '' };
-        showToast('Autoritate adăugată ✓');
+        showToast('Autoritate adăugată');
+        this._refreshAdminIcons();
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -438,7 +448,7 @@ function adminApp() {
       this.adminForwardSending = true;
       try {
         const res = await fetchAPI(`/api/admin/forward/${sessionId}`, { method: 'POST' });
-        showToast(res.detail || 'Raport trimis la autoritate ✓');
+        showToast(res.detail || 'Raport trimis la autoritate');
       } catch (e) {
         showToast(e.message, 'error');
       } finally {
@@ -455,6 +465,7 @@ function adminApp() {
         showToast(e.message, 'error');
       } finally {
         this.adminWebhooksLoading = false;
+        this._refreshAdminIcons();
       }
     },
 
@@ -474,7 +485,8 @@ function adminApp() {
         });
         this.adminWebhooks.push(wh);
         this.adminNewWebhook = { url: '', secret: '', events: 'report.verified,report.cleaned' };
-        showToast('Webhook adăugat ✓');
+        showToast('Webhook adăugat');
+        this._refreshAdminIcons();
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -490,6 +502,7 @@ function adminApp() {
           body: JSON.stringify({ active: !wh.active }),
         });
         Object.assign(wh, updated);
+        this._refreshAdminIcons();
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -527,6 +540,7 @@ function adminApp() {
         showToast(e.message, 'error');
       } finally {
         this.adminStorageLoading = false;
+        this._refreshAdminIcons();
       }
     },
 
@@ -556,6 +570,7 @@ function adminApp() {
       } else if (tab === 'webhooks') {
         this.loadWebhooks();
       }
+      this._refreshAdminIcons();
     },
 
     /* ── Refresh all admin data ───────────────────────────────────────── */

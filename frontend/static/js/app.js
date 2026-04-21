@@ -143,6 +143,7 @@ function ecoApp() {
         // Stop webcam when leaving scan tab or switching away from live mode
         if (tab !== 'scan' && this.webcamActive) this.stopWebcam();
         this.sidebarOpen = false;
+        this.refreshIcons();
       });
 
       this.$watch('scanMode', (mode) => {
@@ -160,6 +161,14 @@ function ecoApp() {
         document.documentElement.classList.toggle('dark', dark);
         localStorage.setItem('eco_dark', dark);
       });
+
+      // Initialize Lucide icons after Alpine renders
+      this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+    },
+
+    /** Re-render any new Lucide <i data-lucide> tags */
+    refreshIcons() {
+      this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
     },
 
     /* ── Dashboard ────────────────────────────────────────────────────── */
@@ -180,6 +189,7 @@ function ecoApp() {
         if (data) {
           this.notifications = data.notifications;
           this.unreadNotifications = data.unread;
+          this.refreshIcons();
         }
       } catch (_) {}
     },
@@ -308,7 +318,7 @@ function ecoApp() {
         form.append('file', file);
         const res = await fetchAPI('/api/me/avatar', { method: 'POST', body: form });
         if (this.myProfile) this.myProfile.avatar_url = res.avatar_url;
-        showToast('Avatar actualizat ✓');
+        showToast('Avatar actualizat');
       } catch (e) {
         showToast(e.message, 'error');
       } finally {
@@ -337,7 +347,7 @@ function ecoApp() {
         form.append('file', file);
         const photo = await fetchAPI(`/api/sessions/${sessionId}/photos`, { method: 'POST', body: form });
         this.sessionPhotos.push(photo);
-        showToast('Foto adăugată ✓');
+        showToast('Foto adăugată');
       } catch (e) {
         showToast(e.message, 'error');
       } finally {

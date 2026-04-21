@@ -301,7 +301,7 @@ function videoApp() {
 
         try {
           const data = await fetchAPI(url, { method: 'POST', body: fd });
-          showToast(`📸 Salvat! ${data.total_objects} obiecte detectate`);
+          showToast(`Salvat! ${data.total_objects} obiecte detectate`);
           // Notify map + history to refresh
           window.dispatchEvent(new CustomEvent('eco:newReport'));
         } catch (e) {

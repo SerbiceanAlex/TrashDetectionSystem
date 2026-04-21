@@ -6,162 +6,166 @@
 
   <!-- ── Onboarding Overlay ────────────────────────────────────────── -->
   <div x-show="onboardingOpen" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-    style="position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px">
-    <div style="background:var(--bg-surface);border-radius:20px;max-width:420px;width:100%;padding:32px 28px;text-align:center" @click.stop>
+    class="onboarding-overlay">
+    <div class="onboarding-card" @click.stop>
       <!-- Step 1 -->
       <div x-show="onboardingStep === 1">
-        <div style="font-size:48px;margin-bottom:16px">👋</div>
-        <h2 style="font-size:20px;font-weight:800;margin-bottom:8px">Bine ai venit la TrashDet!</h2>
-        <p style="font-size:14px;color:var(--tx-muted);line-height:1.5">Platformă comunitară de raportare a deșeurilor cu AI.</p>
+        <div class="onboarding-icon"><i data-lucide="hand-metal" class="icon icon--hero"></i></div>
+        <h2 class="onboarding-title">Bine ai venit la TrashDet!</h2>
+        <p class="onboarding-desc">Platformă comunitară de raportare a deșeurilor cu AI.</p>
       </div>
       <!-- Step 2 -->
       <div x-show="onboardingStep === 2">
-        <div style="font-size:48px;margin-bottom:16px">📸</div>
-        <h2 style="font-size:20px;font-weight:800;margin-bottom:8px">Scanează deșeuri</h2>
-        <p style="font-size:14px;color:var(--tx-muted);line-height:1.5">Fotografiază un focar de deșeuri. AI-ul nostru YOLOv8 le detectează și clasifică automat.</p>
+        <div class="onboarding-icon"><i data-lucide="camera" class="icon icon--hero"></i></div>
+        <h2 class="onboarding-title">Scanează deșeuri</h2>
+        <p class="onboarding-desc">Fotografiază un focar de deșeuri. AI-ul nostru YOLOv8 le detectează și clasifică automat.</p>
       </div>
       <!-- Step 3 -->
       <div x-show="onboardingStep === 3">
-        <div style="font-size:48px;margin-bottom:16px">🏆</div>
-        <h2 style="font-size:20px;font-weight:800;margin-bottom:8px">Câștigă EcoScore</h2>
-        <p style="font-size:14px;color:var(--tx-muted);line-height:1.5">Primești puncte pentru raportări, voturi și curățări. Avansează în rang și deblochează funcționalități.</p>
+        <div class="onboarding-icon"><i data-lucide="trophy" class="icon icon--hero"></i></div>
+        <h2 class="onboarding-title">Câștigă EcoScore</h2>
+        <p class="onboarding-desc">Primești puncte pentru raportări, voturi și curățări. Avansează în rang și deblochează funcționalități.</p>
       </div>
       <!-- Step 4 -->
       <div x-show="onboardingStep === 4">
-        <div style="font-size:48px;margin-bottom:16px">🌍</div>
-        <h2 style="font-size:20px;font-weight:800;margin-bottom:8px">Impact real</h2>
-        <p style="font-size:14px;color:var(--tx-muted);line-height:1.5">Datele tale ajung la autorități prin email, webhook sau harta publică. Împreună facem diferența!</p>
+        <div class="onboarding-icon"><i data-lucide="globe" class="icon icon--hero"></i></div>
+        <h2 class="onboarding-title">Impact real</h2>
+        <p class="onboarding-desc">Datele tale ajung la autorități prin email, webhook sau harta publică. Împreună facem diferența!</p>
       </div>
       <!-- Navigation -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:24px">
-        <div style="display:flex;gap:6px">
+      <div class="onboarding-nav">
+        <div class="onboarding-dots">
           <template x-for="s in [1,2,3,4]" :key="s">
-            <div style="width:8px;height:8px;border-radius:99px;transition:all .2s"
-              :style="onboardingStep === s ? 'background:var(--eco-green-dark);width:24px' : 'background:var(--bg-border)'"></div>
+            <div :class="'onboarding-dot' + (onboardingStep === s ? ' onboarding-dot--active' : '')"></div>
           </template>
         </div>
-        <div style="display:flex;gap:8px">
-          <button x-show="onboardingStep < 4" @click="onboardingStep++" class="btn btn--brand" style="padding:8px 20px">Continuă →</button>
-          <button x-show="onboardingStep === 4" @click="finishOnboarding()" class="btn btn--brand" style="padding:8px 20px">Să începem! 🚀</button>
+        <div class="gap-2" style="display:flex">
+          <button x-show="onboardingStep < 4" @click="onboardingStep++;refreshIcons()" class="btn btn--brand" style="padding:8px 20px">Continuă →</button>
+          <button x-show="onboardingStep === 4" @click="finishOnboarding()" class="btn btn--brand" style="padding:8px 20px">
+            Să începem! <i data-lucide="rocket" class="icon icon--sm"></i>
+          </button>
         </div>
       </div>
     </div>
   </div>
 
   <!-- ── Profile Header with EcoScore ──────────────────────────────── -->
-  <div class="card" style="margin-bottom:16px;padding:24px;position:relative;overflow:hidden">
+  <div class="card profile-card">
     <!-- Background gradient accent -->
-    <div style="position:absolute;top:0;left:0;right:0;height:80px;background:linear-gradient(135deg,rgba(5,150,105,.15),rgba(59,130,246,.08));border-radius:14px 14px 0 0"></div>
+    <div class="profile-card__gradient"></div>
 
-    <div style="position:relative;display:flex;align-items:center;gap:16px;margin-bottom:20px">
+    <div class="profile-card__row">
       <!-- Avatar with rank ring -->
-      <div style="position:relative;flex-shrink:0">
+      <div class="profile-avatar">
         <template x-if="myProfile?.avatar_url">
-          <img :src="myProfile.avatar_url" alt="Avatar"
-            style="width:72px;height:72px;border-radius:20px;object-fit:cover"
+          <img :src="myProfile.avatar_url" alt="Avatar" class="profile-avatar__img"
             :style="`box-shadow:0 4px 16px ${rankColor(myProfile?.rank || 'Novice')}44`" />
         </template>
         <template x-if="!myProfile?.avatar_url">
-          <div style="width:72px;height:72px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:24px;color:#fff;flex-shrink:0"
+          <div class="profile-avatar__fallback"
             :style="`background:${rankColor(myProfile?.rank || 'Novice')};box-shadow:0 4px 16px ${rankColor(myProfile?.rank || 'Novice')}44`"
             x-text="user ? user.username.slice(0,2).toUpperCase() : '?'"></div>
         </template>
         <!-- Streak badge -->
-        <div x-show="myProfile?.streak_days > 0"
-          style="position:absolute;bottom:-4px;right:-4px;background:var(--bg-surface);border-radius:99px;padding:2px 6px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)"
-          x-text="streakEmoji(myProfile?.streak_days || 0)"></div>
+        <div x-show="myProfile?.streak_days > 0" class="profile-avatar__streak">
+          <i data-lucide="flame" class="icon icon--xs"></i>
+          <span x-text="myProfile?.streak_days || 0"></span>
+        </div>
       </div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <h1 style="font-size:20px;font-weight:800;letter-spacing:-.3px" x-text="user?.username ?? ''"></h1>
-          <span style="font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px;color:#fff"
+      <div class="profile-info">
+        <div class="profile-info__name-row">
+          <h1 class="profile-info__name" x-text="user?.username ?? ''"></h1>
+          <span class="profile-info__rank-badge"
             :style="`background:${rankColor(myProfile?.rank || 'Novice')}`"
             x-text="myProfile?.rank || 'Novice'"></span>
         </div>
-        <p style="font-size:12px;color:var(--tx-muted);margin-top:2px">
+        <p class="profile-info__member-since">
           Membru din <span x-text="myProfile?.created_at ? new Date(myProfile.created_at).toLocaleDateString('ro-RO', {month:'long', year:'numeric'}) : '...'"></span>
         </p>
       </div>
     </div>
 
     <!-- EcoScore display -->
-    <div style="background:var(--bg-raised);border-radius:14px;padding:16px;margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div class="ecoscore-section">
+      <div class="ecoscore-header">
         <div>
-          <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted)">EcoScore</span>
-          <div style="font-size:32px;font-weight:900;letter-spacing:-1px;line-height:1.1" :style="`color:${rankColor(myProfile?.rank || 'Novice')}`"
+          <span class="ecoscore-label">EcoScore</span>
+          <div class="ecoscore-value" :style="`color:${rankColor(myProfile?.rank || 'Novice')}`"
             x-text="myProfile?.eco_score ?? 0"></div>
         </div>
-        <div style="text-align:right">
-          <div style="font-size:13px;font-weight:600" x-text="streakEmoji(myProfile?.streak_days || 0) + ' ' + (myProfile?.streak_days || 0) + ' zile streak'"></div>
-          <div style="font-size:11px;color:var(--tx-muted)" x-text="'Multiplicator: ×' + (myProfile?.trust_weight || 1.0).toFixed(1)"></div>
+        <div class="ecoscore-right">
+          <div class="ecoscore-streak">
+            <i data-lucide="flame" class="icon icon--sm"></i>
+            <span x-text="(myProfile?.streak_days || 0) + ' zile streak'"></span>
+          </div>
+          <div class="ecoscore-multiplier" x-text="'Multiplicator: ×' + (myProfile?.trust_weight || 1.0).toFixed(1)"></div>
         </div>
       </div>
       <!-- Progress bar to next rank -->
-      <div style="position:relative">
-        <div style="height:8px;background:var(--bg-border);border-radius:99px;overflow:hidden">
-          <div style="height:100%;border-radius:99px;transition:width .6s ease"
+      <div class="ecoscore-progress">
+        <div class="ecoscore-progress__bar">
+          <div class="ecoscore-progress__fill"
             :style="`width:${rankProgress(myProfile?.eco_score || 0)}%;background:${rankColor(myProfile?.rank || 'Novice')}`"></div>
         </div>
-        <div x-show="nextRank(myProfile?.rank || 'Novice')" style="display:flex;justify-content:space-between;margin-top:4px">
-          <span style="font-size:10px;color:var(--tx-muted)" x-text="myProfile?.rank || 'Novice'"></span>
-          <span style="font-size:10px;font-weight:600" :style="`color:${rankColor(nextRank(myProfile?.rank || 'Novice')?.name || 'Novice')}`"
+        <div x-show="nextRank(myProfile?.rank || 'Novice')" class="ecoscore-progress__labels">
+          <span class="ecoscore-progress__rank-current" x-text="myProfile?.rank || 'Novice'"></span>
+          <span class="ecoscore-progress__rank-next" :style="`color:${rankColor(nextRank(myProfile?.rank || 'Novice')?.name || 'Novice')}`"
             x-text="nextRank(myProfile?.rank || 'Novice')?.name + ' (' + (nextRank(myProfile?.rank || 'Novice')?.min_score || 0) + ' pts)'"></span>
         </div>
       </div>
     </div>
 
     <!-- Trust weight info -->
-    <div x-show="myProfile?.trust_weight >= 1.5" style="background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.2);border-radius:10px;padding:10px 14px;font-size:12px;color:#8b5cf6;font-weight:600;display:flex;align-items:center;gap:8px">
-      <span style="font-size:16px">⚡</span>
+    <div x-show="myProfile?.trust_weight >= 1.5" class="trust-banner">
+      <i data-lucide="zap" class="icon icon--md"></i>
       <span>Voturile tale au greutate <span x-text="'×' + (myProfile?.trust_weight || 1).toFixed(1)"></span> datorită rangului tău!</span>
     </div>
   </div>
 
   <!-- ── Stats KPIs ────────────────────────────────────────────────── -->
-  <div class="kpi-grid" style="margin-bottom:16px">
+  <div class="kpi-grid mb-4">
     <div class="kpi-card">
-      <span class="kpi-card__label">📸 Rapoarte</span>
+      <span class="kpi-card__label"><i data-lucide="camera" class="icon icon--xs"></i> Rapoarte</span>
       <span class="kpi-card__value text-brand" x-text="myProfile?.total_reports ?? dashMyStats?.total_sessions ?? '—'"></span>
     </div>
     <div class="kpi-card">
-      <span class="kpi-card__label">🔍 Obiecte</span>
+      <span class="kpi-card__label"><i data-lucide="search" class="icon icon--xs"></i> Obiecte</span>
       <span class="kpi-card__value text-brand" x-text="myProfile?.total_objects ?? dashMyStats?.total_objects ?? '—'"></span>
     </div>
     <div class="kpi-card" style="background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.04))">
-      <span class="kpi-card__label">✅ Verificate</span>
+      <span class="kpi-card__label"><i data-lucide="badge-check" class="icon icon--xs"></i> Verificate</span>
       <span class="kpi-card__value" style="color:#10b981" x-text="myProfile?.verified_reports ?? 0"></span>
     </div>
     <div class="kpi-card" style="background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.04))">
-      <span class="kpi-card__label">🟢 Curățate</span>
+      <span class="kpi-card__label"><i data-lucide="circle-check" class="icon icon--xs"></i> Curățate</span>
       <span class="kpi-card__value" style="color:#3b82f6" x-text="myProfile?.cleaned_reports ?? 0"></span>
     </div>
     <div class="kpi-card">
-      <span class="kpi-card__label">🗳️ Voturi date</span>
+      <span class="kpi-card__label"><i data-lucide="vote" class="icon icon--xs"></i> Voturi date</span>
       <span class="kpi-card__value" x-text="myProfile?.total_votes ?? 0"></span>
     </div>
     <div class="kpi-card" style="background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(245,158,11,.04))">
-      <span class="kpi-card__label">⭐ Puncte vechi</span>
+      <span class="kpi-card__label"><i data-lucide="star" class="icon icon--xs"></i> Puncte vechi</span>
       <span class="kpi-card__value" style="color:#f59e0b" x-text="dashMyStats?.points ?? 0"></span>
     </div>
   </div>
 
   <!-- ── Impact Metrics ──────────────────────────────────────────── -->
   <template x-if="impactMetrics">
-    <div class="card" style="margin-bottom:16px;padding:16px;background:linear-gradient(135deg,rgba(16,185,129,.08),rgba(59,130,246,.06))">
-      <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:12px">🌍 Impactul comunității</h3>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center">
+    <div class="card impact-card">
+      <h3 class="impact-card__title"><i data-lucide="globe" class="icon icon--sm"></i> Impactul comunității</h3>
+      <div class="impact-card__grid">
         <div>
-          <div style="font-size:22px;font-weight:900;color:#10b981" x-text="(impactMetrics.total_weight_kg || 0).toFixed(1) + ' kg'"></div>
-          <div style="font-size:10px;color:var(--tx-muted)">Deșeuri estimate</div>
+          <div class="impact-card__value" style="color:#10b981" x-text="(impactMetrics.total_weight_kg || 0).toFixed(1) + ' kg'"></div>
+          <div class="impact-card__label">Deșeuri estimate</div>
         </div>
         <div>
-          <div style="font-size:22px;font-weight:900;color:#3b82f6" x-text="(impactMetrics.total_co2_saved_kg || 0).toFixed(1) + ' kg'"></div>
-          <div style="font-size:10px;color:var(--tx-muted)">CO₂ economisit</div>
+          <div class="impact-card__value" style="color:#3b82f6" x-text="(impactMetrics.total_co2_saved_kg || 0).toFixed(1) + ' kg'"></div>
+          <div class="impact-card__label">CO₂ economisit</div>
         </div>
         <div>
-          <div style="font-size:22px;font-weight:900;color:#f59e0b" x-text="impactMetrics.total_objects || 0"></div>
-          <div style="font-size:10px;color:var(--tx-muted)">Obiecte detectate</div>
+          <div class="impact-card__value" style="color:#f59e0b" x-text="impactMetrics.total_objects || 0"></div>
+          <div class="impact-card__label">Obiecte detectate</div>
         </div>
       </div>
     </div>
@@ -170,23 +174,19 @@
   <!-- Quick actions -->
   <div class="dash-actions">
     <button @click="goTo('scan')" class="btn btn--brand btn--lg" style="min-width:220px">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"
-        stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;flex-shrink:0">
-        <path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
-        <circle cx="12" cy="13" r="3"/>
-      </svg>
+      <i data-lucide="camera" class="icon icon--md"></i>
       Raportează deșeuri acum
     </button>
     <button @click="goTo('community')" class="btn btn--ghost">
-      👥 Feed comunitate
+      <i data-lucide="users" class="icon icon--sm"></i> Feed comunitate
     </button>
   </div>
 
   <!-- Weekly activity chart -->
   <template x-if="dashMyStats">
-    <div class="card" style="margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <h3 style="font-size:14px;font-weight:700">📅 Activitate săptămânală</h3>
+    <div class="card mb-4">
+      <div class="flex-between mb-3">
+        <h3 class="text-sm font-bold"><i data-lucide="calendar" class="icon icon--sm"></i> Activitate săptămânală</h3>
         <span class="badge badge--gray" x-text="'total: ' + (dashMyStats.weekly_activity?.reduce((s,r)=>s+r.reports,0)||0) + ' rapoarte'"></span>
       </div>
       <div style="height:120px;position:relative">
@@ -199,7 +199,7 @@
   <template x-if="dashStats?.material_distribution?.length > 0">
     <div class="card">
       <h3 class="section-title" style="font-size:14px;margin-bottom:14px">Distribuție materiale detectate</h3>
-      <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="flex-col gap-3">
         <template x-for="m in dashStats.material_distribution" :key="m.material">
           <div style="display:flex;align-items:center;gap:10px">
             <span style="width:62px;font-size:12px;font-weight:600;text-transform:capitalize;flex-shrink:0" x-text="m.material"></span>
@@ -207,7 +207,7 @@
               <div style="height:100%;background:var(--eco-green-dark);border-radius:99px;transition:width .6s ease"
                 :style="`width:${dashStats.total_objects > 0 ? (m.count / dashStats.total_objects * 100).toFixed(0) : 0}%`"></div>
             </div>
-            <span style="font-size:11px;color:var(--tx-muted);width:28px;text-align:right;flex-shrink:0" x-text="m.count"></span>
+            <span class="text-xs text-muted" style="width:28px;text-align:right;flex-shrink:0" x-text="m.count"></span>
           </div>
         </template>
       </div>
@@ -217,9 +217,9 @@
   <!-- Empty state when no sessions yet -->
   <template x-if="!dashLoading && dashStats && dashStats.total_sessions === 0">
     <div class="empty-state" style="padding:40px 20px">
-      <div class="empty-state__icon">📷</div>
+      <div class="empty-state__icon"><i data-lucide="camera" class="icon icon--2xl"></i></div>
       <p class="empty-state__text">Nicio raportare încă.<br>Fă prima ta scanare!</p>
-      <button @click="goTo('scan')" class="btn btn--brand" style="margin-top:12px">Scanează acum</button>
+      <button @click="goTo('scan')" class="btn btn--brand mt-3">Scanează acum</button>
     </div>
   </template>
 

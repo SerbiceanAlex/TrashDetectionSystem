@@ -62,7 +62,7 @@
         </div>
         <button type="submit" class="btn btn--brand btn--full btn--lg" :disabled="authLoading">
           <span x-show="!authLoading">Intră în cont →</span>
-          <span x-show="authLoading" style="display:inline-flex;align-items:center;gap:8px"><span class="spinner"></span>Se verifică…</span>
+          <span x-show="authLoading" class="auth-loading-inline"><span class="spinner"></span>Se verifică…</span>
         </button>
       </form>
       <p class="auth-switch">Nu ai cont? <button @click="authMode='register'" class="auth-link">Înregistrează-te</button></p>
@@ -74,23 +74,22 @@
       x-transition:enter-start="opacity-0 translate-y-3"
       x-transition:enter-end="opacity-100 translate-y-0">
       <div class="auth-card__head">
-        <div style="font-size:48px;text-align:center;margin-bottom:12px">🔐</div>
+        <div class="auth-icon-hero"><i data-lucide="shield-check" class="icon icon--hero"></i></div>
         <h3 class="auth-card__title">Verificare email</h3>
         <p class="auth-card__sub">Am trimis un cod de 6 cifre la <strong x-text="otpEmailHint"></strong></p>
       </div>
 
       <form @submit.prevent="verifyOTP()" class="auth-form">
-        <div style="display:flex;gap:8px;justify-content:center;margin:16px 0 24px" @paste="handleOtpPaste($event)">
+        <div class="otp-row" @paste="handleOtpPaste($event)">
           <template x-for="(digit, idx) in otpDigits" :key="idx">
             <input
               type="text"
               inputmode="numeric"
               maxlength="1"
-              :class="'input otp-input-' + idx"
+              :class="'input otp-input otp-input-' + idx"
               :value="otpDigits[idx]"
               @input="handleOtpInput(idx, $event)"
               @keydown="handleOtpKeydown(idx, $event)"
-              style="width:48px;height:56px;text-align:center;font-size:24px;font-weight:800;letter-spacing:0;padding:0;border-radius:12px"
               autocomplete="one-time-code"
             />
           </template>
@@ -98,11 +97,11 @@
 
         <button type="submit" class="btn btn--brand btn--full btn--lg" :disabled="authLoading || otpDigits.some(d => d === '')">
           <span x-show="!authLoading">Verifică codul →</span>
-          <span x-show="authLoading" style="display:inline-flex;align-items:center;gap:8px"><span class="spinner"></span>Se verifică…</span>
+          <span x-show="authLoading" class="auth-loading-inline"><span class="spinner"></span>Se verifică…</span>
         </button>
       </form>
 
-      <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--tx-muted)">
+      <div class="otp-footer">
         <template x-if="!otpResendAvailable">
           <span>Retrimite codul în <strong x-text="otpCountdown + 's'"></strong></span>
         </template>
@@ -146,33 +145,33 @@
           <input type="password" x-model="registerData.password" @input="checkPasswordStrength(registerData.password)" class="input" required placeholder="Minim 8 caractere" minlength="8" autocomplete="new-password" />
 
           <!-- Password strength bar -->
-          <div x-show="showPasswordRules" x-transition style="margin-top:8px">
-            <div style="display:flex;gap:4px;margin-bottom:6px">
+          <div x-show="showPasswordRules" x-transition class="password-strength">
+            <div class="password-strength__bars">
               <template x-for="i in 5" :key="i">
-                <div style="flex:1;height:4px;border-radius:2px;transition:background .2s"
-                  :style="'background:' + (i <= passwordScore ? getPasswordStrengthLabel().color : 'var(--bg-border)')">
+                <div class="password-strength__bar"
+                  :style="'background:' + (i <= passwordScore ? getPasswordStrengthLabel().color : '')">
                 </div>
               </template>
             </div>
-            <p style="font-size:11px;font-weight:700;margin:0 0 8px"
+            <p class="password-strength__label"
               :style="'color:' + getPasswordStrengthLabel().color"
               x-text="getPasswordStrengthLabel().text"></p>
 
             <!-- Rule checklist -->
-            <div style="display:flex;flex-direction:column;gap:3px;font-size:12px">
-              <div :style="'color:' + (passwordRules.minLength ? '#16a34a' : 'var(--tx-muted)')">
+            <div class="password-strength__rules">
+              <div :class="passwordRules.minLength ? 'password-strength__rule--pass' : 'password-strength__rule--fail'">
                 <span x-text="passwordRules.minLength ? '✓' : '○'"></span> Minim 8 caractere
               </div>
-              <div :style="'color:' + (passwordRules.hasUpper ? '#16a34a' : 'var(--tx-muted)')">
+              <div :class="passwordRules.hasUpper ? 'password-strength__rule--pass' : 'password-strength__rule--fail'">
                 <span x-text="passwordRules.hasUpper ? '✓' : '○'"></span> O literă mare (A-Z)
               </div>
-              <div :style="'color:' + (passwordRules.hasLower ? '#16a34a' : 'var(--tx-muted)')">
+              <div :class="passwordRules.hasLower ? 'password-strength__rule--pass' : 'password-strength__rule--fail'">
                 <span x-text="passwordRules.hasLower ? '✓' : '○'"></span> O literă mică (a-z)
               </div>
-              <div :style="'color:' + (passwordRules.hasDigit ? '#16a34a' : 'var(--tx-muted)')">
+              <div :class="passwordRules.hasDigit ? 'password-strength__rule--pass' : 'password-strength__rule--fail'">
                 <span x-text="passwordRules.hasDigit ? '✓' : '○'"></span> O cifră (0-9)
               </div>
-              <div :style="'color:' + (passwordRules.hasSpecial ? '#16a34a' : 'var(--tx-muted)')">
+              <div :class="passwordRules.hasSpecial ? 'password-strength__rule--pass' : 'password-strength__rule--fail'">
                 <span x-text="passwordRules.hasSpecial ? '✓' : '○'"></span> Un caracter special (!@#$%...)
               </div>
             </div>
@@ -180,7 +179,7 @@
         </div>
         <button type="submit" class="btn btn--brand btn--full btn--lg" :disabled="authLoading || passwordScore < 5">
           <span x-show="!authLoading">Creează cont →</span>
-          <span x-show="authLoading" style="display:inline-flex;align-items:center;gap:8px"><span class="spinner"></span>Se creează…</span>
+          <span x-show="authLoading" class="auth-loading-inline"><span class="spinner"></span>Se creează…</span>
         </button>
       </form>
       <p class="auth-switch">Ai deja cont? <button @click="authMode='login'" class="auth-link">Loghează-te</button></p>

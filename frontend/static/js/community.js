@@ -44,8 +44,8 @@ function communityApp() {
     },
 
     feedEventIcon(type) {
-      const icons = { report: '📸', verified: '✅', cleaned: '🟢', vote: '🗳️' };
-      return icons[type] || '📋';
+      const icons = { report: 'camera', verified: 'badge-check', cleaned: 'circle-check', vote: 'vote' };
+      return icons[type] || 'clipboard-list';
     },
 
     feedEventLabel(type) {
@@ -99,7 +99,7 @@ function communityApp() {
     async joinCampaign(campaignId) {
       try {
         await fetchAPI(`/api/campaigns/${campaignId}/join`, { method: 'POST' });
-        showToast('Te-ai înscris în campanie! 🎉');
+        showToast('Te-ai înscris în campanie!');
         this.loadCampaigns();
         if (this.selectedCampaignId === campaignId) this.loadCampaignLeaderboard(campaignId);
       } catch (e) {
@@ -123,7 +123,7 @@ function communityApp() {
           }),
         });
         this.newCampaign = { title: '', description: '', start_date: '', end_date: '' };
-        showToast('Campanie creată ✓');
+        showToast('Campanie creată');
         this.loadCampaigns();
       } catch (e) {
         showToast(e.message, 'error');
@@ -182,10 +182,7 @@ function communityApp() {
     },
 
     streakEmoji(days) {
-      if (days >= 30) return '🔥🔥🔥';
-      if (days >= 14) return '🔥🔥';
-      if (days >= 4) return '🔥';
-      return '❄️';
+      return 'flame';
     },
 
     timeAgo(iso) { return timeAgo(iso); },

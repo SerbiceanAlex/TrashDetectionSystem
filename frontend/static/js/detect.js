@@ -60,10 +60,10 @@ function detectApp() {
         this.geoLng = pos.lng;
         this.geoAccuracy = pos.accuracy;
         this.geoStatus = 'ok';
-        showToast(`📍 GPS capturat (±${Math.round(pos.accuracy || 0)}m) — locația va fi salvată cu raportul`, 'success');
+        showToast(`GPS capturat (±${Math.round(pos.accuracy || 0)}m) — locația va fi salvată cu raportul`, 'success');
       } catch (_) {
         this.geoStatus = 'error';
-        showToast('⚠️ GPS indisponibil — raportul va fi salvat fără locație', 'warning');
+        showToast('GPS indisponibil — raportul va fi salvat fără locație', 'warning');
       }
     },
 
@@ -73,10 +73,10 @@ function detectApp() {
     },
 
     get geoLabel() {
-      if (this.geoStatus === 'loading') return '📍 Se caută GPS…';
-      if (this.geoStatus === 'ok') return `✅ GPS (±${Math.round(this.geoAccuracy || 0)}m)`;
-      if (this.geoStatus === 'error') return '❌ GPS indisponibil';
-      return '📍 Activează GPS';
+      if (this.geoStatus === 'loading') return 'Se caută GPS…';
+      if (this.geoStatus === 'ok') return `GPS (±${Math.round(this.geoAccuracy || 0)}m)`;
+      if (this.geoStatus === 'error') return 'GPS indisponibil';
+      return 'Activează GPS';
     },
 
     /* ── File handling ──────────────────────────────────────────────────── */

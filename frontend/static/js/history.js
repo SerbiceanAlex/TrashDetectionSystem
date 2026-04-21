@@ -95,7 +95,7 @@ function historyApp() {
         });
         this.voteSummary = data;
         if (data.status) this.sessionDetail.status = data.status;
-        showToast(voteType === 'confirm' ? 'Vot confirmat! ✅' : 'Vot înregistrat! 🚩', 'success');
+        showToast(voteType === 'confirm' ? 'Vot confirmat!' : 'Vot înregistrat!', 'success');
         this.loadHistory();
       } catch (e) {
         showToast(e.message || 'Eroare la vot', 'error');
@@ -111,7 +111,7 @@ function historyApp() {
         const data = await fetchAPI(`/api/sessions/${this.sessionDetail.id}/claim`, { method: 'POST' });
         this.sessionDetail.status = data.status;
         this.sessionDetail.claimed_by = data.claimed_by;
-        showToast('Ai revendicat curățarea! Du-te la locație și fă o poză după. 🧹', 'success');
+        showToast('Ai revendicat curățarea! Du-te la locație și fă o poză după.', 'success');
         this.loadHistory();
       } catch (e) {
         showToast(e.message || 'Eroare la revendicare', 'error');
@@ -133,7 +133,7 @@ function historyApp() {
         });
         this.sessionDetail.status = 'cleaned';
         this.sessionDetail.is_resolved = 1;
-        showToast(`Zona curățată! +${data.eco_score_awarded} EcoScore 🎉`, 'success');
+        showToast(`Zona curățată! +${data.eco_score_awarded} EcoScore`, 'success');
         this.loadHistory();
         window.dispatchEvent(new CustomEvent('eco:newReport'));
       } catch (e) {
@@ -147,7 +147,7 @@ function historyApp() {
       if (!confirm(`Ești sigur că vrei să marchezi acest focar ca fiind curățat?`)) return;
       try {
         await fetchAPI(`/api/sessions/${id}/resolve`, { method: 'POST' });
-        showToast('Murdăria a fost marcată ca fiind curățată! 🎉', 'success');
+        showToast('Murdăria a fost marcată ca fiind curățată!', 'success');
         // Update local state instantly
         if (this.sessionDetail && this.sessionDetail.id === id) {
           this.sessionDetail.is_resolved = 1;
@@ -191,7 +191,7 @@ function historyApp() {
         });
         this.sessionComments.push(comment);
         this.newCommentText = '';
-        showToast('Comentariu postat! 💬', 'success');
+        showToast('Comentariu postat!', 'success');
       } catch (e) {
         showToast(e.message || 'Eroare la postare', 'error');
       } finally {
@@ -221,7 +221,7 @@ function historyApp() {
         });
         this.sessionDetail.user_note = this.editNoteText.trim();
         this.editNoteText = '';
-        showToast('Descriere salvată! 📝', 'success');
+        showToast('Descriere salvată!', 'success');
       } catch (e) {
         showToast(e.message || 'Eroare la salvare', 'error');
       }
@@ -231,11 +231,11 @@ function historyApp() {
     shareReport(platform) {
       if (!this.sessionDetail) return;
       const url = `${window.location.origin}/?report=${this.sessionDetail.id}`;
-      const text = `Am raportat ${this.sessionDetail.total_objects} deșeuri detectate cu TrashDet AI! 🗑️♻️`;
+      const text = `Am raportat ${this.sessionDetail.total_objects} deșeuri detectate cu TrashDet AI!`;
 
       switch (platform) {
         case 'copy':
-          navigator.clipboard.writeText(url).then(() => showToast('Link copiat! 📋')).catch(() => showToast('Nu s-a putut copia', 'error'));
+          navigator.clipboard.writeText(url).then(() => showToast('Link copiat!')).catch(() => showToast('Nu s-a putut copia', 'error'));
           break;
         case 'facebook':
           window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(text)}`, '_blank', 'width=600,height=400');
@@ -283,12 +283,12 @@ function historyApp() {
 
     statusLabel(status) {
       const labels = {
-        pending: '⏳ În așteptare',
-        verified: '✅ Verificat',
-        in_progress: '🔧 În curs de curățare',
-        cleaned: '🟢 Curățat',
-        fake: '🔴 Fals',
-        expired: '⏰ Expirat',
+        pending: 'În așteptare',
+        verified: 'Verificat',
+        in_progress: 'În curs de curățare',
+        cleaned: 'Curățat',
+        fake: 'Fals',
+        expired: 'Expirat',
       };
       return labels[status] || status;
     },
@@ -313,7 +313,7 @@ function historyApp() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ suggested_material: material }),
         });
-        showToast('Sugestie trimisă! Mulțumim 🎯', 'success');
+        showToast('Sugestie trimisă! Mulțumim', 'success');
         // Refresh detail to show updated material if auto-corrected
         if (this.sessionDetail) {
           this.openSessionDetail(this.sessionDetail.id);

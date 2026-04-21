@@ -6,37 +6,36 @@
     x-transition:enter-start="opacity-0 translate-y-2"
     x-transition:enter-end="opacity-100 translate-y-0">
 
-    <h1 class="section-title">🗺️ Hartă poluare</h1>
+    <h1 class="section-title"><i data-lucide="map" class="icon icon--md"></i> Hartă poluare</h1>
 
     <!-- Toolbar -->
     <div class="map-toolbar">
-      <button @click="setViewMode('zones')" :class="mapViewMode === 'zones' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">🟠 Zone</button>
-      <button @click="setViewMode('heat')"  :class="mapViewMode === 'heat'  ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">🌡️ Heatmap</button>
-      <button @click="setViewMode('markers')" :class="mapViewMode === 'markers' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">📍 Markeri</button>
+      <button @click="setViewMode('zones')" :class="mapViewMode === 'zones' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'"><i data-lucide="circle-dot" class="icon icon--xs"></i> Zone</button>
+      <button @click="setViewMode('heat')"  :class="mapViewMode === 'heat'  ? 'map-view-btn map-view-btn--active' : 'map-view-btn'"><i data-lucide="thermometer" class="icon icon--xs"></i> Heatmap</button>
+      <button @click="setViewMode('markers')" :class="mapViewMode === 'markers' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'"><i data-lucide="map-pin" class="icon icon--xs"></i> Markeri</button>
       <button @click="centerOnUser()" class="map-view-btn" style="margin-left:auto">
         <template x-if="geoLoading"><div class="spinner spinner--dark" style="width:14px;height:14px"></div></template>
-        <span x-show="!geoLoading">📍 Locație</span>
+        <span x-show="!geoLoading"><i data-lucide="locate" class="icon icon--xs"></i> Locație</span>
       </button>
       <button @click="loadMapData()" class="map-view-btn" :disabled="mapLoading">
         <template x-if="mapLoading"><div class="spinner spinner--dark" style="width:14px;height:14px"></div></template>
-        <span x-show="!mapLoading">🔄</span>
+        <span x-show="!mapLoading"><i data-lucide="refresh-cw" class="icon icon--xs"></i></span>
       </button>
     </div>
 
     <!-- Filter bar -->
-    <div class="card" style="margin-bottom:12px;padding:10px 14px">
-      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-        <span style="font-size:12px;font-weight:600;color:var(--tx-secondary);flex-shrink:0">Filtre:</span>
-        <div style="display:flex;gap:4px">
+    <div class="card map-filter-bar">
+      <div class="map-filter-bar__row">
+        <span class="map-filter-bar__label">Filtre:</span>
+        <div class="map-filter-bar__group">
           <button @click="mapFilterResolved=''; loadMapData()"
             :class="mapFilterResolved === '' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">Toate</button>
           <button @click="mapFilterResolved='0'; loadMapData()"
-            :class="mapFilterResolved === '0' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">🔴 Nerezolvate</button>
+            :class="mapFilterResolved === '0' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'"><i data-lucide="circle-alert" class="icon icon--xs"></i> Nerezolvate</button>
           <button @click="mapFilterResolved='1'; loadMapData()"
-            :class="mapFilterResolved === '1' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'">✅ Rezolvate</button>
+            :class="mapFilterResolved === '1' ? 'map-view-btn map-view-btn--active' : 'map-view-btn'"><i data-lucide="circle-check" class="icon icon--xs"></i> Rezolvate</button>
         </div>
-        <select x-model="mapFilterMaterial" @change="loadMapData()"
-          style="font-size:12px;padding:4px 8px;border-radius:8px;border:1.5px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);min-height:32px">
+        <select x-model="mapFilterMaterial" @change="loadMapData()" class="map-select">
           <option value="">Toate materialele</option>
           <option value="plastic">Plastic</option>
           <option value="paper">Paper</option>
@@ -44,30 +43,29 @@
           <option value="metal">Metal</option>
           <option value="other">Other</option>
         </select>
-        <span x-show="mapFilterResolved !== '' || mapFilterMaterial"
-          style="font-size:11px;color:var(--tx-muted);background:rgba(239,68,68,.1);color:#ef4444;padding:3px 8px;border-radius:99px;font-weight:600"
+        <span x-show="mapFilterResolved !== '' || mapFilterMaterial" class="map-filter-bar__count"
           x-text="`${mapReports.length} rapoarte filtrate`"></span>
       </div>
     </div>
 
     <!-- Stats bar -->
     <div class="card" style="margin-bottom:12px;padding:12px 16px">
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">
+      <div class="map-stats-grid">
         <div>
-          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px;color:var(--eco-green-dark)" x-text="mapStats.total"></div>
-          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Rapoarte</div>
+          <div class="map-stat__value" style="color:var(--eco-green-dark)" x-text="mapStats.total"></div>
+          <div class="map-stat__label">Rapoarte</div>
         </div>
         <div>
-          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px" x-text="mapStats.objects"></div>
-          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Obiecte</div>
+          <div class="map-stat__value" x-text="mapStats.objects"></div>
+          <div class="map-stat__label">Obiecte</div>
         </div>
         <div>
-          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px;color:#ef4444" x-text="mapStats.highZones"></div>
-          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Zone critice</div>
+          <div class="map-stat__value" style="color:#ef4444" x-text="mapStats.highZones"></div>
+          <div class="map-stat__label">Zone critice</div>
         </div>
         <div>
-          <div style="font-size:20px;font-weight:800;letter-spacing:-0.5px" x-text="mapStats.zones"></div>
-          <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;font-weight:600">Zone totale</div>
+          <div class="map-stat__value" x-text="mapStats.zones"></div>
+          <div class="map-stat__label">Zone totale</div>
         </div>
       </div>
     </div>
@@ -91,8 +89,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <h2 style="font-size:15px;font-weight:700">Rapoarte în apropiere</h2>
         <div style="display:flex;align-items:center;gap:8px">
-          <select x-model.number="nearbyRadius"
-            style="font-size:12px;padding:4px 8px;border-radius:8px;border:1.5px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);min-height:32px">
+          <select x-model.number="nearbyRadius" class="map-select">
             <option value="0.5">500m</option>
             <option value="1">1 km</option>
             <option value="2">2 km</option>
@@ -118,7 +115,7 @@
                   · <span x-text="timeAgo(r.upload_time)"></span>
                 </div>
                 <template x-if="r.address">
-                  <div style="font-size:11px;color:var(--tx-muted);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="'📍 ' + r.address"></div>
+                  <div class="text-xs text-muted truncate" style="margin-top:4px" x-text="r.address"><i data-lucide="map-pin" class="icon icon--xs"></i> </div>
                 </template>
               </div>
             </div>
@@ -126,7 +123,7 @@
         </div>
       </template>
       <div x-show="nearbyReports.length === 0 && !nearbyLoading" class="empty-state" style="padding:24px">
-        <div class="empty-state__icon">📍</div>
+        <div class="empty-state__icon"><i data-lucide="map-pin" class="icon icon--2xl"></i></div>
         <div class="empty-state__text">Apasă "Caută" pentru rapoarte din apropiere</div>
       </div>
     </div>

@@ -12,8 +12,8 @@
     <div class="modal" style="max-width:380px;border-radius:var(--r-xl);align-self:center;margin:auto">
       <div class="modal__body" style="padding:28px 24px;display:flex;flex-direction:column;gap:16px">
         <div style="display:flex;align-items:center;gap:12px">
-          <div style="width:44px;height:44px;border-radius:12px;background:rgba(239,68,68,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-            <svg fill="none" stroke="#ef4444" viewBox="0 0 24 24" stroke-width="2" style="width:22px;height:22px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.999l-6.928-12C12.771 2.668 11.229 2.668 10.268 4.001L3.34 16.001C2.57 17.333 3.532 19 5.072 19z"/></svg>
+          <div class="confirm-modal__icon">
+            <i data-lucide="alert-triangle" class="icon icon--lg" style="color:#ef4444"></i>
           </div>
           <div>
             <p style="font-weight:800;font-size:16px">Confirmi ștergerea?</p>
@@ -31,7 +31,7 @@
   <!-- Header -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
     <div>
-      <h1 style="font-size:22px;font-weight:800;letter-spacing:-0.4px">Panou Administrator</h1>
+      <h1 class="community-header__title">Panou Administrator</h1>
       <p style="font-size:13px;color:var(--tx-muted);margin-top:3px">Gestionare utilizatori, rapoarte și statistici platformă.</p>
     </div>
   </div>
@@ -39,17 +39,18 @@
   <!-- Sub-tab navigation -->
   <div class="admin-subtabs" style="display:flex;gap:4px;margin-bottom:20px;border-bottom:2px solid var(--bg-border);padding-bottom:0;flex-wrap:wrap">
     <template x-for="st in [
-      {id:'overview', label:'Prezentare', icon:'📊'},
-      {id:'users',    label:'Utilizatori', icon:'👥'},
-      {id:'reports',  label:'Rapoarte', icon:'📋'},
-      {id:'activity', label:'Activitate', icon:'⚡'},
-      {id:'authorities', label:'Autorități', icon:'🏛️'},
-      {id:'webhooks', label:'Webhooks', icon:'🔗'}
+      {id:'overview', label:'Prezentare', icon:'bar-chart-3'},
+      {id:'users',    label:'Utilizatori', icon:'users'},
+      {id:'reports',  label:'Rapoarte', icon:'clipboard-list'},
+      {id:'activity', label:'Activitate', icon:'zap'},
+      {id:'authorities', label:'Autorități', icon:'landmark'},
+      {id:'webhooks', label:'Webhooks', icon:'link'}
     ]" :key="st.id">
       <button @click="switchAdminSubTab(st.id)"
         class="admin-subtab-btn"
-        :class="adminSubTab === st.id ? 'admin-subtab-btn--active' : ''"
-        x-text="st.icon + ' ' + st.label">
+        :class="adminSubTab === st.id ? 'admin-subtab-btn--active' : ''">
+        <i :data-lucide="st.icon" class="icon icon--xs"></i>
+        <span x-text="st.label"></span>
       </button>
     </template>
   </div>
@@ -87,58 +88,58 @@
     </div>
 
     <!-- Community KPI cards -->
-    <div x-show="!adminStatsLoading && adminStats" class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px">
+    <div x-show="!adminStatsLoading && adminStats" class="kpi-grid kpi-grid--admin-community" style="margin-bottom:20px">
       <div class="kpi-card">
-        <span class="kpi-card__label">🗳️ Voturi comunitate</span>
+        <span class="kpi-card__label"><i data-lucide="vote" class="icon icon--xs"></i> Voturi comunitate</span>
         <span class="kpi-card__value text-brand" x-text="adminStats?.total_votes ?? 0"></span>
       </div>
       <div class="kpi-card">
-        <span class="kpi-card__label">⏳ În așteptare</span>
+        <span class="kpi-card__label"><i data-lucide="clock" class="icon icon--xs"></i> În așteptare</span>
         <span class="kpi-card__value" style="color:#f59e0b" x-text="adminStats?.pending_reports ?? 0"></span>
       </div>
       <div class="kpi-card kpi-card--accent">
-        <span class="kpi-card__label">✅ Verificate</span>
+        <span class="kpi-card__label"><i data-lucide="badge-check" class="icon icon--xs"></i> Verificate</span>
         <span class="kpi-card__value" x-text="adminStats?.verified_reports ?? 0"></span>
       </div>
       <div class="kpi-card">
-        <span class="kpi-card__label">🟢 Curățate</span>
+        <span class="kpi-card__label"><i data-lucide="circle-check" class="icon icon--xs"></i> Curățate</span>
         <span class="kpi-card__value" style="color:#059669" x-text="adminStats?.cleaned_reports ?? 0"></span>
       </div>
       <div class="kpi-card">
-        <span class="kpi-card__label">🔴 False</span>
+        <span class="kpi-card__label"><i data-lucide="x-circle" class="icon icon--xs"></i> False</span>
         <span class="kpi-card__value" style="color:#ef4444" x-text="adminStats?.fake_reports ?? 0"></span>
       </div>
       <div class="kpi-card">
-        <span class="kpi-card__label">🔧 În curs</span>
+        <span class="kpi-card__label"><i data-lucide="wrench" class="icon icon--xs"></i> În curs</span>
         <span class="kpi-card__value" style="color:#3b82f6" x-text="adminStats?.in_progress_reports ?? 0"></span>
       </div>
     </div>
 
     <!-- Charts grid -->
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:20px">
+    <div class="admin-charts-grid">
       <div class="card">
-        <h3 style="font-size:13px;font-weight:700;margin-bottom:12px">📈 Rapoarte / zi (30 zile)</h3>
+        <h3 style="font-size:13px;font-weight:700;margin-bottom:12px"><i data-lucide="trending-up" class="icon icon--xs"></i> Rapoarte / zi (30 zile)</h3>
         <div style="height:200px;position:relative">
           <div x-show="adminChartsLoading" class="skeleton" style="height:100%;border-radius:8px"></div>
           <canvas id="adminChartReports" x-show="!adminChartsLoading"></canvas>
         </div>
       </div>
       <div class="card">
-        <h3 style="font-size:13px;font-weight:700;margin-bottom:12px">👤 Utilizatori noi / lună</h3>
+        <h3 style="font-size:13px;font-weight:700;margin-bottom:12px"><i data-lucide="user-plus" class="icon icon--xs"></i> Utilizatori noi / lună</h3>
         <div style="height:200px;position:relative">
           <div x-show="adminChartsLoading" class="skeleton" style="height:100%;border-radius:8px"></div>
           <canvas id="adminChartUsers" x-show="!adminChartsLoading"></canvas>
         </div>
       </div>
       <div class="card">
-        <h3 style="font-size:13px;font-weight:700;margin-bottom:12px">🗂️ Distribuție materiale</h3>
+        <h3 style="font-size:13px;font-weight:700;margin-bottom:12px"><i data-lucide="folder-open" class="icon icon--xs"></i> Distribuție materiale</h3>
         <div style="height:220px;position:relative">
           <div x-show="adminChartsLoading" class="skeleton" style="height:100%;border-radius:8px"></div>
           <canvas id="adminChartMaterials" x-show="!adminChartsLoading"></canvas>
         </div>
       </div>
       <div class="card">
-        <h3 style="font-size:13px;font-weight:700;margin-bottom:12px">✅ Rată rezolvare</h3>
+        <h3 style="font-size:13px;font-weight:700;margin-bottom:12px"><i data-lucide="circle-check" class="icon icon--xs"></i> Rată rezolvare</h3>
         <div style="height:220px;position:relative">
           <div x-show="adminChartsLoading" class="skeleton" style="height:100%;border-radius:8px"></div>
           <canvas id="adminChartResolution" x-show="!adminChartsLoading"></canvas>
@@ -147,11 +148,11 @@
     </div>
 
     <!-- Leaderboard + Broadcast side by side -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="admin-two-col">
       <!-- Leaderboard -->
       <div class="card">
         <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px">
-          🏆 Leaderboard comunitate
+          <i data-lucide="trophy" class="icon icon--sm"></i> Leaderboard comunitate
         </h3>
         <div x-show="leaderboardLoading" class="skeleton" style="height:160px;border-radius:12px"></div>
         <p x-show="!leaderboardLoading && leaderboard.length === 0"
@@ -160,15 +161,18 @@
           style="display:flex;flex-direction:column;gap:8px">
           <template x-for="entry in leaderboard" :key="entry.rank">
             <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--bg-raised)">
-              <span style="width:24px;text-align:center;font-weight:900;font-size:13px"
-                :style="entry.rank === 1 ? 'color:#f59e0b' : entry.rank === 2 ? 'color:#9ca3af' : entry.rank === 3 ? 'color:#b45309' : 'color:var(--tx-muted)'"
-                x-text="entry.rank <= 3 ? ['🥇','🥈','🥉'][entry.rank-1] : '#'+entry.rank"></span>
+              <span style="width:24px;text-align:center;font-weight:900;font-size:13px">
+                <template x-if="entry.rank <= 3">
+                  <i :data-lucide="'medal'" class="icon icon--md" :class="entry.rank === 1 ? 'medal--gold' : entry.rank === 2 ? 'medal--silver' : 'medal--bronze'"></i>
+                </template>
+                <span x-show="entry.rank > 3" style="color:var(--tx-muted)" x-text="'#'+entry.rank"></span>
+              </span>
               <div style="width:30px;height:30px;border-radius:8px;background:rgba(5,150,105,.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:#059669;flex-shrink:0"
                 x-text="entry.username.slice(0,2).toUpperCase()"></div>
               <span style="flex:1;font-size:13px;font-weight:600" x-text="entry.username"></span>
               <span style="font-size:11px;color:var(--tx-muted)" x-text="entry.total_reports + ' rap.'"></span>
               <span style="font-size:10px;color:var(--tx-muted);background:var(--bg-surface);padding:2px 6px;border-radius:6px" x-text="entry.user_rank || 'Novice'"></span>
-              <span style="font-size:13px;font-weight:800;color:#f59e0b">🌿 <span x-text="entry.eco_score ?? entry.points"></span></span>
+              <span style="font-size:13px;font-weight:800;color:#f59e0b"><i data-lucide="leaf" class="icon icon--xs"></i> <span x-text="entry.eco_score ?? entry.points"></span></span>
             </div>
           </template>
         </div>
@@ -177,7 +181,7 @@
       <!-- Broadcast notification -->
       <div class="card">
         <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px">
-          📢 Anunț către toți utilizatorii
+          <i data-lucide="megaphone" class="icon icon--sm"></i> Anunț către toți utilizatorii
         </h3>
         <p style="font-size:12px;color:var(--tx-muted);margin-bottom:12px">
           Trimite o notificare in-app tuturor utilizatorilor (ex: campanie de curățenie, mentenanță, etc.)
@@ -190,7 +194,7 @@
           <span style="font-size:11px;color:var(--tx-muted)" x-text="adminBroadcastMsg.length + '/500'"></span>
           <button @click="adminSendBroadcast()" class="btn btn--primary" style="font-size:13px;padding:8px 18px"
             :disabled="adminBroadcastSending || !adminBroadcastMsg.trim()">
-            <span x-show="!adminBroadcastSending">📤 Trimite</span>
+            <span x-show="!adminBroadcastSending"><i data-lucide="send" class="icon icon--xs"></i> Trimite</span>
             <span x-show="adminBroadcastSending">Se trimite...</span>
           </button>
         </div>
@@ -200,8 +204,8 @@
     <!-- Storage Stats Card -->
     <div class="card" style="margin-top:16px" x-init="loadStorage()">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <h3 style="font-size:14px;font-weight:700">💾 Stocare</h3>
-        <button @click="loadStorage()" class="btn btn--ghost" style="font-size:12px">🔄</button>
+        <h3 style="font-size:14px;font-weight:700"><i data-lucide="hard-drive" class="icon icon--sm"></i> Stocare</h3>
+        <button @click="loadStorage()" class="btn btn--ghost" style="font-size:12px"><i data-lucide="refresh-cw" class="icon icon--xs"></i></button>
       </div>
       <div x-show="adminStorageLoading" class="skeleton" style="height:60px;border-radius:10px"></div>
       <div x-show="!adminStorageLoading && adminStorage" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
@@ -230,13 +234,13 @@
   <div x-show="adminSubTab === 'users'">
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-        <h3 style="font-size:14px;font-weight:700">👥 Utilizatori platformă</h3>
+        <h3 style="font-size:14px;font-weight:700"><i data-lucide="users" class="icon icon--sm"></i> Utilizatori platformă</h3>
         <div style="display:flex;gap:8px">
           <button @click="adminExportUsersCSV()" class="btn btn--ghost" style="font-size:12px;gap:4px">
-            📥 Export CSV
+            <i data-lucide="download" class="icon icon--xs"></i> Export CSV
           </button>
           <button @click="loadAdminUsers()" class="btn btn--ghost" style="font-size:12px;gap:4px">
-            🔄 Reîmprospătare
+            <i data-lucide="refresh-cw" class="icon icon--xs"></i> Reîmproșpătare
           </button>
         </div>
       </div>
@@ -291,11 +295,12 @@
                         class="btn btn--ghost btn--icon"
                         :title="u.role === 'admin' ? 'Retrogradează la user' : 'Promovează la admin'"
                         style="font-size:14px;min-height:32px;padding:4px 8px">
-                        <span x-text="u.role === 'admin' ? '👤' : '🛡️'"></span>
+                        <span x-show="u.role === 'admin'"><i data-lucide="user" class="icon icon--xs"></i></span>
+                        <span x-show="u.role !== 'admin'"><i data-lucide="shield" class="icon icon--xs"></i></span>
                       </button>
                       <button @click="adminAskDelete(u)" class="btn btn--danger btn--icon"
                         style="min-height:32px;padding:4px 8px;font-size:14px" title="Șterge cont">
-                        🗑️
+                        <i data-lucide="trash-2" class="icon icon--xs" style="color:#ef4444"></i>
                       </button>
                     </div>
                   </td>
@@ -315,7 +320,7 @@
     <div class="card">
       <!-- Header with filters -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-        <h3 style="font-size:14px;font-weight:700">📋 Toate rapoartele de detecție</h3>
+        <h3 style="font-size:14px;font-weight:700"><i data-lucide="clipboard-list" class="icon icon--sm"></i> Toate rapoartele de detecție</h3>
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
           <!-- Search -->
           <div style="position:relative">
@@ -328,11 +333,11 @@
           <!-- Filter buttons -->
           <template x-for="f in [
             {id:'all',label:'Toate'},
-            {id:'pending',label:'⏳ Pending'},
-            {id:'verified',label:'✅ Verificat'},
-            {id:'in_progress',label:'🔧 În curs'},
-            {id:'cleaned',label:'🟢 Curățat'},
-            {id:'fake',label:'🔴 Fals'},
+            {id:'pending',label:'Pending'},
+            {id:'verified',label:'Verificat'},
+            {id:'in_progress',label:'În curs'},
+            {id:'cleaned',label:'Curățat'},
+            {id:'fake',label:'Fals'},
           ]" :key="f.id">
             <button @click="adminFilterReports(f.id)"
               class="btn btn--ghost" style="font-size:11px;padding:5px 10px"
@@ -377,7 +382,7 @@
                     <td style="font-size:11px;color:var(--tx-muted)" x-text="_fmtAdminDate(r.upload_time)"></td>
                     <td style="text-align:center;font-weight:700" x-text="r.total_objects"></td>
                     <td>
-                      <span x-show="r.has_gps" class="badge badge--green" style="font-size:10px">📍 GPS</span>
+                      <span x-show="r.has_gps" class="badge badge--green" style="font-size:10px"><i data-lucide="map-pin" class="icon icon--xs"></i> GPS</span>
                       <span x-show="!r.has_gps" style="font-size:11px;color:var(--tx-muted)">—</span>
                     </td>
                     <td>
@@ -388,13 +393,13 @@
                         'badge badge--red': r.status === 'fake',
                         'badge badge--gray': r.status === 'expired',
                       }" x-text="{
-                        pending: '⏳ Pending',
-                        verified: '✅ Verificat',
-                        in_progress: '🔧 În curs',
-                        cleaned: '🟢 Curățat',
-                        fake: '🔴 Fals',
-                        expired: '⏰ Expirat',
-                      }[r.status] || (r.is_resolved ? '✓ Rezolvat' : '⏳ Activ')"></span>
+                        pending: 'Pending',
+                        verified: 'Verificat',
+                        in_progress: 'În curs',
+                        cleaned: 'Curățat',
+                        fake: 'Fals',
+                        expired: 'Expirat',
+                      }[r.status] || (r.is_resolved ? 'Rezolvat' : 'Activ')"></span>
                       <span x-show="r.verification_score" style="font-size:10px;color:var(--tx-muted);margin-left:4px"
                         x-text="'(' + (r.verification_score ?? 0) + ')'" title="Scor verificare"></span>
                     </td>
@@ -403,16 +408,17 @@
                         <button @click="resolveSession(r.id, r.is_resolved)"
                           class="btn btn--ghost btn--icon" style="font-size:13px;min-height:30px;padding:4px 6px"
                           :title="r.is_resolved ? 'Marchează nerezolvat' : 'Marchează curățat'">
-                          <span x-text="r.is_resolved ? '↩️' : '🧹'"></span>
+                          <span x-show="r.is_resolved"><i data-lucide="undo" class="icon icon--xs"></i></span>
+                          <span x-show="!r.is_resolved"><i data-lucide="brush" class="icon icon--xs"></i></span>
                         </button>
                         <button @click="forwardReport(r.id)" :disabled="adminForwardSending"
                           class="btn btn--ghost btn--icon" style="font-size:13px;min-height:30px;padding:4px 6px;color:#3b82f6" title="Trimite la autoritate">
-                          📧
+                          <i data-lucide="mail" class="icon icon--xs"></i>
                         </button>
                         <button @click="adminDeleteReport(r.id)"
                           class="btn btn--danger btn--icon"
                           style="min-height:30px;padding:4px 6px;font-size:13px" title="Șterge raport">
-                          🗑️
+                          <i data-lucide="trash-2" class="icon icon--xs"></i>
                         </button>
                       </div>
                     </td>
@@ -443,8 +449,8 @@
   <div x-show="adminSubTab === 'activity'">
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <h3 style="font-size:14px;font-weight:700">⚡ Activitate recentă platformă</h3>
-        <button @click="loadAdminActivity()" class="btn btn--ghost" style="font-size:12px">🔄 Reîmprospătare</button>
+        <h3 style="font-size:14px;font-weight:700"><i data-lucide="zap" class="icon icon--sm"></i> Activitate recentă platformă</h3>
+        <button @click="loadAdminActivity()" class="btn btn--ghost" style="font-size:12px"><i data-lucide="refresh-cw" class="icon icon--xs"></i> Reîmproșpătare</button>
       </div>
 
       <div x-show="adminActivityLoading" class="skeleton" style="height:300px;border-radius:12px"></div>
@@ -458,7 +464,8 @@
               <!-- Icon -->
               <div style="width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px"
                 :style="a.type === 'report' ? 'background:rgba(5,150,105,.12)' : 'background:rgba(59,130,246,.12)'">
-                <span x-text="a.type === 'report' ? '📸' : '🆕'"></span>
+                <span x-show="a.type === 'report'"><i data-lucide="camera" class="icon icon--sm"></i></span>
+                <span x-show="a.type !== 'report'"><i data-lucide="plus-circle" class="icon icon--sm"></i></span>
               </div>
               <!-- Content -->
               <div style="flex:1;min-width:0">
@@ -485,7 +492,7 @@
   <div x-show="adminSubTab === 'authorities'">
     <!-- Add new authority contact -->
     <div class="card" style="margin-bottom:16px">
-      <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">🏛️ Adaugă contact autoritate</h3>
+      <h3 style="font-size:14px;font-weight:700;margin-bottom:12px"><i data-lucide="landmark" class="icon icon--sm"></i> Adaugă contact autoritate</h3>
       <div style="display:flex;flex-direction:column;gap:10px">
         <input type="text" x-model="adminNewAuthority.name" placeholder="Nume instituție (ex: Primăria Sector 3)"
           class="input" style="font-size:13px;min-height:40px" maxlength="200" />
@@ -501,7 +508,7 @@
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <h3 style="font-size:14px;font-weight:700">Contacte autorități</h3>
-        <button @click="loadAuthorities()" class="btn btn--ghost" style="font-size:12px">🔄</button>
+        <button @click="loadAuthorities()" class="btn btn--ghost" style="font-size:12px"><i data-lucide="refresh-cw" class="icon icon--xs"></i></button>
       </div>
 
       <div x-show="adminAuthoritiesLoading" class="skeleton" style="height:120px;border-radius:12px"></div>
@@ -511,13 +518,13 @@
       <div x-show="!adminAuthoritiesLoading && adminAuthorities.length > 0" style="display:flex;flex-direction:column;gap:8px">
         <template x-for="auth in adminAuthorities" :key="auth.id">
           <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;background:var(--bg-raised)">
-            <div style="width:40px;height:40px;border-radius:10px;background:rgba(59,130,246,.12);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🏛️</div>
+            <div style="width:40px;height:40px;border-radius:10px;background:rgba(59,130,246,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0"><i data-lucide="landmark" class="icon icon--md"></i></div>
             <div style="flex:1;min-width:0">
               <p style="font-weight:700;font-size:13px" x-text="auth.name"></p>
               <p style="font-size:12px;color:var(--tx-muted)" x-text="auth.email"></p>
-              <p x-show="auth.area_description" style="font-size:11px;color:var(--tx-muted)" x-text="'📍 ' + auth.area_description"></p>
+              <p x-show="auth.area_description" style="font-size:11px;color:var(--tx-muted)"><i data-lucide="map-pin" class="icon icon--xs"></i> <span x-text="auth.area_description"></span></p>
             </div>
-            <button @click="deleteAuthority(auth.id)" class="btn btn--ghost" style="font-size:12px;color:#ef4444" title="Șterge">🗑</button>
+            <button @click="deleteAuthority(auth.id)" class="btn btn--ghost" style="font-size:12px;color:#ef4444" title="Șterge"><i data-lucide="trash-2" class="icon icon--xs"></i></button>
           </div>
         </template>
       </div>
@@ -526,8 +533,8 @@
     <!-- Forward report instruction -->
     <div class="card" style="margin-top:16px;padding:14px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15)">
       <p style="font-size:12px;color:var(--tx-muted)">
-        💡 <strong>Trimitere rapoarte:</strong> Du-te la sub-tabul <strong>Rapoarte</strong> și folosește butonul
-        <span style="font-size:11px;background:rgba(59,130,246,.15);padding:2px 8px;border-radius:6px;font-weight:600">📧 Trimite</span>
+        <i data-lucide="lightbulb" class="icon icon--xs"></i> <strong>Trimitere rapoarte:</strong> Du-te la sub-tabul <strong>Rapoarte</strong> și folosește butonul
+        <span style="font-size:11px;background:rgba(59,130,246,.15);padding:2px 8px;border-radius:6px;font-weight:600"><i data-lucide="mail" class="icon icon--xs"></i> Trimite</span>
         de pe fiecare raport pentru a-l expedia automat la autoritățile înregistrate.
       </p>
     </div>
@@ -540,7 +547,7 @@
   <div x-show="adminSubTab === 'webhooks'">
     <!-- Add webhook -->
     <div class="card" style="margin-bottom:16px">
-      <h3 style="font-size:14px;font-weight:700;margin-bottom:12px">🔗 Adaugă webhook</h3>
+      <h3 style="font-size:14px;font-weight:700;margin-bottom:12px"><i data-lucide="link" class="icon icon--sm"></i> Adaugă webhook</h3>
       <div style="display:flex;flex-direction:column;gap:10px">
         <input type="url" x-model="adminNewWebhook.url" placeholder="URL endpoint (https://...)"
           class="input" style="font-size:13px;min-height:40px" />
@@ -556,7 +563,7 @@
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
         <h3 style="font-size:14px;font-weight:700">Webhook-uri configurate</h3>
-        <button @click="loadWebhooks()" class="btn btn--ghost" style="font-size:12px">🔄</button>
+        <button @click="loadWebhooks()" class="btn btn--ghost" style="font-size:12px"><i data-lucide="refresh-cw" class="icon icon--xs"></i></button>
       </div>
 
       <div x-show="adminWebhooksLoading" class="skeleton" style="height:120px;border-radius:12px"></div>
@@ -579,13 +586,13 @@
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               <button @click="toggleWebhook(wh.id)" class="btn btn--ghost" style="font-size:11px;padding:4px 10px"
-                x-text="wh.active ? '⏸ Dezactivează' : '▶ Activează'"></button>
+                x-text="wh.active ? 'Dezactivează' : 'Activează'"></button>
               <button @click="testWebhook(wh.id)" :disabled="adminWebhookTesting === wh.id"
                 class="btn btn--ghost" style="font-size:11px;padding:4px 10px">
-                <span x-show="adminWebhookTesting !== wh.id">🧪 Test</span>
-                <span x-show="adminWebhookTesting === wh.id">⏳</span>
+                <span x-show="adminWebhookTesting !== wh.id"><i data-lucide="test-tube" class="icon icon--xs"></i> Test</span>
+                <span x-show="adminWebhookTesting === wh.id"><span class="spinner" style="width:14px;height:14px"></span></span>
               </button>
-              <button @click="deleteWebhook(wh.id)" class="btn btn--ghost" style="font-size:11px;padding:4px 10px;color:#ef4444">🗑 Șterge</button>
+              <button @click="deleteWebhook(wh.id)" class="btn btn--ghost" style="font-size:11px;padding:4px 10px;color:#ef4444"><i data-lucide="trash-2" class="icon icon--xs"></i> Șterge</button>
             </div>
           </div>
         </template>
@@ -595,7 +602,7 @@
     <!-- Webhook info -->
     <div class="card" style="margin-top:16px;padding:14px;background:rgba(139,92,246,.06);border:1px solid rgba(139,92,246,.15)">
       <p style="font-size:12px;color:var(--tx-muted)">
-        🔐 <strong>Securitate:</strong> Fiecare webhook primește header-ul <code>X-TrashDet-Signature</code>
+        <i data-lucide="lock" class="icon icon--xs"></i> <strong>Securitate:</strong> Fiecare webhook primește header-ul <code>X-TrashDet-Signature</code>
         cu semnătura HMAC-SHA256 a payload-ului, dacă este configurat un secret.
       </p>
     </div>

@@ -9,10 +9,10 @@ const MATERIAL_COLORS = {
 };
 
 const SEVERITY = {
-  0: { label: 'Curat',   color: '#22c55e', bg: '#dcfce7', icon: '🟢' },
-  1: { label: 'Scăzut',  color: '#eab308', bg: '#fef9c3', icon: '🟡' },
-  2: { label: 'Mediu',   color: '#f97316', bg: '#ffedd5', icon: '🟠' },
-  3: { label: 'Ridicat', color: '#ef4444', bg: '#fee2e2', icon: '🔴' },
+  0: { label: 'Curat',   color: '#22c55e', bg: '#dcfce7', icon: 'circle-check' },
+  1: { label: 'Scăzut',  color: '#eab308', bg: '#fef9c3', icon: 'circle-alert' },
+  2: { label: 'Mediu',   color: '#f97316', bg: '#ffedd5', icon: 'circle-dot' },
+  3: { label: 'Ridicat', color: '#ef4444', bg: '#fee2e2', icon: 'alert-triangle' },
 };
 
 /* ── Toast system ──────────────────────────────────────────────────────────── */

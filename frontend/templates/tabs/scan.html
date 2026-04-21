@@ -6,22 +6,22 @@
     x-transition:enter-start="opacity-0 translate-y-2"
     x-transition:enter-end="opacity-100 translate-y-0">
 
-    <h1 class="section-title">📷 Scanare</h1>
+    <h1 class="section-title"><i data-lucide="camera" class="icon icon--md"></i> Scanare</h1>
 
     <!-- ═══ Mode selector (3 cards) ═══════════════════════════════════ -->
     <div class="scan-mode-selector">
       <button class="scan-mode-card" :class="scanMode === 'foto' ? 'scan-mode-card--active' : ''" @click="scanMode = 'foto'">
-        <span class="scan-mode-card__icon">📷</span>
+        <span class="scan-mode-card__icon"><i data-lucide="camera" class="icon icon--lg"></i></span>
         <span class="scan-mode-card__label">Foto</span>
         <span class="scan-mode-card__desc">O imagine</span>
       </button>
       <button class="scan-mode-card" :class="scanMode === 'live' ? 'scan-mode-card--active' : ''" @click="scanMode = 'live'">
-        <span class="scan-mode-card__icon">🎥</span>
+        <span class="scan-mode-card__icon"><i data-lucide="video" class="icon icon--lg"></i></span>
         <span class="scan-mode-card__label">Live</span>
         <span class="scan-mode-card__desc">Cameră</span>
       </button>
       <button class="scan-mode-card" :class="scanMode === 'batch' ? 'scan-mode-card--active' : ''" @click="scanMode = 'batch'">
-        <span class="scan-mode-card__icon">📦</span>
+        <span class="scan-mode-card__icon"><i data-lucide="package" class="icon icon--lg"></i></span>
         <span class="scan-mode-card__label">Batch</span>
         <span class="scan-mode-card__desc">Mai multe</span>
       </button>
@@ -54,7 +54,7 @@
 
               <template x-if="!previewSrc">
                 <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-                  <div class="drop-zone__icon">📷</div>
+                  <div class="drop-zone__icon"><i data-lucide="camera" class="icon icon--2xl"></i></div>
                   <div class="drop-zone__text"><strong>Fă o poză</strong> sau alege din galerie</div>
                   <div class="drop-zone__sub">JPEG · PNG · WEBP</div>
                 </div>
@@ -92,14 +92,14 @@
 
           <!-- User note (optional) -->
           <div style="margin-top:12px">
-            <input type="text" x-model="userNote" placeholder="📝 Descriere opțională (ex: lângă parc, zona 3)..."
+            <input type="text" x-model="userNote" placeholder="Descriere opțională (ex: lângă parc, zona 3)..."
               class="input" style="font-size:12px;min-height:38px;width:100%" maxlength="500" :disabled="loading" />
           </div>
 
           <!-- Progress bar -->
           <div x-show="loading" x-cloak style="margin-top:12px">
             <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
-              <span x-text="uploadProgress < 88 ? '🔍 Se analizează…' : '🤖 AI procesează…'"></span>
+              <span x-text="uploadProgress < 88 ? 'Se analizează…' : 'AI procesează…'"></span>
               <span style="font-weight:700;color:var(--eco-green-dark)" x-text="uploadProgress + '%'"></span>
             </div>
             <div class="progress"><div class="progress__bar" :style="`width:${uploadProgress}%`"></div></div>
@@ -109,7 +109,7 @@
           <button @click="runDetection()" :disabled="!selectedFile || loading"
             class="btn btn--scan" style="margin-top:16px">
             <template x-if="loading"><div class="spinner"></div></template>
-            <span x-text="loading ? 'Se procesează…' : '🔍 Analizează zona'"></span>
+            <span x-text="loading ? 'Se procesează…' : 'Analizează zona'"></span>
           </button>
         </div>
 
@@ -135,7 +135,7 @@
             <div class="fade-up">
               <!-- Severity banner -->
               <div x-show="resultSeverity" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;border-radius:10px;background:var(--bg-raised)">
-                <span style="font-size:26px" x-text="resultSeverity?.icon"></span>
+                <i :data-lucide="resultSeverity?.icon" class="icon icon--xl" :style="'color:' + resultSeverity?.color"></i>
                 <div>
                   <div style="font-weight:700;font-size:15px" x-text="resultSeverity?.label"></div>
                   <div style="font-size:12px;color:var(--tx-muted)"
@@ -148,7 +148,7 @@
               <!-- Location banner -->
               <template x-if="result.address">
                 <div style="margin-bottom:14px;padding:8px 12px;border-radius:8px;background:var(--bg-surface);font-size:12px;color:var(--tx-secondary);display:flex;align-items:center;gap:6px;border:1px solid var(--bg-border)">
-                  <span>📍</span>
+                  <i data-lucide="map-pin" class="icon icon--sm"></i>
                   <span x-text="result.address" style="line-height:1.3"></span>
                 </div>
               </template>
@@ -165,7 +165,7 @@
               <div class="result-img-wrap" @click="openLightbox(showAnnotated ? result.annotated_url : originalImageUrl)">
                 <img :src="showAnnotated ? result.annotated_url : originalImageUrl" alt="Rezultat detecție" />
                 <div class="result-img-wrap__overlay">
-                  <span class="result-img-wrap__hint">🔍 Click pentru mărire</span>
+                  <span class="result-img-wrap__hint"><i data-lucide="zoom-in" class="icon icon--sm"></i> Click pentru mărire</span>
                 </div>
               </div>
 
@@ -183,7 +183,7 @@
 
               <!-- Ajustări avansate (collapsed) -->
               <details style="margin-top:14px">
-                <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--tx-secondary);padding:8px 0">⚙️ Ajustări avansate</summary>
+                <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--tx-secondary);padding:8px 0"><i data-lucide="settings" class="icon icon--sm"></i> Ajustări avansate</summary>
                 <div style="padding:12px;background:var(--bg-raised);border-radius:10px;margin-top:6px">
                   <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
                     <span>Ajustează pragul</span>
@@ -224,11 +224,11 @@
           <!-- Overlay Status + Flip -->
           <div style="position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center">
             <span class="badge" :class="wsConnected ? 'badge--green' : 'badge--gray'"
-                  x-text="wsConnected ? '🔴 Live' : (webcamActive ? 'Se conectează...' : 'Inactiv')"></span>
+                  x-text="wsConnected ? 'Live' : (webcamActive ? 'Se conectează...' : 'Inactiv')"></span>
             <div style="display:flex;gap:8px;align-items:center">
               <button x-show="webcamActive" @click="flipCamera()"
                 style="background:rgba(0,0,0,0.55);border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)"
-                title="Întoarce camera">🔄</button>
+                title="Întoarce camera"><i data-lucide="refresh-cw" class="icon icon--md" style="color:#fff"></i></button>
               <span x-show="wsConnected" class="badge badge--blue" x-text="liveFps.toFixed(1) + ' FPS'"></span>
             </div>
           </div>
@@ -246,24 +246,24 @@
               @touchstart="$el.style.transform='scale(0.9)'" @touchend="$el.style.transform='scale(1)'"
               title="Salvează cadru">
               <template x-if="snapshotLoading"><div class="spinner" style="width:24px;height:24px;border-color:white;border-top-color:transparent"></div></template>
-              <span x-show="!snapshotLoading">📸</span>
+              <span x-show="!snapshotLoading"><i data-lucide="camera" class="icon icon--lg" style="color:#fff"></i></span>
             </button>
           </div>
 
           <!-- CTA when stopped -->
           <div x-show="!webcamActive" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:rgba(255,255,255,0.7)">
-            <div style="font-size:40px;margin-bottom:12px">🎥</div>
+            <div style="margin-bottom:12px"><i data-lucide="video" class="icon icon--2xl"></i></div>
             <div style="font-size:14px;font-weight:600">Apasă pe "Pornește"</div>
             <div style="font-size:11px;opacity:.7;margin-top:4px;text-align:center;padding:0 24px">Camera se va activa și AI-ul va scana live.</div>
           </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <button @click="startWebcam()" x-show="!webcamActive" class="btn btn--scan" style="height:48px;grid-column:1/-1">▶ Pornește Camera</button>
-          <button @click="stopWebcam()" x-show="webcamActive" class="btn btn--danger" style="height:48px">⏹ Oprește</button>
+          <button @click="startWebcam()" x-show="!webcamActive" class="btn btn--scan" style="height:48px;grid-column:1/-1"><i data-lucide="play" class="icon icon--sm"></i> Pornește Camera</button>
+          <button @click="stopWebcam()" x-show="webcamActive" class="btn btn--danger" style="height:48px"><i data-lucide="square" class="icon icon--sm"></i> Oprește</button>
           <button @click="saveSnapshot()" x-show="webcamActive" :disabled="snapshotLoading" class="btn btn--scan" style="height:48px">
             <template x-if="snapshotLoading"><div class="spinner spinner--dark" style="width:16px;height:16px"></div></template>
-            <span x-show="!snapshotLoading">📸 Salvează</span>
+            <span x-show="!snapshotLoading"><i data-lucide="camera" class="icon icon--sm"></i> Salvează</span>
           </button>
         </div>
 
@@ -299,7 +299,7 @@
         <!-- Batch file input -->
         <label class="drop-zone" style="display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer"
           @click.prevent="document.getElementById('batchFileInput').click()">
-          <div class="drop-zone__icon">📦</div>
+          <div class="drop-zone__icon"><i data-lucide="package" class="icon icon--2xl"></i></div>
           <div class="drop-zone__text"><strong>Alege mai multe imagini</strong></div>
           <div class="drop-zone__sub">Poți selecta 2–20 imagini simultan</div>
         </label>
@@ -308,7 +308,7 @@
 
         <!-- Selected files count -->
         <div x-show="batchFiles.length > 0" style="margin-top:12px;font-size:13px;font-weight:600;color:var(--tx-secondary)">
-          📎 <span x-text="batchFiles.length"></span> imagini selectate
+          <i data-lucide="paperclip" class="icon icon--xs"></i> <span x-text="batchFiles.length"></span> imagini selectate
         </div>
 
         <!-- Sensibilitate AI slider -->
@@ -323,7 +323,7 @@
         <!-- Batch progress -->
         <div x-show="batchLoading" x-cloak style="margin-top:12px">
           <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
-            <span>🤖 Se procesează batch-ul…</span>
+            <span>Se procesează batch-ul…</span>
           </div>
           <div class="progress"><div class="progress__bar" style="width:100%;animation:pulse 1.5s infinite"></div></div>
         </div>
@@ -332,7 +332,7 @@
         <button @click="runBatch()" :disabled="!batchFiles.length || batchLoading"
           class="btn btn--scan" style="margin-top:16px">
           <template x-if="batchLoading"><div class="spinner"></div></template>
-          <span x-text="batchLoading ? 'Se procesează…' : '📦 Analizează ' + batchFiles.length + ' imagini'"></span>
+          <span x-text="batchLoading ? 'Se procesează…' : 'Analizează ' + batchFiles.length + ' imagini'"></span>
         </button>
       </div>
 
@@ -344,7 +344,7 @@
         <template x-if="batchResults">
           <div>
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;border-radius:10px;background:var(--bg-raised)">
-              <span style="font-size:26px">📦</span>
+              <span class="icon-box icon-box--md icon-box--green"><i data-lucide="package" class="icon icon--md"></i></span>
               <div>
                 <div style="font-weight:700;font-size:15px">Batch finalizat</div>
                 <div style="font-size:12px;color:var(--tx-muted)"
