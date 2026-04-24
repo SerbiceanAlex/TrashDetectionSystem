@@ -323,6 +323,63 @@ class ReportPhoto(Base):
     user = relationship("User", foreign_keys=[user_id])
 
 
+class LitteringEvent(Base):
+    """
+    Records a detected illegal-dumping event.
+
+    Populated by the /ws/video/monitor WebSocket endpoint when the
+    LitteringDetector state machine fires an event (new trash object appears
+    in the zone recently vacated by a tracked person).
+
+    Lifecycle (status field):
+        pending   → event detected, awaiting admin review
+        reviewed  → admin has opened the record
+        forwarded → evidence packet emailed to authority contact
+        dismissed → admin marked as false positive
+    """
+
+    __tablename__ = "littering_events"
+
+    id              = Column(Integer, primary_key=True, index=True)
+
+    # ── When / where ────────────────────────────────────────────────────────
+    detected_at     = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
+    latitude        = Column(Float, nullable=True)
+    longitude       = Column(Float, nullable=True)
+    address         = Column(Text, nullable=True)
+
+    # ── What was detected ────────────────────────────────────────────────────
+    material        = Column(String(32), nullable=False, default="unknown")
+    det_score       = Column(Float, default=0.0)   # trash detector confidence
+    person_present  = Column(Integer, default=1)   # 1 = yes, 0 = no
+    person_count    = Column(Integer, default=1)
+
+    # ── Privacy ──────────────────────────────────────────────────────────────
+    face_blurred    = Column(Integer, default=1)   # always 1 — blur applied before storage
+
+    # ── Evidence files ───────────────────────────────────────────────────────
+    clip_path       = Column(Text, nullable=True)       # relative path to .mp4 clip
+    thumbnail_path  = Column(Text, nullable=True)       # relative path to thumbnail .jpg
+    image_hash      = Column(String(64), nullable=True) # SHA-256 of thumbnail (chain of custody)
+
+    # ── Distance-based evidence (v2 state machine) ───────────────────────────
+    incident_uid            = Column(String(36), nullable=True, index=True)  # UUID chain-of-custody
+    owner_person_id         = Column(Integer, nullable=True)   # ByteTrack ID al persoanei
+    distance_at_abandonment = Column(Float, nullable=True)     # distanța estimată în metri la momentul ABANDONED
+    detection_method        = Column(String(32), default="zone")  # "zone" | "distance"
+
+    # ── Workflow ─────────────────────────────────────────────────────────────
+    status          = Column(String(16), default="pending", index=True)
+    # "pending" | "reviewed" | "forwarded" | "dismissed"
+    reviewed_by     = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reviewed_at     = Column(DateTime, nullable=True)
+    forwarded_at    = Column(DateTime, nullable=True)
+    notes           = Column(Text, nullable=True)
+
+    # ── Relationships ────────────────────────────────────────────────────────
+    reviewer = relationship("User", foreign_keys=[reviewed_by])
+
+
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -526,6 +583,95 @@ async def update_video_progress(db: AsyncSession, session_id: int, frames_proces
 async def get_video_session_by_id(db: AsyncSession, session_id: int):
     result = await db.execute(select(VideoSession).where(VideoSession.id == session_id))
     return result.scalar_one_or_none()
+
+
+# ── LitteringEvent CRUD ───────────────────────────────────────────────────────
+
+async def create_littering_event(
+    db: AsyncSession,
+    *,
+    material: str,
+    det_score: float,
+    person_present: bool = True,
+    person_count: int = 1,
+    latitude: float | None = None,
+    longitude: float | None = None,
+    address: str | None = None,
+    clip_path: str | None = None,
+    thumbnail_path: str | None = None,
+    image_hash: str | None = None,
+    incident_uid: str | None = None,
+    owner_person_id: int | None = None,
+    distance_at_abandonment: float | None = None,
+    detection_method: str = "zone",
+) -> "LitteringEvent":
+    evt = LitteringEvent(
+        material=material,
+        det_score=round(det_score, 4),
+        person_present=1 if person_present else 0,
+        person_count=person_count,
+        latitude=latitude,
+        longitude=longitude,
+        address=address,
+        clip_path=clip_path,
+        thumbnail_path=thumbnail_path,
+        image_hash=image_hash,
+        face_blurred=1,
+        status="pending",
+        incident_uid=incident_uid,
+        owner_person_id=owner_person_id,
+        distance_at_abandonment=round(distance_at_abandonment, 3) if distance_at_abandonment is not None else None,
+        detection_method=detection_method,
+    )
+    db.add(evt)
+    await db.commit()
+    await db.refresh(evt)
+    return evt
+
+
+async def list_littering_events(
+    db: AsyncSession,
+    skip: int = 0,
+    limit: int = 20,
+    status: str | None = None,
+    material: str | None = None,
+) -> tuple[list["LitteringEvent"], int]:
+    q = select(LitteringEvent).order_by(LitteringEvent.detected_at.desc())
+    if status:
+        q = q.where(LitteringEvent.status == status)
+    if material:
+        q = q.where(LitteringEvent.material == material)
+    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
+    items = (await db.execute(q.offset(skip).limit(limit))).scalars().all()
+    return list(items), total
+
+
+async def get_littering_event_by_id(db: AsyncSession, event_id: int) -> "LitteringEvent | None":
+    result = await db.execute(select(LitteringEvent).where(LitteringEvent.id == event_id))
+    return result.scalar_one_or_none()
+
+
+async def update_littering_event_status(
+    db: AsyncSession,
+    event_id: int,
+    status: str,
+    reviewed_by: int | None = None,
+    notes: str | None = None,
+) -> "LitteringEvent | None":
+    evt = await get_littering_event_by_id(db, event_id)
+    if evt is None:
+        return None
+    evt.status = status
+    if reviewed_by is not None:
+        evt.reviewed_by = reviewed_by
+        evt.reviewed_at = datetime.now(timezone.utc)
+    if status == "forwarded":
+        evt.forwarded_at = datetime.now(timezone.utc)
+    if notes is not None:
+        evt.notes = notes
+    await db.commit()
+    await db.refresh(evt)
+    return evt
 
 
 async def get_video_sessions_paginated(db: AsyncSession, skip: int, limit: int):

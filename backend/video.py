@@ -250,3 +250,435 @@ async def process_uploaded_video(
                 )
         except Exception:
             traceback.print_exc()
+
+
+# ── WebSocket: littering monitor mode ──────────────────────────────────────
+
+# Directory where event clips and thumbnails are stored
+LITTERING_DIR = APP_DIR / "littering"
+LITTERING_DIR.mkdir(exist_ok=True)
+
+
+def _save_clip(frames: list, fps: float, event_id: int) -> str | None:
+    """
+    Encode a list of BGR numpy frames as an mp4 clip.
+    Returns the relative path (relative to APP_DIR) or None on failure.
+    """
+    if not frames:
+        return None
+    try:
+        h, w = frames[0].shape[:2]
+        out_path = LITTERING_DIR / f"event_{event_id:06d}.mp4"
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        writer = cv2.VideoWriter(str(out_path), fourcc, fps, (w, h))
+        for f in frames:
+            fh, fw = f.shape[:2]
+            if (fw, fh) != (w, h):
+                f = cv2.resize(f, (w, h))
+            writer.write(f)
+        writer.release()
+        return out_path.name   # just the filename, e.g. "event_000001.mp4"
+    except Exception:
+        logger.exception("Failed to save littering event clip")
+        return None
+
+
+def _save_thumbnail(thumbnail_frame, event_id: int) -> str | None:
+    """Save the annotated thumbnail jpg. Returns filename or None."""
+    if thumbnail_frame is None:
+        return None
+    try:
+        out_path = LITTERING_DIR / f"event_{event_id:06d}_thumb.jpg"
+        cv2.imwrite(str(out_path), thumbnail_frame, [cv2.IMWRITE_JPEG_QUALITY, 88])
+        return out_path.name   # just the filename, e.g. "event_000001_thumb.jpg"
+    except Exception:
+        logger.exception("Failed to save littering event thumbnail")
+        return None
+
+
+def _sha256_frame(frame) -> str:
+    """Return SHA-256 hex of a numpy frame (chain-of-custody hash)."""
+    import hashlib
+    _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+    return hashlib.sha256(buf.tobytes()).hexdigest()
+
+
+def _iou_overlap(tb, pb) -> float:
+    """Fraction of trash box area that overlaps with person box (0..1)."""
+    ix1 = max(tb[0], pb[0]); iy1 = max(tb[1], pb[1])
+    ix2 = min(tb[2], pb[2]); iy2 = min(tb[3], pb[3])
+    if ix2 <= ix1 or iy2 <= iy1:
+        return 0.0
+    inter = (ix2 - ix1) * (iy2 - iy1)
+    trash_area = max((tb[2] - tb[0]) * (tb[3] - tb[1]), 1)
+    return inter / trash_area
+
+
+_OVERLAP_THRESH = 0.35  # overlap over this may be body false-positive (adaptive)
+_MIN_TRASH_AREA_FRAC = 0.00015  # ignore tiny noise boxes
+_MAX_TRASH_AREA_FRAC = 0.18     # ignore huge background regions (e.g. bed/floor)
+_TRASH_TRACK_IMGSZ = 416         # better small-object recall vs 320 with moderate latency
+_PERSON_FILTER_SHRINK = 0.72     # shrink person boxes for overlap filtering only
+_HANDHELD_MAX_PERSON_RATIO = 0.12  # keep small objects overlapping a person (in hand)
+_TRASH_STABLE_SEEN = 2             # require 2 consecutive detections for stability
+_TRASH_GRACE_MISSES = 3            # keep last box for a few missed frames (visual stability)
+
+
+def _valid_trash_box(box: tuple[int, int, int, int], frame_w: int, frame_h: int) -> bool:
+    """
+    Basic geometry sanity filter for trash detections.
+
+    Keeps small/medium object-sized boxes and rejects detections that are too
+    tiny (noise) or too large for plausible litter (background furniture/bed).
+    """
+    x1, y1, x2, y2 = box
+    bw = max(x2 - x1, 0)
+    bh = max(y2 - y1, 0)
+    if bw <= 0 or bh <= 0 or frame_w <= 0 or frame_h <= 0:
+        return False
+
+    frame_area = max(frame_w * frame_h, 1)
+    frac = (bw * bh) / frame_area
+    if frac < _MIN_TRASH_AREA_FRAC:
+        return False
+    if frac > _MAX_TRASH_AREA_FRAC:
+        return False
+
+    return True
+
+
+def _box_area(box: tuple[int, int, int, int]) -> int:
+    x1, y1, x2, y2 = box
+    return max(x2 - x1, 0) * max(y2 - y1, 0)
+
+
+def _should_suppress_overlapped_trash(
+    trash_box: tuple[int, int, int, int],
+    person_boxes: list[tuple[int, int, int, int]],
+) -> bool:
+    """
+    Suppress likely body false-positives while keeping handheld litter visible.
+
+    If trash heavily overlaps a person but is still small relative to that person,
+    keep it (typical bag/wrapper in hand). Suppress only medium/large overlaps.
+    """
+    if not person_boxes:
+        return False
+
+    best_overlap = 0.0
+    best_person_box = None
+    for pb in person_boxes:
+        ov = _iou_overlap(trash_box, pb)
+        if ov > best_overlap:
+            best_overlap = ov
+            best_person_box = pb
+
+    if best_overlap <= _OVERLAP_THRESH or best_person_box is None:
+        return False
+
+    person_area = max(_box_area(best_person_box), 1)
+    ratio_vs_person = _box_area(trash_box) / person_area
+
+    # Keep small overlapping objects (likely held in hand).
+    if ratio_vs_person <= _HANDHELD_MAX_PERSON_RATIO:
+        return False
+
+    return True
+
+
+def _shrink_box(box: tuple[int, int, int, int], factor: float) -> tuple[int, int, int, int]:
+    """Return a box scaled around center; used to reduce over-suppression near people."""
+    x1, y1, x2, y2 = box
+    if factor <= 0 or factor >= 1:
+        return box
+    cx = (x1 + x2) / 2.0
+    cy = (y1 + y2) / 2.0
+    hw = (x2 - x1) * factor / 2.0
+    hh = (y2 - y1) * factor / 2.0
+    nx1 = int(round(cx - hw))
+    ny1 = int(round(cy - hh))
+    nx2 = int(round(cx + hw))
+    ny2 = int(round(cy + hh))
+    if nx2 <= nx1 or ny2 <= ny1:
+        return box
+    return (nx1, ny1, nx2, ny2)
+
+
+async def handle_monitor_ws(
+    websocket: WebSocket,
+    det_conf: float,
+    person_conf: float,
+    latitude: float | None,
+    longitude: float | None,
+    session: AsyncSession,
+):
+    """
+    WebSocket endpoint for littering detection (monitor mode).
+
+    Protocol:
+      Client → server: JPEG frame bytes (same as live mode)
+      Server → client: JSON payload, one of:
+        {"type": "frame", "state": ..., "persons": N, "trash": N, "fps": ..., "ms": ...}
+        {"type": "alert", "event_id": ..., "material": ..., "det_score": ...,
+         "thumbnail_url": ..., "detected_at": ...}
+
+    Each WebSocket session gets its own YOLO tracker instance (fresh, no
+    state bleed from concurrent sessions).
+    """
+    from ultralytics import YOLO
+    from backend.littering_detector import LitteringDetector
+    from backend.config import settings
+    from backend import geo
+    from datetime import timezone
+    import torch
+
+    await websocket.accept()
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Fresh tracker instance — avoids ByteTrack state bleed between sessions
+    tracker = YOLO(str(settings.detector_path))
+    tracker.to(device)
+
+    detector = LitteringDetector(fps=25.0, monitor_seconds=10.0, pre_event_seconds=5.0)
+
+    # Temporal smoothing counters — require N consecutive frames to confirm/clear
+    _PERSON_CONFIRM = 2   # frames needed to count person as "present"
+    _PERSON_CLEAR   = 8   # frames needed to count person as "gone" (~0.27s @30fps)
+    _person_streak  = 0   # >0 = seen consecutively, <0 = absent consecutively
+    _person_stable  = False  # last stable person state
+    _trash_tracks: dict[int, dict] = {}
+
+    total_frames = 0
+    total_ms = 0.0
+    t_start = time.time()
+
+    # Resolve address from GPS once (if provided)
+    resolved_address: str | None = None
+    if latitude is not None and longitude is not None:
+        try:
+            resolved_address = await geo.reverse_geocode(latitude, longitude)
+        except Exception:
+            pass
+
+    try:
+        while True:
+            data = await websocket.receive_bytes()
+
+            arr = np.frombuffer(data, dtype=np.uint8)
+            frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            if frame is None:
+                continue
+
+            t0 = time.perf_counter()
+
+            # Stage 1: trash tracking (per-session fresh tracker)
+            results = tracker.track(
+                frame, conf=det_conf, imgsz=_TRASH_TRACK_IMGSZ, verbose=False,
+                persist=True, tracker="bytetrack.yaml"
+            )
+            boxes = results[0].boxes
+            trash_dets: list[dict] = []
+            if boxes is not None and boxes.xyxy is not None:
+                xyxy_list = boxes.xyxy.tolist()
+                conf_list = boxes.conf.tolist() if boxes.conf is not None else [0.0] * len(xyxy_list)
+                id_list = (
+                    [int(x) for x in boxes.id.tolist()]
+                    if (hasattr(boxes, "id") and boxes.id is not None)
+                    else list(range(len(xyxy_list)))
+                )
+                h_f, w_f = frame.shape[:2]
+                for xyxy, det_score, track_id in zip(xyxy_list, conf_list, id_list):
+                    x1 = max(0, int(xyxy[0])); y1 = max(0, int(xyxy[1]))
+                    x2 = min(w_f, int(xyxy[2])); y2 = min(h_f, int(xyxy[3]))
+                    if _valid_trash_box((x1, y1, x2, y2), w_f, h_f):
+                        trash_dets.append({
+                            "track_id": track_id,
+                            "box": (x1, y1, x2, y2),
+                            "det_score": float(det_score),
+                            "material_name": "unknown",  # classify only on event
+                        })
+
+            # Stage 2: person detection (slightly stricter + smaller imgsz for speed)
+            person_boxes = infer.detect_persons(
+                frame,
+                conf=max(person_conf, 0.28),
+                imgsz=640,
+            )
+
+            # Temporal smoothing: avoid ghost persons / single-frame flicker
+            if len(person_boxes) > 0:
+                _person_streak = min(_person_streak + 1, _PERSON_CONFIRM)
+            else:
+                _person_streak = max(_person_streak - 1, -_PERSON_CLEAR)
+
+            if _person_streak >= _PERSON_CONFIRM:
+                _person_stable = True
+            elif _person_streak <= -_PERSON_CLEAR:
+                _person_stable = False
+            # else: keep previous state (hysteresis)
+
+            smoothed_person_boxes = person_boxes if _person_stable else []
+
+            # ── Filter false positives: remove trash boxes that overlap
+            #    significantly with a person box (body/face detected as trash)
+            if person_boxes:  # use raw boxes for filtering (before smoothing)
+                person_filter_boxes = [
+                    _shrink_box(pb, _PERSON_FILTER_SHRINK) for pb in person_boxes
+                ]
+                trash_dets = [
+                    d for d in trash_dets
+                    if not _should_suppress_overlapped_trash(d["box"], person_filter_boxes)
+                ]
+
+            # Track-level stabilizer: avoid flicker when object is briefly missed.
+            current_ids = set()
+            for d in trash_dets:
+                tid = d["track_id"]
+                current_ids.add(tid)
+                st = _trash_tracks.get(tid)
+                if st is None:
+                    _trash_tracks[tid] = {"seen": 1, "miss": 0, "det": d}
+                else:
+                    st["seen"] = min(st["seen"] + 1, 9999)
+                    st["miss"] = 0
+                    st["det"] = d
+
+            for tid in list(_trash_tracks.keys()):
+                if tid in current_ids:
+                    continue
+                st = _trash_tracks[tid]
+                st["miss"] += 1
+                if st["miss"] > _TRASH_GRACE_MISSES:
+                    del _trash_tracks[tid]
+
+            detector_trash_dets = [
+                st["det"]
+                for st in _trash_tracks.values()
+                if st["seen"] >= _TRASH_STABLE_SEEN and st["miss"] == 0
+            ]
+            display_trash_dets = [
+                st["det"]
+                for st in _trash_tracks.values()
+                if st["seen"] >= _TRASH_STABLE_SEEN and st["miss"] <= _TRASH_GRACE_MISSES
+            ]
+
+            elapsed_ms = (time.perf_counter() - t0) * 1000.0
+            total_frames += 1
+            total_ms += elapsed_ms
+            avg_fps = total_frames / max(time.time() - t_start, 0.001)
+
+            # Stage 3: state machine update — use smoothed boxes to avoid flicker
+            event = detector.update(frame, detector_trash_dets, smoothed_person_boxes)
+
+            # ── Event detected ────────────────────────────────────────────
+            if event is not None:
+                # Classify the material of the trigger object via full pipeline
+                try:
+                    tx1, ty1, tx2, ty2 = event.trash_box
+                    crop = frame[ty1:ty2, tx1:tx2]
+                    if crop.size > 0:
+                        from src.detect_two_stage import classify_crop
+                        from backend.inference import _classifier, _cls_names
+                        mat_name, mat_score = classify_crop(
+                            _classifier, crop, 224, _cls_names
+                        )
+                        event.material   = mat_name
+                        event.det_score  = mat_score
+                except Exception:
+                    pass  # keep "unknown"
+
+                # Apply face blur before storing evidence
+                blurred_frame = infer.blur_face_regions(frame, person_boxes)
+
+                # Hash of blurred frame for chain of custody
+                img_hash = _sha256_frame(blurred_frame)
+
+                # Save evidence to DB first (need ID for filenames)
+                db_event = await db.create_littering_event(
+                    session,
+                    material=event.material,
+                    det_score=event.det_score,
+                    person_present=event.person_present,
+                    person_count=max(len(smoothed_person_boxes), 1),
+                    latitude=latitude,
+                    longitude=longitude,
+                    address=resolved_address,
+                    image_hash=img_hash,
+                    incident_uid=event.incident_uid,
+                    owner_person_id=event.owner_person_id,
+                    distance_at_abandonment=event.distance_at_abandonment,
+                    detection_method=event.detection_method,
+                )
+                event_id = db_event.id
+
+                # Save clip (pre+post frames from state machine buffer)
+                clip_rel = None
+                if event.clip_frames:
+                    clip_rel = await asyncio.to_thread(
+                        _save_clip, event.clip_frames, detector.fps, event_id
+                    )
+
+                # Save thumbnail
+                thumb_rel = None
+                if event.thumbnail is not None:
+                    # Overlay blur on thumbnail too
+                    thumb_blurred = infer.blur_face_regions(event.thumbnail, [])
+                    thumb_rel = await asyncio.to_thread(
+                        _save_thumbnail, thumb_blurred, event_id
+                    )
+
+                # Update DB with file paths
+                if clip_rel or thumb_rel:
+                    await db.update_littering_event_status(
+                        session, event_id, status="pending"
+                    )
+                    evt_obj = await db.get_littering_event_by_id(session, event_id)
+                    if evt_obj:
+                        if clip_rel:
+                            evt_obj.clip_path = clip_rel
+                        if thumb_rel:
+                            evt_obj.thumbnail_path = thumb_rel
+                        await session.commit()
+
+                logger.info(
+                    "Littering event #%d detected — material=%s score=%.2f",
+                    event_id, event.material, event.det_score
+                )
+
+                # Send alert to browser
+                await websocket.send_text(json.dumps({
+                    "type": "alert",
+                    "event_id": event_id,
+                    "material": event.material,
+                    "det_score": round(event.det_score, 3),
+                    "thumbnail_url": f"/littering/event_{event_id:06d}_thumb.jpg" if thumb_rel else None,
+                    "detected_at": db_event.detected_at.isoformat(),
+                    "address": resolved_address,
+                }))
+
+            else:
+                # ── Normal status frame ───────────────────────────────────
+                await websocket.send_text(json.dumps({
+                    "type": "frame",
+                    "state": detector.current_state,
+                    "monitor_progress": round(detector.monitoring_progress, 2),
+                    "persons": len(smoothed_person_boxes),
+                    "trash": len(display_trash_dets),
+                    "fps": round(avg_fps, 1),
+                    "ms": round(elapsed_ms, 1),
+                    "person_boxes": [list(b) for b in smoothed_person_boxes],
+                    "trash_boxes": [
+                        {"box": list(d["box"]), "track_id": d["track_id"]}
+                        for d in display_trash_dets
+                    ],
+                    "frame_w": frame.shape[1],
+                    "frame_h": frame.shape[0],
+                }))
+
+    except WebSocketDisconnect:
+        logger.info("Monitor WebSocket disconnected")
+    except Exception:
+        logger.exception("Unexpected error in monitor WebSocket")
+    finally:
+        detector.reset()

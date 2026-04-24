@@ -531,3 +531,48 @@ class StorageStats(BaseModel):
     videos_count: int
     videos_size_mb: float
     total_size_mb: float
+
+
+# ── Littering Event schemas ───────────────────────────────────────────────────
+
+class LitteringEventOut(BaseModel):
+    """Full representation of a detected littering event."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    detected_at: datetime
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address: Optional[str] = None
+    material: str
+    det_score: float
+    person_present: int = 1
+    person_count: int = 1
+    face_blurred: int = 1
+    clip_path: Optional[str] = None
+    thumbnail_path: Optional[str] = None
+    image_hash: Optional[str] = None
+    status: str = "pending"
+    reviewed_by: Optional[int] = None
+    reviewed_at: Optional[datetime] = None
+    forwarded_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    # Evidence fields v2
+    incident_uid: Optional[str] = None
+    owner_person_id: Optional[int] = None
+    distance_at_abandonment: Optional[float] = None
+    detection_method: str = "zone"
+
+
+class LitteringEventsPage(BaseModel):
+    total: int
+    skip: int
+    limit: int
+    items: list[LitteringEventOut]
+
+
+class LitteringEventStatusUpdate(BaseModel):
+    """Request body for PATCH /api/littering/events/{id}/status"""
+    status: str          # "reviewed" | "forwarded" | "dismissed"
+    notes: Optional[str] = None
+

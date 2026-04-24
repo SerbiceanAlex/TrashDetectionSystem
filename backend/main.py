@@ -81,6 +81,11 @@ async def _migrate_schema():
         "ALTER TABLE users ADD COLUMN authority_area_radius_km REAL DEFAULT 10.0",
         # DetectionRecord — impact metrics
         "ALTER TABLE detection_records ADD COLUMN estimated_weight_kg REAL DEFAULT 0.0",
+        # LitteringEvent — distance-based evidence fields (v2 state machine)
+        "ALTER TABLE littering_events ADD COLUMN incident_uid VARCHAR(36)",
+        "ALTER TABLE littering_events ADD COLUMN owner_person_id INTEGER",
+        "ALTER TABLE littering_events ADD COLUMN distance_at_abandonment REAL",
+        "ALTER TABLE littering_events ADD COLUMN detection_method VARCHAR(32) DEFAULT 'zone'",
     ]
     async with db.engine.begin() as conn:
         for stmt in alter_statements:
@@ -162,6 +167,11 @@ app.mount("/annotated", StaticFiles(directory=str(ANNOTATED_DIR)), name="annotat
 
 # Serve annotated videos at /videos/<filename>
 app.mount("/videos", StaticFiles(directory=str(VIDEOS_DIR)), name="videos")
+
+# Serve littering event clips and thumbnails
+LITTERING_DIR = APP_DIR / "littering"
+LITTERING_DIR.mkdir(exist_ok=True)
+app.mount("/littering", StaticFiles(directory=str(LITTERING_DIR)), name="littering")
 
 # Include Routers
 app.include_router(auth_router)
@@ -862,6 +872,138 @@ async def ws_video_live(
     returns annotated frames + stats JSON."""
     async with db.AsyncSessionLocal() as session:
         await vid.handle_live_ws(websocket, det_conf, session)
+
+
+@app.websocket("/ws/video/monitor")
+async def ws_video_monitor(
+    websocket: WebSocket,
+    det_conf: float = Query(default=0.40, ge=0.05, le=0.95),
+    person_conf: float = Query(default=0.40, ge=0.05, le=0.95),
+    lat: Optional[float] = Query(default=None),
+    lng: Optional[float] = Query(default=None),
+):
+    """
+    WebSocket for littering-event detection (monitor mode).
+    Browser sends JPEG frames; server runs trash tracker + person detector,
+    fires alert JSON when a littering event is detected.
+    """
+    async with db.AsyncSessionLocal() as session:
+        await vid.handle_monitor_ws(
+            websocket, det_conf, person_conf, lat, lng, session
+        )
+
+
+# ── Littering Events REST ─────────────────────────────────────────────────────
+
+@app.get(
+    "/api/littering/events",
+    response_model=schemas.LitteringEventsPage,
+    summary="[Admin] List littering events",
+)
+async def list_littering_events(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    status: Optional[str] = Query(default=None, description="Filter by status: pending/reviewed/forwarded/dismissed"),
+    material: Optional[str] = Query(default=None),
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+    items, total = await db.list_littering_events(session, skip=skip, limit=limit, status=status, material=material)
+    return schemas.LitteringEventsPage(total=total, skip=skip, limit=limit, items=items)
+
+
+@app.get(
+    "/api/littering/events/{event_id}",
+    response_model=schemas.LitteringEventOut,
+    summary="[Admin] Get littering event by ID",
+)
+async def get_littering_event(
+    event_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+    evt = await db.get_littering_event_by_id(session, event_id)
+    if evt is None:
+        raise HTTPException(status_code=404, detail="Eveniment negăsit.")
+    return evt
+
+
+@app.patch(
+    "/api/littering/events/{event_id}/status",
+    response_model=schemas.LitteringEventOut,
+    summary="[Admin] Update littering event status",
+)
+async def update_littering_event_status(
+    event_id: int,
+    body: schemas.LitteringEventStatusUpdate,
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+    allowed_statuses = {"reviewed", "forwarded", "dismissed"}
+    if body.status not in allowed_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Status invalid. Valori permise: {', '.join(sorted(allowed_statuses))}"
+        )
+    evt = await db.update_littering_event_status(
+        session, event_id,
+        status=body.status,
+        reviewed_by=current_user.id,
+        notes=body.notes,
+    )
+    if evt is None:
+        raise HTTPException(status_code=404, detail="Eveniment negăsit.")
+    return evt
+
+
+@app.get(
+    "/api/littering/events/{event_id}/clip",
+    summary="[Admin] Download clip for a littering event",
+)
+async def download_littering_clip(
+    event_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+    evt = await db.get_littering_event_by_id(session, event_id)
+    if evt is None or not evt.clip_path:
+        raise HTTPException(status_code=404, detail="Clip indisponibil.")
+    full_path = LITTERING_DIR / evt.clip_path
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="Fișier clip negăsit pe disk.")
+    return FileResponse(
+        str(full_path),
+        media_type="video/mp4",
+        filename=f"littering_event_{event_id}.mp4",
+    )
+
+
+@app.get(
+    "/api/littering/events/{event_id}/thumbnail",
+    summary="[Admin] Get thumbnail for a littering event",
+)
+async def get_littering_thumbnail(
+    event_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+    evt = await db.get_littering_event_by_id(session, event_id)
+    if evt is None or not evt.thumbnail_path:
+        raise HTTPException(status_code=404, detail="Thumbnail indisponibil.")
+    full_path = LITTERING_DIR / evt.thumbnail_path
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="Fișier thumbnail negăsit pe disk.")
+    return FileResponse(str(full_path), media_type="image/jpeg")
 
 
 @app.post("/api/video/upload", response_model=schemas.VideoUploadResponse,
