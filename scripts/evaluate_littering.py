@@ -219,12 +219,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--annotations",
-        default=str(REPO_ROOT / "datasets/littering_eval/annotations.json"),
-        help="Cale către annotations.json",
+        default=str(REPO_ROOT / "scripts/littering_annotations.json"),
+        help="Cale catre annotations.json",
     )
     parser.add_argument(
         "--out-csv",
-        default=str(REPO_ROOT / "datasets/littering_eval/baseline_results.csv"),
+        default=str(REPO_ROOT / "results/littering/baseline_results.csv"),
         help="Cale CSV output",
     )
     parser.add_argument("--det-conf", type=float, default=0.40)

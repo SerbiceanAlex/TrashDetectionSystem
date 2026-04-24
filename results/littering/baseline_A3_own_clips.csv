@@ -1,0 +1,9 @@
+clip_id,label_gt,scene,trash_type,onset_gt,first_alert_frame,n_alerts,total_frames,latency_frames,outcome,eval_time_s
+own_event_000001,FP,baie/oglindă — user în fața camerei,,,,0,250,,TN,11.27
+own_event_000007,FP,dormitor — pat cu așternut boțit,,,100,1,125,,FP,6.94
+own_event_000008,FP,colț de cameră — perete alb gol,,,,0,125,,TN,6.98
+own_event_000009,FP,tavan/raft — bec aprins,,,,0,125,,TN,7.32
+own_event_000010,TP,pat — user aruncă ambalaj (roșu-portocaliu),ambalaj,95,,0,125,,FN,7.24
+own_event_000011,TP,"pat — același ambalaj, a doua încercare",ambalaj,95,,0,125,,FN,7.66
+own_event_000012,TP,"pat — același ambalaj, a treia încercare",ambalaj,95,,0,125,,FN,7.04
+own_event_000013,TP,"pat — ambalaj colorat (roșu/roz/galben), a patra încercare",ambalaj,95,123,1,125,28,TP,7.06

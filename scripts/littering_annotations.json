@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-04-24",
+  "description": "Ground truth adnotări pentru evaluarea sistemului de detecție a actului de aruncare ilegală. Sursă: 8 clipuri reale din backend/littering/ (teste user din camera proprie, 2026-04-22). Se extind ulterior cu clipuri publice din Kinetics-700 + AVA.",
+  "notes": "TP = True Positive (sistem a prins un act de aruncare reală). FP = False Positive (sistem a declanșat fără aruncare reală). onset_frame = estimarea frame-ului din clip în care obiectul atinge solul/patul (pentru TP). Toleranță implicită pentru evaluare: ±30 frames (~1.2s @25fps).",
+  "clips": [
+    {
+      "clip_id": "own_event_000001",
+      "path": "../../backend/littering/event_000001.mp4",
+      "source": "own",
+      "scene": "baie/oglindă — user în fața camerei",
+      "fps": 25.0,
+      "total_frames": 250,
+      "label": "FP",
+      "reason_fp": "Declanșat pe corp/mișcare — niciun obiect aruncat vizibil în frame; detectorul a clasificat o zonă a corpului drept 'paper'",
+      "onset_frame_gt": null,
+      "material_detected": "paper",
+      "det_score": 0.60
+    },
+    {
+      "clip_id": "own_event_000007",
+      "path": "../../backend/littering/event_000007.mp4",
+      "source": "own",
+      "scene": "dormitor — pat cu așternut boțit",
+      "fps": 25.0,
+      "total_frames": 125,
+      "label": "FP",
+      "reason_fp": "Așternutul de pe pat clasificat ca 'paper' — fără act de aruncare, doar scenă statică",
+      "onset_frame_gt": null,
+      "material_detected": "paper",
+      "det_score": 0.39
+    },
+    {
+      "clip_id": "own_event_000008",
+      "path": "../../backend/littering/event_000008.mp4",
+      "source": "own",
+      "scene": "colț de cameră — perete alb gol",
+      "fps": 25.0,
+      "total_frames": 125,
+      "label": "FP",
+      "reason_fp": "Zonă mică jos-dreapta clasificată ca 'metal' — fals pozitiv pe fundal",
+      "onset_frame_gt": null,
+      "material_detected": "metal",
+      "det_score": 0.55
+    },
+    {
+      "clip_id": "own_event_000009",
+      "path": "../../backend/littering/event_000009.mp4",
+      "source": "own",
+      "scene": "tavan/raft — bec aprins",
+      "fps": 25.0,
+      "total_frames": 125,
+      "label": "FP",
+      "reason_fp": "Obiect de mobilier (raft/bec) clasificat ca 'paper'",
+      "onset_frame_gt": null,
+      "material_detected": "paper",
+      "det_score": 0.85
+    },
+    {
+      "clip_id": "own_event_000010",
+      "path": "../../backend/littering/event_000010.mp4",
+      "source": "own",
+      "scene": "pat — user aruncă ambalaj (roșu-portocaliu)",
+      "fps": 25.0,
+      "total_frames": 125,
+      "label": "TP",
+      "reason_tp": "Ambalaj real aruncat pe pat după ce user a plecat; detectat ABIA după aterizare (late detection — overlap cu corpul a suprimat obiectul în mână)",
+      "onset_frame_gt": 95,
+      "onset_estimation_note": "Estimat: ~30 frames (~1.2s) înainte de alert (alert ≈ frame 125). Poate fi rafinat vizionând clipul.",
+      "material_detected": "plastic",
+      "det_score": 1.00,
+      "trash_type": "ambalaj"
+    },
+    {
+      "clip_id": "own_event_000011",
+      "path": "../../backend/littering/event_000011.mp4",
+      "source": "own",
+      "scene": "pat — același ambalaj, a doua încercare",
+      "fps": 25.0,
+      "total_frames": 125,
+      "label": "TP",
+      "reason_tp": "Ambalaj aruncat pe pat; late detection similar cu event 10",
+      "onset_frame_gt": 95,
+      "onset_estimation_note": "Estimat",
+      "material_detected": "plastic",
+      "det_score": 0.69,
+      "trash_type": "ambalaj"
+    },
+    {
+      "clip_id": "own_event_000012",
+      "path": "../../backend/littering/event_000012.mp4",
+      "source": "own",
+      "scene": "pat — același ambalaj, a treia încercare",
+      "fps": 25.0,
+      "total_frames": 125,
+      "label": "TP",
+      "reason_tp": "Ambalaj aruncat pe pat; late detection",
+      "onset_frame_gt": 95,
+      "onset_estimation_note": "Estimat",
+      "material_detected": "plastic",
+      "det_score": 0.69,
+      "trash_type": "ambalaj"
+    },
+    {
+      "clip_id": "own_event_000013",
+      "path": "../../backend/littering/event_000013.mp4",
+      "source": "own",
+      "scene": "pat — ambalaj colorat (roșu/roz/galben), a patra încercare",
+      "fps": 25.0,
+      "total_frames": 125,
+      "label": "TP",
+      "reason_tp": "Ambalaj colorat aruncat pe pat; late detection",
+      "onset_frame_gt": 95,
+      "onset_estimation_note": "Estimat",
+      "material_detected": "plastic",
+      "det_score": 0.96,
+      "trash_type": "ambalaj"
+    }
+  ],
+  "summary": {
+    "total_clips": 8,
+    "tp_count": 4,
+    "fp_count": 4,
+    "precision_apriori": 0.50,
+    "note": "Precision a priori este 50% doar pe setul de testare own — evaluarea cu clipuri publice va schimba metricile. Recall la onset strict (±30 frames) va fi raportat separat de recall 'loose' (alertă oriunde în clip)."
+  },
+  "evaluation_tolerance": {
+    "onset_tolerance_frames": 30,
+    "onset_tolerance_seconds_at_25fps": 1.2,
+    "note": "O alertă e TP dacă frame_alert este în [onset_gt - tol, onset_gt + 4*tol]. Asimetric pentru că sistemul e lăsat să alerteze up to 5s după onset (post-buffer + state machine)."
+  }
+}

@@ -36,10 +36,11 @@ runs/
 *.csv
 !results/**/*.csv
 
-# Ignore JSON except static app files and results/
+# Ignore JSON except static app files, results/ and evaluation annotations
 *.json
 !frontend/static/manifest.json
 !results/**/*.json
+!scripts/littering_annotations.json
 
 # datasets / big files
 datasets/
