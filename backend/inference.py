@@ -42,24 +42,39 @@ _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 def load_models():
     """Load all YOLO models into memory on the best available device."""
+    import logging
+    log = logging.getLogger(__name__)
     global _detector, _classifier, _cls_names, _person_det
+
     if _detector is None:
         _detector = YOLO(str(settings.detector_path))
         _detector.to(_DEVICE)
+        log.info("Detector loaded: %s", settings.detector_path)
+
     if _classifier is None:
-        _classifier = YOLO(str(settings.classifier_path))
-        _classifier.to(_DEVICE)
-        raw = getattr(_classifier, "names", {})
-        if isinstance(raw, dict):
-            _cls_names = {int(k): str(v) for k, v in raw.items()}
-        elif isinstance(raw, list):
-            _cls_names = {i: str(v) for i, v in enumerate(raw)}
+        cls_path = settings.classifier_path
+        if cls_path.exists():
+            _classifier = YOLO(str(cls_path))
+            _classifier.to(_DEVICE)
+            raw = getattr(_classifier, "names", {})
+            if isinstance(raw, dict):
+                _cls_names = {int(k): str(v) for k, v in raw.items()}
+            elif isinstance(raw, list):
+                _cls_names = {i: str(v) for i, v in enumerate(raw)}
+            log.info("Classifier loaded: %s", cls_path)
+        else:
+            # Classifier weights missing — material classification disabled
+            # Detection and littering monitoring still work fully
+            log.warning("Classifier not found at %s — material will show as 'unknown'", cls_path)
+            _cls_names = {0: "unknown"}
+
     if _person_det is None:
         person_pt = settings.REPO_ROOT / "yolov8n.pt"
         _person_det = YOLO(str(person_pt))
         _person_det.to(_DEVICE)
-    import logging
-    logging.getLogger(__name__).info("Models loaded on device: %s", _DEVICE)
+        log.info("Person detector loaded: %s", person_pt)
+
+    log.info("All models loaded on device: %s", _DEVICE)
 
 
 def _resize_if_needed(frame: np.ndarray) -> np.ndarray:

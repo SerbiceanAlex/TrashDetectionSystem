@@ -60,6 +60,8 @@ def clamp_box(x1, y1, x2, y2, width, height):
 
 
 def classify_crop(classifier, crop, imgsz, class_names):
+    if classifier is None:
+        return "unknown", 0.0
     result = classifier.predict(crop, imgsz=imgsz, verbose=False)[0]
     probs = getattr(result, "probs", None)
     if probs is None:
