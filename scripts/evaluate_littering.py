@@ -55,10 +55,11 @@ def evaluate_clip(
     fps: float = 25.0,
     det_conf: float = 0.40,
     person_conf: float = 0.40,
+    model_path: str | None = None,
 ) -> tuple[list[int], int]:
     """
-    Rulează pipeline-ul complet pe un clip. Returnează:
-      - lista de frame_idx unde s-a declanșat o alertă
+    Ruleaza pipeline-ul complet pe un clip. Returneaza:
+      - lista de frame_idx unde s-a declansat o alerta
       - total_frames procesate
     """
     from ultralytics import YOLO
@@ -66,7 +67,8 @@ def evaluate_clip(
     from backend.config import settings
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    tracker = YOLO(str(settings.detector_path))
+    pt = model_path or str(settings.detector_path)
+    tracker = YOLO(pt)
     tracker.to(device)
 
     detector = LitteringDetector(fps=fps, monitor_seconds=10.0, pre_event_seconds=5.0)
@@ -229,26 +231,37 @@ def main() -> int:
     )
     parser.add_argument("--det-conf", type=float, default=0.40)
     parser.add_argument("--person-conf", type=float, default=0.40)
-    parser.add_argument("--tol-before", type=int, default=30, help="Frames înainte de onset tolerate")
-    parser.add_argument("--tol-after", type=int, default=120, help="Frames după onset tolerate")
+    parser.add_argument("--tol-before", type=int, default=30)
+    parser.add_argument("--tol-after", type=int, default=120)
+    parser.add_argument("--model", default=None,
+                        help="Cale catre .pt detector (default: din config.py)")
     args = parser.parse_args()
 
     ann_path = Path(args.annotations).resolve()
-    with ann_path.open(encoding="utf-8") as f:
+    with ann_path.open(encoding="utf-8", errors="ignore") as f:
         ann = json.load(f)
 
-    print("[INFO] Încarc modelele YOLO...")
+    print("[INFO] Incarc person detector...")
     t_load = time.perf_counter()
-    infer.load_models()
+    # Load only person detector — classifier not needed for state machine evaluation
+    import torch
+    from ultralytics import YOLO
+    from backend.config import settings
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    infer._person_det = YOLO(str(settings.REPO_ROOT / "yolov8n.pt"))
+    infer._person_det.to(device)
     print(f"[INFO] Modele încărcate în {time.perf_counter() - t_load:.1f}s\n")
 
-    ann_dir = ann_path.parent
     results: list[dict] = []
 
     for clip_ann in ann["clips"]:
-        clip_path = (ann_dir / clip_ann["path"]).resolve()
+        # Resolve path: try relative to REPO_ROOT first, then relative to annotations file
+        raw = clip_ann["path"].replace("../../", "").replace("../", "")
+        clip_path = (REPO_ROOT / raw).resolve()
         if not clip_path.exists():
-            print(f"[WARN] Clip lipsă: {clip_path}")
+            clip_path = (ann_path.parent / clip_ann["path"]).resolve()
+        if not clip_path.exists():
+            print(f"[WARN] Clip lipsa: {clip_path}")
             continue
 
         print(
@@ -261,6 +274,7 @@ def main() -> int:
             fps=clip_ann.get("fps", 25.0),
             det_conf=args.det_conf,
             person_conf=args.person_conf,
+            model_path=args.model,
         )
         elapsed = time.perf_counter() - t0
 
