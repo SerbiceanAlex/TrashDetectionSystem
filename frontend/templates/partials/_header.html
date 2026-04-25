@@ -14,7 +14,7 @@
 
   <!-- Notification bell -->
   <div x-show="isLoggedIn" x-cloak class="notif-wrapper">
-    <button @click="notifOpen = !notifOpen" class="td-header__dark-btn notif-bell" title="Notificări">
+    <button @click="notifOpen = !notifOpen" class="td-header__dark-btn notif-bell" title="Notifications">
       <i data-lucide="bell" class="icon icon--md"></i>
       <span x-show="unreadNotifications > 0" x-cloak class="notif-badge"
         x-text="unreadNotifications > 9 ? '9+' : unreadNotifications"></span>
@@ -27,12 +27,12 @@
       x-transition:enter-end="opacity-100 scale-100"
       class="notif-panel">
       <div class="notif-panel__header">
-        <span class="notif-panel__title">Notificări</span>
-        <button x-show="unreadNotifications > 0" @click="markAllRead()" class="notif-panel__mark-read">Marchează toate citite</button>
+        <span class="notif-panel__title">Notifications</span>
+        <button x-show="unreadNotifications > 0" @click="markAllRead()" class="notif-panel__mark-read">Mark all read</button>
       </div>
       <div class="notif-panel__list">
         <template x-if="notifications.length === 0">
-          <div class="notif-panel__empty">Nicio notificare</div>
+          <div class="notif-panel__empty">No notifications</div>
         </template>
         <template x-for="n in notifications" :key="n.id">
           <div @click="markRead(n)"
@@ -55,13 +55,13 @@
     </div>
   </div>
 
-  <button @click="toggleDark()" class="td-header__dark-btn" :title="darkMode ? 'Mod luminos' : 'Mod întunecat'">
+  <button @click="toggleDark()" class="td-header__dark-btn" :title="darkMode ? 'Light mode' : 'Dark mode'">
     <i x-show="!darkMode" data-lucide="moon" class="icon icon--md"></i>
     <i x-show="darkMode" x-cloak data-lucide="sun" class="icon icon--md"></i>
   </button>
 
   <button @click="goTo('scan')" class="td-header__scan-cta">
-    <i data-lucide="camera" class="icon icon--sm"></i>
-    <span>Scanează</span>
+    <i data-lucide="video" class="icon icon--sm"></i>
+    <span>Monitor</span>
   </button>
 </header>

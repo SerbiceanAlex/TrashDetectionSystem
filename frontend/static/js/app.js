@@ -31,27 +31,27 @@ function ecoApp() {
     /* ── Nav tabs (6 tabs — with Heroicons SVG paths) ────────────────── */
     tabs: [
       {
-        id: 'dashboard', label: 'Acasă', short: 'Acasă',
+        id: 'dashboard', label: 'Home', short: 'Home',
         svgPath: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z'
       },
       {
-        id: 'scan', label: 'Scanare', short: 'Scanare',
-        svgPath: 'M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z'
+        id: 'scan', label: 'Monitor', short: 'Monitor',
+        svgPath: 'M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z'
       },
       {
-        id: 'map', label: 'Hartă', short: 'Hartă',
+        id: 'map', label: 'Map', short: 'Map',
         svgPath: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7'
       },
       {
-        id: 'community', label: 'Comunitate', short: 'Comunitate',
+        id: 'community', label: 'Community', short: 'Community',
         svgPath: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'
       },
       {
-        id: 'reports', label: 'Rapoarte', short: 'Rapoarte',
+        id: 'reports', label: 'Reports', short: 'Reports',
         svgPath: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'
       },
       {
-        id: 'more', label: 'Mai mult', short: 'Mai mult',
+        id: 'more', label: 'More', short: 'More',
         svgPath: 'M4 6h16M4 12h16M4 18h16'
       },
     ],
@@ -63,7 +63,6 @@ function ecoApp() {
     },
 
     // Sub-navigation state
-    scanMode: 'foto',             // 'foto' | 'live' | 'batch'
     communitySubTab: 'feed',      // 'feed' | 'top' | 'announcements' | 'campaigns'
 
     // Onboarding
@@ -142,12 +141,10 @@ function ecoApp() {
         if (tab === 'more') this.loadPrivacySettings();
         // Stop webcam when leaving scan tab or switching away from live mode
         if (tab !== 'scan' && this.webcamActive) this.stopWebcam();
+        // Stop monitor when navigating away from the scan tab
+        if (tab !== 'scan' && this.monitorActive) this.stopMonitor();
         this.sidebarOpen = false;
         this.refreshIcons();
-      });
-
-      this.$watch('scanMode', (mode) => {
-        if (mode !== 'live' && this.webcamActive) this.stopWebcam();
       });
 
       this.$watch('communitySubTab', (sub) => {
@@ -222,10 +219,10 @@ function ecoApp() {
       const d = new Date(iso);
       const now = new Date();
       const diff = Math.floor((now - d) / 1000);
-      if (diff < 60) return 'acum câteva secunde';
-      if (diff < 3600) return `acum ${Math.floor(diff / 60)} min`;
-      if (diff < 86400) return `acum ${Math.floor(diff / 3600)} ore`;
-      return d.toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' });
+      if (diff < 60) return 'just now';
+      if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
     },
     dashWeeklyChart: null,
     myProfile: null,
@@ -267,7 +264,7 @@ function ecoApp() {
       const counts = days.map(d => actMap[d] || 0);
       const labels = days.map(d => {
         const dt = new Date(d + 'T12:00:00');
-        return dt.toLocaleDateString('ro-RO', { weekday: 'short', day: 'numeric' });
+        return dt.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
       });
       const dark = document.documentElement.classList.contains('dark');
 
@@ -276,7 +273,7 @@ function ecoApp() {
         data: {
           labels,
           datasets: [{
-            label: 'Rapoarte',
+            label: 'Reports',
             data: counts,
             backgroundColor: counts.map((v, i) => i === 6 ? '#16a34a' : 'rgba(74,222,128,.55)'),
             borderRadius: 6,
@@ -318,7 +315,7 @@ function ecoApp() {
         form.append('file', file);
         const res = await fetchAPI('/api/me/avatar', { method: 'POST', body: form });
         if (this.myProfile) this.myProfile.avatar_url = res.avatar_url;
-        showToast('Avatar actualizat');
+        showToast('Avatar updated');
       } catch (e) {
         showToast(e.message, 'error');
       } finally {
@@ -347,7 +344,7 @@ function ecoApp() {
         form.append('file', file);
         const photo = await fetchAPI(`/api/sessions/${sessionId}/photos`, { method: 'POST', body: form });
         this.sessionPhotos.push(photo);
-        showToast('Foto adăugată');
+        showToast('Photo added');
       } catch (e) {
         showToast(e.message, 'error');
       } finally {

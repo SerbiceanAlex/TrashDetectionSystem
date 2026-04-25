@@ -21,7 +21,7 @@ function videoApp() {
     showBboxes: true,
 
     // Confidence
-    detConf: 0.50,
+    detConf: 0.35,
 
     // Upload state
     uploadFile: null,
@@ -100,7 +100,7 @@ function videoApp() {
 
       } catch (err) {
         this.webcamActive = false;
-        showToast('Nu se poate accesa camera: ' + err.message, 'error');
+        showToast('Cannot access camera: ' + err.message, 'error');
       }
     },
 
@@ -267,7 +267,7 @@ function videoApp() {
     async saveSnapshot() {
       const canvas = this.$refs.displayCanvas;
       if (!canvas || !this.webcamActive) {
-        showToast('Camera nu este activă', 'error');
+        showToast('Camera is not active', 'error');
         return;
       }
 
@@ -301,11 +301,11 @@ function videoApp() {
 
         try {
           const data = await fetchAPI(url, { method: 'POST', body: fd });
-          showToast(`Salvat! ${data.total_objects} obiecte detectate`);
+          showToast(`Saved! ${data.total_objects} objects detected`);
           // Notify map + history to refresh
           window.dispatchEvent(new CustomEvent('eco:newReport'));
         } catch (e) {
-          showToast('Eroare la salvare: ' + e.message, 'error');
+          showToast('Save error: ' + e.message, 'error');
         } finally {
           this.snapshotLoading = false;
         }
@@ -325,7 +325,7 @@ function videoApp() {
     async uploadVideo() {
       if (!this.uploadFile) return;
       this.uploadLoading = true;
-      this.uploadStatus = 'Se incarca...';
+      this.uploadStatus = 'Uploading...';
       this.uploadProgress = 0;
 
       try {
@@ -336,16 +336,16 @@ function videoApp() {
         });
         if (!resp.ok) {
           const err = await resp.json();
-          throw new Error(err.detail || 'Eroare upload');
+          throw new Error(err.detail || 'Upload error');
         }
         const data = await resp.json();
         this.uploadSessionId = data.session_id;
-        this.uploadStatus = 'Se proceseaza...';
+        this.uploadStatus = 'Processing...';
 
         // Poll for completion
         this._pollUploadStatus(data.session_id);
       } catch (e) {
-        this.uploadStatus = 'Eroare: ' + e.message;
+        this.uploadStatus = 'Error: ' + e.message;
         this.uploadLoading = false;
       }
     },
@@ -360,20 +360,20 @@ function videoApp() {
           // Update progress bar
           if (vs.total_frames_expected > 0) {
             this.uploadProgress = Math.round((vs.frames_processed / vs.total_frames_expected) * 100);
-            this.uploadStatus = `Se proceseaza... ${this.uploadProgress}% (${vs.frames_processed}/${vs.total_frames_expected} frame-uri)`;
+            this.uploadStatus = `Processing... ${this.uploadProgress}% (${vs.frames_processed}/${vs.total_frames_expected} frames)`;
           }
 
           if (vs.status === 'completed') {
             clearInterval(this.uploadPollTimer);
             this.uploadProgress = 100;
-            this.uploadStatus = `Complet! ${vs.total_frames} frame-uri, ${vs.total_objects} obiecte, ${vs.avg_fps.toFixed(1)} FPS`;
+            this.uploadStatus = `Complete! ${vs.total_frames} frames, ${vs.total_objects} objects, ${vs.avg_fps.toFixed(1)} FPS`;
             this.uploadLoading = false;
             this.selectedVideoSession = vs;
             this.loadVideoSessions();
           } else if (vs.status === 'failed') {
             clearInterval(this.uploadPollTimer);
             this.uploadProgress = 0;
-            this.uploadStatus = 'Procesarea a esuat.';
+            this.uploadStatus = 'Processing failed.';
             this.uploadLoading = false;
           }
         } catch (_) {}
@@ -402,7 +402,7 @@ function videoApp() {
     },
 
     async deleteVideoSession(id) {
-      if (!confirm(`Stergi sesiunea video #${id}?`)) return;
+      if (!confirm(`Delete video session #${id}?`)) return;
       const resp = await fetch(`/api/video/sessions/${id}`, { method: 'DELETE' });
       if (resp.ok) {
         this.selectedVideoSession = null;
@@ -424,6 +424,211 @@ function videoApp() {
       const m = Math.floor(sec / 60);
       const s = Math.round(sec % 60);
       return m > 0 ? `${m}m ${s}s` : `${s}s`;
+    },
+
+    // ── Monitor Mode (Littering Event Detection) ───────────────────────────
+    monitorActive: false,
+    monitorStream: null,
+    monitorWs: null,
+    monitorState: 'CLEAR',
+    monitorProgress: 0,
+    monitorFps: 0,
+    monitorPersons: 0,
+    monitorTrash: 0,
+    monitorAlerts: [],
+    monitorPersonConf: 0.35,
+    monitorSendFps: 10,
+    _monitorAnimFrame: null,
+    _monitorCaptureCanvas: null,
+    _lastMonitorMsg: null,
+    _monitorLastSendAt: 0,
+    _monitorSending: false,
+
+    async startMonitor() {
+      try {
+        this.monitorStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+      } catch (e) {
+        showToast('Camera access error: ' + e.message, 'error');
+        return;
+      }
+
+      const video = this.$refs.monitorVideo;
+      const canvas = this.$refs.monitorCanvas;
+      if (!video || !canvas) {
+        showToast('Camera elements missing — reload the page.', 'error');
+        return;
+      }
+
+      video.srcObject = this.monitorStream;
+      await video.play();
+
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      let wsUrl = `${proto}://${location.host}/ws/video/monitor?det_conf=${this.detConf}&person_conf=${this.monitorPersonConf}`;
+      if (this.geoLat != null && this.geoLng != null) {
+        wsUrl += `&lat=${this.geoLat}&lng=${this.geoLng}`;
+      }
+
+      this.monitorWs = new WebSocket(wsUrl);
+      this.monitorWs.binaryType = 'arraybuffer';
+
+      this.monitorWs.onopen = () => {
+        this.monitorActive = true;
+        this._monitorCaptureCanvas = document.createElement('canvas');
+        this._monitorLastSendAt = 0;
+        this._monitorSending = false;
+        this._startMonitorCapture(video, canvas);
+      };
+
+      this.monitorWs.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'alert') {
+            this.monitorAlerts.push(msg);
+            showToast(`⚠ Illegal dumping detected! Material: ${msg.material}`, 'error');
+            // Vibrate on mobile
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            // Notify admin panel
+            window.dispatchEvent(new CustomEvent('eco:litteringAlert', { detail: msg }));
+          } else {
+            this.monitorState = msg.state || 'CLEAR';
+            this.monitorProgress = msg.monitor_progress || 0;
+            this.monitorFps = msg.fps || 0;
+            this.monitorPersons = msg.persons || 0;
+            this.monitorTrash = msg.trash || 0;
+            // Store msg — overlay is drawn in the RAF loop to avoid accumulation
+            this._lastMonitorMsg = msg;
+          }
+        } catch (_) {}
+      };
+
+      this.monitorWs.onerror = () => {
+        showToast('Monitor WebSocket connection error', 'error');
+        this.stopMonitor();
+      };
+
+      this.monitorWs.onclose = (ev) => {
+        // Only show toast for unexpected closes (not user-initiated)
+        if (this.monitorActive && ev.code !== 1000) {
+          showToast('Monitor connection interrupted', 'warning');
+        }
+        this.stopMonitor();
+      };
+    },
+
+    _startMonitorCapture(video, displayCanvas) {
+      const cc = this._monitorCaptureCanvas;
+
+      const loop = () => {
+        if (!this.monitorActive) return;
+        this._monitorAnimFrame = requestAnimationFrame(loop);
+
+        if (video.readyState < 2) return;
+
+        const vw = video.videoWidth, vh = video.videoHeight;
+        if (!vw) return;
+
+        // Draw video to display canvas — this implicitly clears previous overlays
+        const dw = displayCanvas.offsetWidth || vw;
+        const dh = displayCanvas.offsetHeight || vh;
+        if (displayCanvas.width !== dw) displayCanvas.width = dw;
+        if (displayCanvas.height !== dh) displayCanvas.height = dh;
+        const ctx = displayCanvas.getContext('2d');
+        ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+        ctx.drawImage(video, 0, 0, displayCanvas.width, displayCanvas.height);
+        // Draw bounding boxes fresh on each frame from last WS message
+        if (this._lastMonitorMsg) {
+          this._drawMonitorOverlay(displayCanvas, this._lastMonitorMsg);
+        }
+
+        // Capture a bit more detail for small/soft objects (e.g. wrappers on bed)
+        const scale = 768 / Math.max(vw, vh);
+        cc.width = Math.round(vw * scale);
+        cc.height = Math.round(vh * scale);
+        const cctx = cc.getContext('2d');
+        cctx.drawImage(video, 0, 0, cc.width, cc.height);
+
+        if (this.monitorWs && this.monitorWs.readyState === WebSocket.OPEN) {
+          const now = performance.now();
+          const sendIntervalMs = 1000 / Math.max(this.monitorSendFps || 12, 1);
+
+          // Backpressure guard: do not flood WS with more frames than backend can consume.
+          if (!this._monitorSending && (now - this._monitorLastSendAt) >= sendIntervalMs) {
+            if (this.monitorWs.bufferedAmount < 500000) {
+              this._monitorSending = true;
+              this._monitorLastSendAt = now;
+              cc.toBlob((blob) => {
+                if (!blob) {
+                  this._monitorSending = false;
+                  return;
+                }
+                blob.arrayBuffer()
+                  .then((buf) => {
+                    if (this.monitorWs && this.monitorWs.readyState === WebSocket.OPEN) {
+                      this.monitorWs.send(buf);
+                    }
+                  })
+                  .finally(() => {
+                    this._monitorSending = false;
+                  });
+              }, 'image/jpeg', 0.78);
+            }
+          }
+        }
+      };
+      this._monitorAnimFrame = requestAnimationFrame(loop);
+    },
+
+    _drawMonitorOverlay(canvas, msg) {
+      if (!msg.person_boxes && !msg.trash_boxes) return;
+      const ctx = canvas.getContext('2d');
+      const scaleX = canvas.width / (msg.frame_w || 640);
+      const scaleY = canvas.height / (msg.frame_h || 480);
+
+      // Draw person boxes (orange)
+      if (msg.person_boxes) {
+        ctx.strokeStyle = 'rgba(251,191,36,0.9)';
+        ctx.lineWidth = 2;
+        ctx.font = '11px sans-serif';
+        ctx.fillStyle = 'rgba(251,191,36,0.9)';
+        for (const b of msg.person_boxes) {
+          const [x1, y1, x2, y2] = b;
+          ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
+          ctx.fillText('person', x1 * scaleX + 2, y1 * scaleY - 3);
+        }
+      }
+
+      // Draw trash boxes (red)
+      if (msg.trash_boxes) {
+        ctx.strokeStyle = 'rgba(239,68,68,0.9)';
+        ctx.lineWidth = 2;
+        ctx.fillStyle = 'rgba(239,68,68,0.9)';
+        ctx.font = '11px sans-serif';
+        for (const d of msg.trash_boxes) {
+          const [x1, y1, x2, y2] = d.box;
+          ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
+          ctx.fillText('#' + d.track_id, x1 * scaleX + 2, y1 * scaleY - 3);
+        }
+      }
+    },
+
+    stopMonitor() {
+      this.monitorActive = false;
+      if (this._monitorAnimFrame) { cancelAnimationFrame(this._monitorAnimFrame); this._monitorAnimFrame = null; }
+      // Null WS before closing to prevent onclose → stopMonitor recursion
+      const ws = this.monitorWs; this.monitorWs = null;
+      if (ws && ws.readyState !== WebSocket.CLOSED) ws.close(1000, 'User stopped');
+      if (this.monitorStream) { this.monitorStream.getTracks().forEach(t => t.stop()); this.monitorStream = null; }
+      this.monitorState = 'CLEAR';
+      this.monitorFps = 0;
+      this.monitorPersons = 0;
+      this.monitorTrash = 0;
+      this.monitorProgress = 0;
+      this._lastMonitorMsg = null;
+      this._monitorLastSendAt = 0;
+      this._monitorSending = false;
     },
   };
 }

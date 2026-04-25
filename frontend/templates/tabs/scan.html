@@ -1,371 +1,267 @@
-<!-- ╔═══════════════════════════════╗
-       ║  TAB: SCANARE (3 modes)      ║
-       ╚═══════════════════════════════╝ -->
-  <div x-show="activeTab === 'scan'" x-cloak
-    x-transition:enter="transition ease-out duration-200"
-    x-transition:enter-start="opacity-0 translate-y-2"
-    x-transition:enter-end="opacity-100 translate-y-0">
+<!-- ╔═══════════════════════════════════════════════════╗
+     ║  TAB: LITTERING MONITOR                          ║
+     ╚═══════════════════════════════════════════════════╝ -->
+<div x-show="activeTab === 'scan'" x-cloak
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0 translate-y-2"
+  x-transition:enter-end="opacity-100 translate-y-0">
 
-    <h1 class="section-title"><i data-lucide="camera" class="icon icon--md"></i> Scanare</h1>
+  <!-- Page header -->
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+      <i data-lucide="eye" class="icon icon--md" style="color:#fff"></i>
+    </div>
+    <div>
+      <h1 style="margin:0;font-size:20px;font-weight:800;color:var(--tx-primary)">Littering Monitor</h1>
+      <p style="margin:0;font-size:12px;color:var(--tx-muted)">Automated illegal dumping detection powered by AI</p>
+    </div>
+  </div>
 
-    <!-- ═══ Mode selector (3 cards) ═══════════════════════════════════ -->
-    <div class="scan-mode-selector">
-      <button class="scan-mode-card" :class="scanMode === 'foto' ? 'scan-mode-card--active' : ''" @click="scanMode = 'foto'">
-        <span class="scan-mode-card__icon"><i data-lucide="camera" class="icon icon--lg"></i></span>
-        <span class="scan-mode-card__label">Foto</span>
-        <span class="scan-mode-card__desc">O imagine</span>
-      </button>
-      <button class="scan-mode-card" :class="scanMode === 'live' ? 'scan-mode-card--active' : ''" @click="scanMode = 'live'">
-        <span class="scan-mode-card__icon"><i data-lucide="video" class="icon icon--lg"></i></span>
-        <span class="scan-mode-card__label">Live</span>
-        <span class="scan-mode-card__desc">Cameră</span>
-      </button>
-      <button class="scan-mode-card" :class="scanMode === 'batch' ? 'scan-mode-card--active' : ''" @click="scanMode = 'batch'">
-        <span class="scan-mode-card__icon"><i data-lucide="package" class="icon icon--lg"></i></span>
-        <span class="scan-mode-card__label">Batch</span>
-        <span class="scan-mode-card__desc">Mai multe</span>
-      </button>
+  <!-- GDPR info banner -->
+  <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:rgba(99,102,241,.08);border-radius:12px;border:1px solid rgba(99,102,241,.2);margin-bottom:16px">
+    <i data-lucide="shield-check" class="icon icon--sm" style="color:#6366f1;flex-shrink:0;margin-top:1px"></i>
+    <div style="font-size:12px;line-height:1.6;color:var(--tx-secondary)">
+      Faces are <strong style="color:var(--tx-primary)">automatically anonymized</strong> before storage (GDPR Art. 25).
+      Evidence is stored securely and accessed only by authorized administrators.
+    </div>
+  </div>
+
+  <!-- ══ Camera card ══════════════════════════════════════════════════════ -->
+  <div class="card card--elevated" style="padding:0;overflow:hidden">
+
+    <!-- Camera viewport -->
+    <div style="position:relative;width:100%;background:#0a0a0f;aspect-ratio:16/9">
+      <video x-ref="monitorVideo" autoplay playsinline muted style="display:none"></video>
+      <canvas x-ref="monitorCanvas" style="width:100%;height:100%;object-fit:cover;display:block"></canvas>
+
+      <!-- Top bar: state badge + FPS -->
+      <div style="position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;pointer-events:none">
+        <span class="badge"
+          :class="{
+            'badge--green':  monitorState === 'CLEAR',
+            'badge--yellow': monitorState === 'PERSON_PRESENT',
+            'badge--blue':   monitorState === 'MONITORING',
+            'badge--gray':   !monitorActive
+          }"
+          style="font-size:11px;font-weight:700;letter-spacing:.04em"
+          x-text="monitorActive ? (monitorState === 'CLEAR' ? '✓ CLEAR' : monitorState === 'PERSON_PRESENT' ? '👤 PERSON DETECTED' : monitorState === 'MONITORING' ? '⏱ MONITORING' : 'Connecting…') : 'INACTIVE'">
+        </span>
+        <span x-show="monitorActive" class="badge"
+          style="background:rgba(0,0,0,.55);color:#fff;backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.12);font-size:10px"
+          x-text="monitorFps.toFixed(1) + ' FPS'"></span>
+      </div>
+
+      <!-- Person / trash counters -->
+      <div x-show="monitorActive" style="position:absolute;bottom:56px;left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:none">
+        <span class="badge" style="background:rgba(251,191,36,.9);color:#000;font-size:11px;font-weight:700;gap:4px">
+          <i data-lucide="user" class="icon icon--xs"></i>
+          <span x-text="monitorPersons + ' pers.'"></span>
+        </span>
+        <span class="badge" style="background:rgba(239,68,68,.9);color:#fff;font-size:11px;font-weight:700;gap:4px">
+          <i data-lucide="trash-2" class="icon icon--xs"></i>
+          <span x-text="monitorTrash + ' trash'"></span>
+        </span>
+      </div>
+
+      <!-- Monitoring progress bar -->
+      <div x-show="monitorActive && monitorState === 'MONITORING'"
+        style="position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(255,255,255,.15)">
+        <div :style="`width:${(monitorProgress*100).toFixed(0)}%;height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);transition:width .3s linear`"></div>
+      </div>
+
+      <!-- Progress label -->
+      <div x-show="monitorActive && monitorState === 'MONITORING'"
+        style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);pointer-events:none">
+        <span style="font-size:10px;color:rgba(255,255,255,.7);white-space:nowrap"
+          x-text="`Checking: ${(monitorProgress*100).toFixed(0)}%`"></span>
+      </div>
+
+      <!-- Idle placeholder -->
+      <div x-show="!monitorActive"
+        style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:rgba(255,255,255,.6)">
+        <div style="width:64px;height:64px;border-radius:50%;border:2px dashed rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center">
+          <i data-lucide="eye" class="icon icon--xl" style="opacity:.4"></i>
+        </div>
+        <div style="font-size:15px;font-weight:700">Monitor inactive</div>
+        <div style="font-size:11px;opacity:.4;text-align:center;padding:0 32px">
+          Press the button below to start monitoring
+        </div>
+      </div>
     </div>
 
-    <!-- ═══ MODE: FOTO ════════════════════════════════════════════════ -->
-    <div x-show="scanMode === 'foto'" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
-      <div style="display:grid;grid-template-columns:1fr;gap:16px" class="detect-grid">
+    <!-- Controls -->
+    <div style="padding:16px">
 
-        <div class="card card--elevated">
-          <!-- GPS status chip -->
-          <div style="margin-bottom:16px">
+      <!-- Start / Stop -->
+      <button @click="startMonitor()" x-show="!monitorActive"
+        class="btn btn--scan" style="width:100%;height:52px;font-size:15px;font-weight:700;gap:10px;border-radius:12px">
+        <i data-lucide="play-circle" class="icon icon--md"></i>
+        Start Monitoring
+      </button>
+      <button @click="stopMonitor()" x-show="monitorActive"
+        class="btn btn--danger" style="width:100%;height:52px;font-size:15px;font-weight:700;gap:10px;border-radius:12px">
+        <i data-lucide="stop-circle" class="icon icon--md"></i>
+        Stop Monitoring
+      </button>
+
+      <!-- Live stats -->
+      <div x-show="monitorActive"
+        style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px">
+        <div style="text-align:center;padding:10px;background:var(--bg-raised);border-radius:10px">
+          <div style="font-size:20px;font-weight:800;color:var(--tx-primary)" x-text="monitorPersons"></div>
+          <div style="font-size:10px;color:var(--tx-muted);margin-top:2px">Persons</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:var(--bg-raised);border-radius:10px">
+          <div style="font-size:20px;font-weight:800;color:var(--tx-primary)" x-text="monitorTrash"></div>
+          <div style="font-size:10px;color:var(--tx-muted);margin-top:2px">Trash</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:var(--bg-raised);border-radius:10px">
+          <div style="font-size:20px;font-weight:800;color:#ef4444" x-text="monitorAlerts.length"></div>
+          <div style="font-size:10px;color:var(--tx-muted);margin-top:2px">Incidents</div>
+        </div>
+      </div>
+
+      <!-- Settings (collapsed) -->
+      <details style="margin-top:14px">
+        <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--tx-muted);padding:8px 0;user-select:none">
+          <i data-lucide="sliders-horizontal" class="icon icon--xs"></i>
+          Detection settings
+          <i data-lucide="chevron-down" class="icon icon--xs" style="margin-left:auto"></i>
+        </summary>
+        <div style="padding:14px;background:var(--bg-raised);border-radius:10px;margin-top:6px;display:flex;flex-direction:column;gap:16px">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
+              <span>Trash sensitivity</span>
+              <strong style="color:var(--eco-green-dark)" x-text="detConf.toFixed(2)"></strong>
+            </div>
+            <input type="range" min="0.10" max="0.90" step="0.05" x-model.number="detConf" class="slider" />
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
+              <span>Sensitive (0.10)</span><span>Strict (0.90)</span>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
+              <span>Person sensitivity</span>
+              <strong style="color:var(--eco-green-dark)" x-text="monitorPersonConf.toFixed(2)"></strong>
+            </div>
+            <input type="range" min="0.20" max="0.90" step="0.05" x-model.number="monitorPersonConf" class="slider" />
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
+              <span>Detect from far (0.20)</span><span>High certainty (0.90)</span>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--tx-secondary);margin-bottom:6px">GPS location <span style="color:var(--tx-muted)">(optional)</span></div>
             <button @click="requestGeo()"
               :class="geoStatus === 'ok' ? 'gps-chip gps-chip--ok' : 'gps-chip'"
-              :disabled="geoStatus === 'loading'">
+              :disabled="geoStatus === 'loading'" style="width:100%;justify-content:center">
               <span x-text="geoLabel"></span>
               <span x-show="geoStatus === 'ok'" style="font-family:monospace;font-size:10px;opacity:.7"
                 x-text="`${geoLat?.toFixed(4)}, ${geoLng?.toFixed(4)}`"></span>
             </button>
           </div>
-
-          <!-- Drop zone -->
-          <label for="fileInput" style="display:block;cursor:pointer">
-            <div class="drop-zone"
-              :class="isDragging ? 'drop-zone--active' : ''"
-              @dragover.prevent="isDragging = true"
-              @dragleave.prevent="isDragging = false"
-              @drop.prevent="handleDrop($event)"
-              @click.prevent="document.getElementById('fileInput').click()">
-
-              <template x-if="!previewSrc">
-                <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-                  <div class="drop-zone__icon"><i data-lucide="camera" class="icon icon--2xl"></i></div>
-                  <div class="drop-zone__text"><strong>Fă o poză</strong> sau alege din galerie</div>
-                  <div class="drop-zone__sub">JPEG · PNG · WEBP</div>
-                </div>
-              </template>
-              <template x-if="previewSrc">
-                <div style="width:100%">
-                  <img :src="previewSrc" style="max-height:220px;max-width:100%;object-fit:contain;border-radius:10px" />
-                </div>
-              </template>
-            </div>
-          </label>
-
-          <input id="fileInput" type="file" accept="image/*" capture="environment"
-            style="display:none" @change="handleFileSelect($event)" />
-
-          <!-- Clear button -->
-          <div x-show="selectedFile" x-cloak
-            style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--tx-secondary)">
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="selectedFile?.name"></span>
-            <button @click.stop="clearFile()" class="btn btn--danger btn--icon" style="padding:4px 8px;font-size:11px">✕ Șterge</button>
-          </div>
-
-          <!-- Sensibilitate AI slider -->
-          <div style="margin-top:16px">
-            <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-              <label style="font-size:13px;font-weight:600;color:var(--tx-secondary)">Sensibilitate AI</label>
-              <span style="font-size:13px;font-weight:700;color:var(--eco-green-dark)" x-text="detConf.toFixed(2)"></span>
-            </div>
-            <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="detConf" class="slider" :disabled="loading" />
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
-              <span>Mai sensibil (0.05)</span>
-              <span>Mai strict (0.95)</span>
-            </div>
-          </div>
-
-          <!-- User note (optional) -->
-          <div style="margin-top:12px">
-            <input type="text" x-model="userNote" placeholder="Descriere opțională (ex: lângă parc, zona 3)..."
-              class="input" style="font-size:12px;min-height:38px;width:100%" maxlength="500" :disabled="loading" />
-          </div>
-
-          <!-- Progress bar -->
-          <div x-show="loading" x-cloak style="margin-top:12px">
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
-              <span x-text="uploadProgress < 88 ? 'Se analizează…' : 'AI procesează…'"></span>
-              <span style="font-weight:700;color:var(--eco-green-dark)" x-text="uploadProgress + '%'"></span>
-            </div>
-            <div class="progress"><div class="progress__bar" :style="`width:${uploadProgress}%`"></div></div>
-          </div>
-
-          <!-- Scan button -->
-          <button @click="runDetection()" :disabled="!selectedFile || loading"
-            class="btn btn--scan" style="margin-top:16px">
-            <template x-if="loading"><div class="spinner"></div></template>
-            <span x-text="loading ? 'Se procesează…' : 'Analizează zona'"></span>
-          </button>
         </div>
+      </details>
+    </div>
+  </div>
 
-        <!-- Result panel -->
-        <div class="card" x-show="result || loading" x-cloak
-          x-transition:enter="transition ease-out duration-300"
-          x-transition:enter-start="opacity-0 translate-y-4"
-          x-transition:enter-end="opacity-100 translate-y-0">
+  <!-- ══ Incidents detected this session ═════════════════════════════════ -->
+  <div x-show="monitorAlerts.length > 0" x-cloak style="margin-top:16px"
+    x-transition:enter="transition ease-out duration-300"
+    x-transition:enter-start="opacity-0 translate-y-4"
+    x-transition:enter-end="opacity-100 translate-y-0">
 
-          <template x-if="loading && !result">
-            <div style="display:flex;flex-direction:column;gap:10px">
-              <div class="skeleton" style="height:180px;border-radius:10px"></div>
-              <div style="display:flex;gap:8px">
-                <div class="skeleton" style="height:28px;width:80px;border-radius:99px"></div>
-                <div class="skeleton" style="height:28px;width:60px;border-radius:99px"></div>
-              </div>
-              <div class="skeleton" style="height:14px;border-radius:4px"></div>
-              <div class="skeleton" style="height:14px;width:75%;border-radius:4px"></div>
-            </div>
-          </template>
-
-          <template x-if="result">
-            <div class="fade-up">
-              <!-- Severity banner -->
-              <div x-show="resultSeverity" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;border-radius:10px;background:var(--bg-raised)">
-                <i :data-lucide="resultSeverity?.icon" class="icon icon--xl" :style="'color:' + resultSeverity?.color"></i>
-                <div>
-                  <div style="font-weight:700;font-size:15px" x-text="resultSeverity?.label"></div>
-                  <div style="font-size:12px;color:var(--tx-muted)"
-                    x-text="`${result.total_objects} obiecte detectate · ${result.inference_ms.toFixed(0)} ms`"></div>
-                </div>
-                <span class="badge" :class="`sev-${severityFromCount(result.total_objects)}`"
-                  style="margin-left:auto" x-text="'#' + result.session_id"></span>
-              </div>
-
-              <!-- Location banner -->
-              <template x-if="result.address">
-                <div style="margin-bottom:14px;padding:8px 12px;border-radius:8px;background:var(--bg-surface);font-size:12px;color:var(--tx-secondary);display:flex;align-items:center;gap:6px;border:1px solid var(--bg-border)">
-                  <i data-lucide="map-pin" class="icon icon--sm"></i>
-                  <span x-text="result.address" style="line-height:1.3"></span>
-                </div>
-              </template>
-
-              <!-- Toggle original/annotated -->
-              <div style="display:flex;gap:8px;margin-bottom:10px">
-                <button @click="showAnnotated = true" :class="showAnnotated ? 'btn btn--primary' : 'btn btn--ghost'"
-                  style="flex:1;font-size:12px;min-height:36px;padding:6px 12px">Cu detecții</button>
-                <button @click="showAnnotated = false" :class="!showAnnotated ? 'btn btn--primary' : 'btn btn--ghost'"
-                  style="flex:1;font-size:12px;min-height:36px;padding:6px 12px">Originală</button>
-              </div>
-
-              <!-- Annotated image -->
-              <div class="result-img-wrap" @click="openLightbox(showAnnotated ? result.annotated_url : originalImageUrl)">
-                <img :src="showAnnotated ? result.annotated_url : originalImageUrl" alt="Rezultat detecție" />
-                <div class="result-img-wrap__overlay">
-                  <span class="result-img-wrap__hint"><i data-lucide="zoom-in" class="icon icon--sm"></i> Click pentru mărire</span>
-                </div>
-              </div>
-
-              <!-- Material badges -->
-              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">
-                <template x-for="d in result.detections" :key="d.id">
-                  <span class="badge" :style="materialBadgeStyle(d.material)"
-                    x-text="d.material + ' ' + (d.cls_score * 100).toFixed(0) + '%'"></span>
-                </template>
-                <span x-show="result.detections.length === 0"
-                  style="font-size:13px;color:var(--tx-muted);font-style:italic;padding:4px 0">
-                  Niciun obiect detectat. Încearcă un prag mai mic.
-                </span>
-              </div>
-
-              <!-- Ajustări avansate (collapsed) -->
-              <details style="margin-top:14px">
-                <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--tx-secondary);padding:8px 0"><i data-lucide="settings" class="icon icon--sm"></i> Ajustări avansate</summary>
-                <div style="padding:12px;background:var(--bg-raised);border-radius:10px;margin-top:6px">
-                  <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
-                    <span>Ajustează pragul</span>
-                    <span style="font-weight:700;color:var(--eco-green-dark)" x-text="rerunConf.toFixed(2)"></span>
-                  </div>
-                  <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="rerunConf"
-                    class="slider" :disabled="isRerunning" style="margin-bottom:8px" />
-                  <button @click="rerunDetection()" :disabled="isRerunning"
-                    class="btn btn--ghost" style="width:100%;font-size:12px;min-height:36px">
-                    <template x-if="isRerunning"><div class="spinner spinner--dark"></div></template>
-                    <span x-text="isRerunning ? 'Se re-analizează…' : '↩ Re-detectează cu conf ' + rerunConf.toFixed(2)"></span>
-                  </button>
-                </div>
-              </details>
-            </div>
-          </template>
-        </div>
-
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <i data-lucide="alert-triangle" class="icon icon--sm" style="color:#ef4444"></i>
+        <span style="font-size:14px;font-weight:800;color:#ef4444">Incidents detected</span>
+        <span class="badge sev-high" x-text="monitorAlerts.length"></span>
       </div>
-    </div><!-- /foto mode -->
+      <button @click="monitorAlerts = []" class="btn btn--ghost" style="font-size:11px;padding:4px 10px">Clear all</button>
+    </div>
 
-    <!-- ═══ MODE: LIVE ════════════════════════════════════════════════ -->
-    <div x-show="scanMode === 'live'" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
-      <div class="card card--elevated">
-        <!-- Camera container -->
-        <div style="position:relative;width:100%;background:#111;border-radius:12px;overflow:hidden;aspect-ratio:3/4;margin-bottom:16px;">
-          <video x-ref="webcamVideo" autoplay playsinline muted style="display:none;"></video>
-          <canvas x-ref="displayCanvas" style="width:100%;height:100%;object-fit:cover;display:block"></canvas>
-
-          <!-- Flash effect -->
-          <div x-show="snapshotFlash"
-            style="position:absolute;inset:0;background:white;pointer-events:none;border-radius:12px;"
-            x-transition:enter="transition-opacity duration-75"
-            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-            x-transition:leave="transition-opacity duration-200"
-            x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
-
-          <!-- Overlay Status + Flip -->
-          <div style="position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center">
-            <span class="badge" :class="wsConnected ? 'badge--green' : 'badge--gray'"
-                  x-text="wsConnected ? 'Live' : (webcamActive ? 'Se conectează...' : 'Inactiv')"></span>
-            <div style="display:flex;gap:8px;align-items:center">
-              <button x-show="webcamActive" @click="flipCamera()"
-                style="background:rgba(0,0,0,0.55);border:none;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)"
-                title="Întoarce camera"><i data-lucide="refresh-cw" class="icon icon--md" style="color:#fff"></i></button>
-              <span x-show="wsConnected" class="badge badge--blue" x-text="liveFps.toFixed(1) + ' FPS'"></span>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <template x-for="alert in monitorAlerts.slice().reverse()" :key="alert.event_id">
+        <div style="border:1.5px solid rgba(239,68,68,.35);border-radius:12px;overflow:hidden;background:var(--bg-card)">
+          <!-- Header -->
+          <div style="background:rgba(239,68,68,.07);padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(239,68,68,.12)">
+            <i data-lucide="alert-circle" class="icon icon--sm" style="color:#ef4444;flex-shrink:0"></i>
+            <span style="font-size:13px;font-weight:700;color:#ef4444;flex:1">Illegal dumping detected</span>
+            <span style="font-size:11px;color:var(--tx-muted)"
+              x-text="alert.detected_at ? new Date(alert.detected_at).toLocaleTimeString() : ''"></span>
+          </div>
+          <!-- Body -->
+          <div style="padding:12px;display:flex;gap:12px;align-items:flex-start">
+            <template x-if="alert.thumbnail_url">
+              <img :src="alert.thumbnail_url"
+                style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;border:1px solid var(--bg-border)" />
+            </template>
+            <template x-if="!alert.thumbnail_url">
+              <div style="width:72px;height:72px;background:var(--bg-raised);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <i data-lucide="image-off" class="icon icon--md" style="opacity:.3"></i>
+              </div>
+            </template>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+                <span class="badge sev-high" style="font-size:10px"
+                  x-text="'Material: ' + (alert.material || 'unknown').toUpperCase()"></span>
+                <span class="badge badge--gray" style="font-size:10px"
+                  x-text="'#' + alert.event_id"></span>
+              </div>
+              <div x-show="alert.address"
+                style="font-size:11px;color:var(--tx-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                x-text="'📍 ' + alert.address"></div>
+              <div style="font-size:11px;color:var(--tx-muted);margin-top:2px"
+                x-text="'Confidence: ' + ((alert.det_score || 0) * 100).toFixed(0) + '%'"></div>
             </div>
           </div>
-
-          <!-- Objects counter -->
-          <div x-show="liveObjects > 0" style="position:absolute;bottom:80px;left:50%;transform:translateX(-50%);pointer-events:none;transition:all .2s ease">
-            <span class="badge sev-high" style="font-size:16px;padding:8px 16px;box-shadow:0 4px 12px rgba(239, 68, 68, 0.4)"
-                  x-text="liveObjects + ' obiecte!'"></span>
-          </div>
-
-          <!-- Snapshot button -->
-          <div x-show="webcamActive" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:12px;align-items:center">
-            <button @click="saveSnapshot()" :disabled="snapshotLoading"
-              style="width:64px;height:64px;border-radius:50%;border:4px solid white;background:rgba(0,0,0,0.55);backdrop-filter:blur(8px);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 4px 20px rgba(0,0,0,0.5);transition:transform .15s ease"
-              @touchstart="$el.style.transform='scale(0.9)'" @touchend="$el.style.transform='scale(1)'"
-              title="Salvează cadru">
-              <template x-if="snapshotLoading"><div class="spinner" style="width:24px;height:24px;border-color:white;border-top-color:transparent"></div></template>
-              <span x-show="!snapshotLoading"><i data-lucide="camera" class="icon icon--lg" style="color:#fff"></i></span>
+          <!-- Actions -->
+          <div style="padding:0 12px 12px;display:flex;gap:8px">
+            <button @click="goTo('admin'); setTimeout(()=>{ switchAdminSubTab('incidents') },300)"
+              class="btn btn--ghost" style="flex:1;font-size:11px;height:34px;gap:4px">
+              <i data-lucide="eye" class="icon icon--xs"></i> View in Admin
             </button>
-          </div>
-
-          <!-- CTA when stopped -->
-          <div x-show="!webcamActive" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:rgba(255,255,255,0.7)">
-            <div style="margin-bottom:12px"><i data-lucide="video" class="icon icon--2xl"></i></div>
-            <div style="font-size:14px;font-weight:600">Apasă pe "Pornește"</div>
-            <div style="font-size:11px;opacity:.7;margin-top:4px;text-align:center;padding:0 24px">Camera se va activa și AI-ul va scana live.</div>
+            <a x-show="alert.thumbnail_url" :href="alert.thumbnail_url" download
+              class="btn btn--ghost"
+              style="font-size:11px;height:34px;display:flex;align-items:center;gap:4px;text-decoration:none;padding:0 12px">
+              <i data-lucide="download" class="icon icon--xs"></i> Download
+            </a>
           </div>
         </div>
+      </template>
+    </div>
+  </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <button @click="startWebcam()" x-show="!webcamActive" class="btn btn--scan" style="height:48px;grid-column:1/-1"><i data-lucide="play" class="icon icon--sm"></i> Pornește Camera</button>
-          <button @click="stopWebcam()" x-show="webcamActive" class="btn btn--danger" style="height:48px"><i data-lucide="square" class="icon icon--sm"></i> Oprește</button>
-          <button @click="saveSnapshot()" x-show="webcamActive" :disabled="snapshotLoading" class="btn btn--scan" style="height:48px">
-            <template x-if="snapshotLoading"><div class="spinner spinner--dark" style="width:16px;height:16px"></div></template>
-            <span x-show="!snapshotLoading"><i data-lucide="camera" class="icon icon--sm"></i> Salvează</span>
-          </button>
-        </div>
-
-        <!-- Live confidence -->
-        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--bg-border)">
-          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-            <label style="font-size:13px;font-weight:600;color:var(--tx-secondary)">Sensibilitate AI</label>
-            <span style="font-size:13px;font-weight:700;color:var(--eco-green-dark)" x-text="detConf.toFixed(2)"></span>
-          </div>
-          <input type="range" min="0.10" max="0.95" step="0.05" x-model.number="detConf"
-            @change="if(webcamActive){ stopWebcam(); setTimeout(()=>startWebcam(),300); }" class="slider" />
-          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:6px">
-            <span>Mai multe f. pozitive (0.10)</span>
-            <span>Doar deșeuri sigure (0.95)</span>
-          </div>
+  <!-- ══ How it works (shown when inactive + no alerts) ═══════════════ -->
+  <div x-show="!monitorActive && monitorAlerts.length === 0" style="margin-top:20px">
+    <div style="font-size:12px;font-weight:700;color:var(--tx-muted);margin-bottom:10px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.06em">
+      <i data-lucide="info" class="icon icon--xs"></i> How it works
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-raised);border-radius:10px">
+        <span style="width:28px;height:28px;border-radius:50%;background:#22c55e;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span>
+        <div style="font-size:12px;line-height:1.5;color:var(--tx-secondary)">
+          <strong style="color:var(--tx-primary)">CLEAR</strong> — Camera continuously monitors the area. No activity detected.
         </div>
       </div>
-    </div><!-- /live mode -->
-
-    <!-- ═══ MODE: BATCH ═══════════════════════════════════════════════ -->
-    <div x-show="scanMode === 'batch'" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100">
-      <div class="card card--elevated">
-
-        <!-- GPS chip -->
-        <div style="margin-bottom:16px">
-          <button @click="requestGeo()"
-            :class="geoStatus === 'ok' ? 'gps-chip gps-chip--ok' : 'gps-chip'"
-            :disabled="geoStatus === 'loading'">
-            <span x-text="geoLabel"></span>
-          </button>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-raised);border-radius:10px">
+        <span style="width:28px;height:28px;border-radius:50%;background:#f59e0b;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</span>
+        <div style="font-size:12px;line-height:1.5;color:var(--tx-secondary)">
+          <strong style="color:var(--tx-primary)">PERSON DETECTED</strong> — A person has entered the frame. System switches to high alert.
         </div>
-
-        <!-- Batch file input -->
-        <label class="drop-zone" style="display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer"
-          @click.prevent="document.getElementById('batchFileInput').click()">
-          <div class="drop-zone__icon"><i data-lucide="package" class="icon icon--2xl"></i></div>
-          <div class="drop-zone__text"><strong>Alege mai multe imagini</strong></div>
-          <div class="drop-zone__sub">Poți selecta 2–20 imagini simultan</div>
-        </label>
-        <input id="batchFileInput" type="file" accept="image/*" multiple
-          style="display:none" @change="handleBatchSelect($event)" />
-
-        <!-- Selected files count -->
-        <div x-show="batchFiles.length > 0" style="margin-top:12px;font-size:13px;font-weight:600;color:var(--tx-secondary)">
-          <i data-lucide="paperclip" class="icon icon--xs"></i> <span x-text="batchFiles.length"></span> imagini selectate
-        </div>
-
-        <!-- Sensibilitate AI slider -->
-        <div style="margin-top:16px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px">
-            <label style="font-size:13px;font-weight:600;color:var(--tx-secondary)">Sensibilitate AI</label>
-            <span style="font-size:13px;font-weight:700;color:var(--eco-green-dark)" x-text="detConf.toFixed(2)"></span>
-          </div>
-          <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="detConf" class="slider" :disabled="batchLoading" />
-        </div>
-
-        <!-- Batch progress -->
-        <div x-show="batchLoading" x-cloak style="margin-top:12px">
-          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
-            <span>Se procesează batch-ul…</span>
-          </div>
-          <div class="progress"><div class="progress__bar" style="width:100%;animation:pulse 1.5s infinite"></div></div>
-        </div>
-
-        <!-- Scan batch button -->
-        <button @click="runBatch()" :disabled="!batchFiles.length || batchLoading"
-          class="btn btn--scan" style="margin-top:16px">
-          <template x-if="batchLoading"><div class="spinner"></div></template>
-          <span x-text="batchLoading ? 'Se procesează…' : 'Analizează ' + batchFiles.length + ' imagini'"></span>
-        </button>
       </div>
-
-      <!-- Batch results -->
-      <div class="card" x-show="batchResults" x-cloak style="margin-top:16px"
-        x-transition:enter="transition ease-out duration-300"
-        x-transition:enter-start="opacity-0 translate-y-4"
-        x-transition:enter-end="opacity-100 translate-y-0">
-        <template x-if="batchResults">
-          <div>
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;border-radius:10px;background:var(--bg-raised)">
-              <span class="icon-box icon-box--md icon-box--green"><i data-lucide="package" class="icon icon--md"></i></span>
-              <div>
-                <div style="font-weight:700;font-size:15px">Batch finalizat</div>
-                <div style="font-size:12px;color:var(--tx-muted)"
-                  x-text="`${batchResults.total_files} imagini · ${batchResults.total_objects} obiecte detectate`"></div>
-              </div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:8px">
-              <template x-for="s in batchResults.sessions" :key="s.session_id">
-                <div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:var(--bg-raised)">
-                  <img :src="s.annotated_url" style="width:56px;height:56px;object-fit:cover;border-radius:8px" />
-                  <div style="flex:1">
-                    <div style="font-weight:600;font-size:13px" x-text="'#' + s.session_id"></div>
-                    <div style="font-size:11px;color:var(--tx-muted)" x-text="s.total_objects + ' obiecte · ' + s.inference_ms.toFixed(0) + ' ms'"></div>
-                  </div>
-                  <button @click="goTo('reports')" class="btn btn--ghost" style="padding:4px 10px;font-size:11px">Detalii</button>
-                </div>
-              </template>
-            </div>
-          </div>
-        </template>
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-raised);border-radius:10px">
+        <span style="width:28px;height:28px;border-radius:50%;background:#6366f1;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</span>
+        <div style="font-size:12px;line-height:1.5;color:var(--tx-secondary)">
+          <strong style="color:var(--tx-primary)">MONITORING</strong> — Person left but something remains. System verifies for 10 seconds.
+        </div>
       </div>
-    </div><!-- /batch mode -->
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(239,68,68,.05);border-radius:10px;border:1px solid rgba(239,68,68,.18)">
+        <span style="width:28px;height:28px;border-radius:50%;background:#ef4444;color:#fff;font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">!</span>
+        <div style="font-size:12px;line-height:1.5;color:var(--tx-secondary)">
+          <strong style="color:#ef4444">ALERT</strong> — Trash confirmed. Clip + thumbnail saved, face anonymized, admin alerted instantly.
+        </div>
+      </div>
+    </div>
+  </div>
 
-  </div><!-- /scan tab -->
+</div><!-- /scan tab -->

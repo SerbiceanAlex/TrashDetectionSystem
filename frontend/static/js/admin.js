@@ -15,7 +15,7 @@ function adminApp() {
     adminConfirmOpen: false,
 
     // Sub-tab navigation inside admin panel
-    adminSubTab: 'overview',  // 'overview' | 'users' | 'reports' | 'activity' | 'authorities' | 'webhooks'
+    adminSubTab: 'overview',  // 'overview' | 'users' | 'reports' | 'activity' | 'authorities' | 'incidents' | 'webhooks'
 
     // Reports management
     adminReports: [],
@@ -55,9 +55,26 @@ function adminApp() {
     adminStorage: null,
     adminStorageLoading: false,
 
+    // Littering Incidents
+    incidents: [],
+    incidentsLoading: false,
+    incidentTotal: 0,
+    incidentPage: 0,
+    incidentLimit: 20,
+    incidentStatusFilter: '',
+    incidentMaterialFilter: '',
+    incidentPending: 0,
+
     /* ── Init ─────────────────────────────────────────────────────────── */
     initAdmin() {
-      // Loaded on demand when tab is opened
+      // When a new littering event fires from Monitor tab, bump pending count
+      // and reload incidents if the user is currently viewing that sub-tab
+      window.addEventListener('eco:litteringAlert', () => {
+        this.incidentPending += 1;
+        if (this.adminSubTab === 'incidents') {
+          this.loadIncidents();
+        }
+      });
     },
 
     _refreshAdminIcons() {
@@ -113,7 +130,7 @@ function adminApp() {
         });
         const u = this.adminUsers.find(x => x.id === userId);
         if (u) u.role = newRole;
-        showToast(`Rol schimbat → ${newRole}`);
+        showToast(`Role changed → ${newRole}`);
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -147,7 +164,7 @@ function adminApp() {
       try {
         await fetchAPI(`/api/admin/users/${this.adminConfirmUser.id}`, { method: 'DELETE' });
         this.adminUsers = this.adminUsers.filter(u => u.id !== this.adminConfirmUser.id);
-        showToast(`Utilizatorul "${this.adminConfirmUser.username}" a fost șters.`);
+        showToast(`User "${this.adminConfirmUser.username}" has been deleted.`);
       } catch (e) {
         showToast(e.message, 'error');
       } finally {
@@ -160,13 +177,13 @@ function adminApp() {
     async resolveSession(sessionId, currentStatus) {
       const isCurrentlyResolved = currentStatus === 1 || currentStatus === true;
       const msg = isCurrentlyResolved
-        ? `Marchezi raportul #${sessionId} ca NEREZOLVAT?`
-        : `Marchezi raportul #${sessionId} ca CURĂȚAT?`;
+        ? `Mark report #${sessionId} as UNRESOLVED?`
+        : `Mark report #${sessionId} as CLEANED?`;
       if (!confirm(msg)) return;
       try {
         const res = await fetchAPI(`/api/sessions/${sessionId}/resolve`, { method: 'POST' });
-        const action = res.is_resolved === 1 ? 'marcat curățat' : 'marcat nerezolvat';
-        showToast(`Raportul ${sessionId} ${action}`);
+        const action = res.is_resolved === 1 ? 'marked cleaned' : 'marked unresolved';
+        showToast(`Report ${sessionId} ${action}`);
         // Refresh reports list
         this.loadAdminReports();
         this.loadAdminStats();
@@ -224,13 +241,13 @@ function adminApp() {
     },
 
     async adminDeleteReport(sessionId) {
-      if (!confirm(`Ștergi raportul #${sessionId}?`)) return;
+      if (!confirm(`Delete report #${sessionId}?`)) return;
       try {
         await fetchAPI(`/api/sessions/${sessionId}`, { method: 'DELETE' });
         this.adminReports = this.adminReports.filter(r => r.id !== sessionId);
         this.adminReportsTotal--;
         this.loadAdminStats();
-        showToast(`Raportul #${sessionId} a fost șters.`);
+        showToast(`Report #${sessionId} has been deleted.`);
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -283,7 +300,7 @@ function adminApp() {
           data: {
             labels: this.adminCharts.reports_timeline.map(r => r.day.slice(5)),
             datasets: [{
-              label: 'Rapoarte',
+              label: 'Reports',
               data: this.adminCharts.reports_timeline.map(r => r.count),
               backgroundColor: 'rgba(5,150,105,.6)',
               borderRadius: 4,
@@ -308,7 +325,7 @@ function adminApp() {
           data: {
             labels: this.adminCharts.users_timeline.map(r => r.month),
             datasets: [{
-              label: 'Utilizatori noi',
+              label: 'New users',
               data: this.adminCharts.users_timeline.map(r => r.count),
               borderColor: '#3b82f6',
               backgroundColor: 'rgba(59,130,246,.15)',
@@ -356,7 +373,7 @@ function adminApp() {
         this._adminChartInstances.resolution = new Chart(resCanvas, {
           type: 'doughnut',
           data: {
-            labels: ['Rezolvate', 'Nerezolvate'],
+            labels: ['Resolved', 'Unresolved'],
             datasets: [{
               data: [rr.resolved, rr.unresolved],
               backgroundColor: ['#059669', '#ef4444'],
@@ -384,7 +401,7 @@ function adminApp() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: this.adminBroadcastMsg.trim() }),
         });
-        showToast(`Notificare trimisă la ${res.sent_to} utilizatori`);
+        showToast(`Notification sent to ${res.sent_to} users`);
         this.adminBroadcastMsg = '';
       } catch (e) {
         showToast(e.message, 'error');
@@ -417,7 +434,7 @@ function adminApp() {
 
     async addAuthority() {
       const { name, email, area_description } = this.adminNewAuthority;
-      if (!name.trim() || !email.trim()) return showToast('Nume și email sunt obligatorii', 'error');
+      if (!name.trim() || !email.trim()) return showToast('Name and email are required', 'error');
       try {
         const auth = await fetchAPI('/api/admin/authorities', {
           method: 'POST',
@@ -426,7 +443,7 @@ function adminApp() {
         });
         this.adminAuthorities.push(auth);
         this.adminNewAuthority = { name: '', email: '', area_description: '' };
-        showToast('Autoritate adăugată');
+        showToast('Authority added');
         this._refreshAdminIcons();
       } catch (e) {
         showToast(e.message, 'error');
@@ -434,11 +451,11 @@ function adminApp() {
     },
 
     async deleteAuthority(id) {
-      if (!confirm('Ștergi acest contact de autoritate?')) return;
+      if (!confirm('Delete this authority contact?')) return;
       try {
         await fetchAPI(`/api/admin/authorities/${id}`, { method: 'DELETE' });
         this.adminAuthorities = this.adminAuthorities.filter(a => a.id !== id);
-        showToast('Contact șters');
+        showToast('Contact deleted');
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -448,7 +465,7 @@ function adminApp() {
       this.adminForwardSending = true;
       try {
         const res = await fetchAPI(`/api/admin/forward/${sessionId}`, { method: 'POST' });
-        showToast(res.detail || 'Raport trimis la autoritate');
+        showToast(res.detail || 'Report forwarded to authority');
       } catch (e) {
         showToast(e.message, 'error');
       } finally {
@@ -471,7 +488,7 @@ function adminApp() {
 
     async addWebhook() {
       const { url, secret, events } = this.adminNewWebhook;
-      if (!url.trim()) return showToast('URL-ul este obligatoriu', 'error');
+      if (!url.trim()) return showToast('URL is required', 'error');
       try {
         const wh = await fetchAPI('/api/admin/webhooks', {
           method: 'POST',
@@ -485,7 +502,7 @@ function adminApp() {
         });
         this.adminWebhooks.push(wh);
         this.adminNewWebhook = { url: '', secret: '', events: 'report.verified,report.cleaned' };
-        showToast('Webhook adăugat');
+        showToast('Webhook added');
         this._refreshAdminIcons();
       } catch (e) {
         showToast(e.message, 'error');
@@ -509,11 +526,11 @@ function adminApp() {
     },
 
     async deleteWebhook(id) {
-      if (!confirm('Ștergi acest webhook?')) return;
+      if (!confirm('Delete this webhook?')) return;
       try {
         await fetchAPI(`/api/admin/webhooks/${id}`, { method: 'DELETE' });
         this.adminWebhooks = this.adminWebhooks.filter(w => w.id !== id);
-        showToast('Webhook șters');
+        showToast('Webhook deleted');
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -523,7 +540,7 @@ function adminApp() {
       this.adminWebhookTesting = id;
       try {
         const res = await fetchAPI(`/api/admin/webhooks/${id}/test`, { method: 'POST' });
-        showToast(res.status === 'ok' ? `Test OK (${res.status_code})` : `Test eșuat: ${res.error}`, res.status === 'ok' ? 'success' : 'error');
+        showToast(res.status === 'ok' ? `Test OK (${res.status_code})` : `Test failed: ${res.error}`, res.status === 'ok' ? 'success' : 'error');
       } catch (e) {
         showToast(e.message, 'error');
       } finally {
@@ -551,6 +568,79 @@ function adminApp() {
       return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
     },
 
+    /* ── Littering Incidents ───────────────────────────────────────────── */
+    async loadIncidents() {
+      this.incidentsLoading = true;
+      try {
+        const skip = this.incidentPage * this.incidentLimit;
+        let url = `/api/littering/events?skip=${skip}&limit=${this.incidentLimit}`;
+        if (this.incidentStatusFilter) url += `&status=${encodeURIComponent(this.incidentStatusFilter)}`;
+        if (this.incidentMaterialFilter) url += `&material=${encodeURIComponent(this.incidentMaterialFilter)}`;
+
+        const data = await fetchAPI(url);
+        this.incidents = data.items;
+        this.incidentTotal = data.total;
+
+        // Update pending count (for tab badge) — always fetch without filter
+        try {
+          const pendingData = await fetchAPI('/api/littering/events?status=pending&limit=1');
+          this.incidentPending = pendingData.total;
+        } catch (_) {}
+      } catch (e) {
+        showToast('Error loading incidents: ' + e.message, 'error');
+      } finally {
+        this.incidentsLoading = false;
+      }
+    },
+
+    async markIncidentReviewed(id) {
+      try {
+        const updated = await fetchAPI(`/api/littering/events/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'reviewed' }),
+        });
+        const idx = this.incidents.findIndex(e => e.id === id);
+        if (idx !== -1) this.incidents[idx] = updated;
+        this.incidentPending = Math.max(0, this.incidentPending - 1);
+        showToast('Incident marked as reviewed.');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      }
+    },
+
+    async forwardIncident(id) {
+      if (!confirm('Forward this incident evidence to the authority?')) return;
+      try {
+        const updated = await fetchAPI(`/api/littering/events/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'forwarded' }),
+        });
+        const idx = this.incidents.findIndex(e => e.id === id);
+        if (idx !== -1) this.incidents[idx] = updated;
+        showToast('Incident forwarded to authority.');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      }
+    },
+
+    async dismissIncident(id) {
+      if (!confirm('Mark this incident as a false positive?')) return;
+      try {
+        const updated = await fetchAPI(`/api/littering/events/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'dismissed' }),
+        });
+        const idx = this.incidents.findIndex(e => e.id === id);
+        if (idx !== -1) this.incidents[idx] = updated;
+        showToast('Incident dismissed.');
+      } catch (e) {
+        showToast('Error: ' + e.message, 'error');
+      }
+    },
+
     /* ── Switch admin sub-tab ─────────────────────────────────────────── */
     switchAdminSubTab(tab) {
       this.adminSubTab = tab;
@@ -567,6 +657,8 @@ function adminApp() {
         this.loadAdminActivity();
       } else if (tab === 'authorities') {
         this.loadAuthorities();
+      } else if (tab === 'incidents') {
+        this.loadIncidents();
       } else if (tab === 'webhooks') {
         this.loadWebhooks();
       }
@@ -587,19 +679,19 @@ function adminApp() {
     _fmtAdminDate(iso) {
       if (!iso) return '—';
       const d = new Date(iso);
-      return d.toLocaleDateString('ro-RO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     },
 
     _fmtAdminTimeAgo(iso) {
       if (!iso) return '';
       const diff = Date.now() - new Date(iso).getTime();
       const mins = Math.floor(diff / 60000);
-      if (mins < 1) return 'acum';
+      if (mins < 1) return 'now';
       if (mins < 60) return `${mins} min`;
       const hrs = Math.floor(mins / 60);
       if (hrs < 24) return `${hrs}h`;
       const days = Math.floor(hrs / 24);
-      return `${days}z`;
+      return `${days}d`;
     },
   };
 }
