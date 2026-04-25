@@ -25,10 +25,12 @@ Imagine/Video → [Stage 1: Detector YOLO] → bounding boxes (clasa: trash)
 
 ### Detector — Experiment A
 
-| Experiment | Model | imgsz | Precision | Recall | **mAP50** | mAP50-95 |
-|------------|-------|-------|-----------|--------|-----------|----------|
-| A22 (baseline) | YOLOv8n | 416 | 0.707 | 0.286 | 0.393 | 0.281 |
-| **A3-final** ✅ productie | **YOLOv8s** | **640** | **0.623** | **0.406** | **0.443** | **0.321** |
+| Experiment | Model | Dataset | imgsz | Precision | Recall | **mAP50** | mAP50-95 |
+|------------|-------|---------|-------|-----------|--------|-----------|----------|
+| A22 (baseline) | YOLOv8n | Parks 1544 | 416 | 0.707 | 0.286 | 0.393 | 0.281 |
+| A3-final (original) | YOLOv8s | Parks 1544 | 640 | 0.623 | 0.406 | 0.443 | 0.321 |
+| A3-retrain (reproductibil) | YOLOv8s | Parks 1544 | 640 | 0.628 | 0.437 | 0.482 | 0.356 |
+| **A4** ✅ productie | **YOLOv8s** | **Parks+TACO 2307** | **640** | **0.857** | **0.552** | **0.666** | **0.523** |
 
 ### Clasificator — Experiment B (metrici pe test set)
 
@@ -53,6 +55,20 @@ Imagine/Video → [Stage 1: Detector YOLO] → bounding boxes (clasa: trash)
 | glass    | 94  | 12.7% |
 | plastic  | 77  | 10.4% |
 | other    | 25  | 3.4%  |
+
+---
+
+## Modele antrenate
+
+### Detectie act de aruncare ilegala — Evaluare FP rate
+
+| Model | Videos testate | Frames | False Positive | FP Rate |
+|-------|---------------|--------|----------------|---------|
+| A3-retrain | 4 park videos | 1901 | 0 | **0%** |
+| **A4** ✅ productie | 4 park videos | 1901 | 0 | **0%** |
+
+Ambele modele au FP rate 0% pe videoclipuri reale de parc. A4 selectat pentru productie
+datorita imbunatatirii de +22.3pp mAP50 la detectia obiectelor.
 
 ---
 
