@@ -436,9 +436,14 @@ async def handle_monitor_ws(
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Fresh tracker instance — avoids ByteTrack state bleed between sessions
-    tracker = YOLO(str(settings.detector_path))
-    tracker.to(device)
+    # Load fresh tracker in a thread — avoids blocking the async event loop
+    # (YOLO model loading is synchronous and takes ~100-500ms)
+    def _load_tracker():
+        t = YOLO(str(settings.detector_path))
+        t.to(device)
+        return t
+
+    tracker = await asyncio.to_thread(_load_tracker)
 
     detector = LitteringDetector(fps=25.0, monitor_seconds=10.0, pre_event_seconds=5.0)
 
