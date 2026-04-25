@@ -27,6 +27,11 @@ import random
 import shutil
 from pathlib import Path
 
+import cv2
+import numpy as np
+
+MAX_DIM = 1280  # cap all images at 1280px max dimension before saving
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PARKS_SRC = REPO_ROOT / "datasets" / "parks_detect_full"
 TACO_IMG_DIR = REPO_ROOT / "datasets" / "raw" / "taco" / "data"
@@ -41,6 +46,19 @@ TACO_VAL     = 0.15
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 1 — Copy parks_detect_full as base
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _save_resized(src: Path, dst: Path) -> bool:
+    """Copy image to dst, resizing to MAX_DIM if larger. Returns True on success."""
+    img = cv2.imread(str(src))
+    if img is None:
+        return False
+    h, w = img.shape[:2]
+    if max(h, w) > MAX_DIM:
+        scale = MAX_DIM / max(h, w)
+        img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+    cv2.imwrite(str(dst), img, [cv2.IMWRITE_JPEG_QUALITY, 92])
+    return True
+
 
 def copy_parks(out_dir: Path) -> dict[str, int]:
     counts = {}
@@ -59,7 +77,9 @@ def copy_parks(out_dir: Path) -> dict[str, int]:
             lbl = src_lbls / img.with_suffix(".txt").name
             if not lbl.exists():
                 continue
-            shutil.copy2(img, dst_imgs / img.name)
+            dst_img = dst_imgs / (img.stem + ".jpg")
+            if not _save_resized(img, dst_img):
+                continue
             shutil.copy2(lbl, dst_lbls / lbl.name)
             n += 1
         counts[split] = n
@@ -159,10 +179,12 @@ def convert_taco(out_dir: Path) -> dict[str, int]:
 
             # Use unique filename to avoid collision with parks images
             safe_name = rel_name.replace("/", "_").replace("\\", "_")
-            dst_img   = dst_imgs / f"taco_{safe_name}"
-            shutil.copy2(src_img, dst_img)
+            stem      = Path(safe_name).stem
+            dst_img   = dst_imgs / f"taco_{stem}.jpg"
+            if not _save_resized(src_img, dst_img):
+                continue
 
-            dst_lbl = dst_lbls / f"taco_{safe_name}".replace(src_img.suffix, ".txt")
+            dst_lbl = dst_lbls / f"taco_{stem}.txt"
             dst_lbl.write_text("\n".join(img_to_anns[iid]) + "\n")
             n_copied += 1
 
@@ -200,8 +222,14 @@ names:
 def main():
     if OUT_DIR.exists():
         print(f"Output dir exists, curatam: {OUT_DIR}")
-        shutil.rmtree(OUT_DIR)
-    OUT_DIR.mkdir(parents=True)
+        # Defensive cleanup — skip files that are locked
+        for item in OUT_DIR.rglob("*"):
+            if item.is_file():
+                try:
+                    item.unlink()
+                except (PermissionError, OSError):
+                    pass
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 55)
     print("  Prepare A4 Dataset")
