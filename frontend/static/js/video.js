@@ -438,6 +438,7 @@ function videoApp() {
     monitorAlerts: [],
     monitorPersonConf: 0.35,
     monitorSendFps: 10,
+    monitorFacingMode: 'environment',   // 'environment' = spate, 'user' = față
     _monitorAnimFrame: null,
     _monitorCaptureCanvas: null,
     _lastMonitorMsg: null,
@@ -447,12 +448,17 @@ function videoApp() {
     async startMonitor() {
       try {
         this.monitorStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: { facingMode: this.monitorFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
       } catch (e) {
-        showToast('Camera access error: ' + e.message, 'error');
-        return;
+        // Fallback: try without facingMode constraint if it fails
+        try {
+          this.monitorStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } catch (e2) {
+          showToast('Camera access error: ' + e2.message, 'error');
+          return;
+        }
       }
 
       const video = this.$refs.monitorVideo;
@@ -633,6 +639,34 @@ function videoApp() {
           ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
           ctx.fillText('#' + d.track_id, x1 * scaleX + 2, y1 * scaleY - 3);
         }
+      }
+    },
+
+    // ── Flip camera front ↔ back (fără a reporni WebSocket-ul) ─────────────
+    async flipMonitorCamera() {
+      this.monitorFacingMode = this.monitorFacingMode === 'environment' ? 'user' : 'environment';
+      if (!this.monitorActive) return;
+
+      // Opreste stream-ul curent
+      if (this.monitorStream) {
+        this.monitorStream.getTracks().forEach(t => t.stop());
+        this.monitorStream = null;
+      }
+
+      // Porneste stream nou cu camera opusă
+      try {
+        this.monitorStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: this.monitorFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        });
+        const video = this.$refs.monitorVideo;
+        video.srcObject = this.monitorStream;
+        await video.play();
+        showToast(this.monitorFacingMode === 'user' ? 'Camera față activată' : 'Camera spate activată', 'success');
+      } catch (e) {
+        showToast('Eroare la schimbarea camerei: ' + e.message, 'error');
+        // Revert if failed
+        this.monitorFacingMode = this.monitorFacingMode === 'environment' ? 'user' : 'environment';
       }
     },
 

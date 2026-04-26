@@ -877,8 +877,8 @@ async def ws_video_live(
 @app.websocket("/ws/video/monitor")
 async def ws_video_monitor(
     websocket: WebSocket,
-    det_conf: float = Query(default=0.40, ge=0.05, le=0.95),
-    person_conf: float = Query(default=0.30, ge=0.05, le=0.95),
+    det_conf: float = Query(default=0.40, ge=0.10, le=0.95),
+    person_conf: float = Query(default=0.28, ge=0.10, le=0.95),
     lat: Optional[float] = Query(default=None),
     lng: Optional[float] = Query(default=None),
 ):

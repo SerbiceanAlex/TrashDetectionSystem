@@ -119,10 +119,24 @@ def _process_video_sync(
     progress_callback=None,
 ) -> dict:
     """
-    Synchronous video processing — runs in a thread to avoid blocking the
-    async event loop.  Returns a dict with aggregated stats.
-    Calls progress_callback(frames_processed, total_frames_expected) every 30 frames.
+    Synchronous video processing with integrated LitteringDetector.
+
+    Runs in a thread (asyncio.to_thread) to avoid blocking the event loop.
+    For each frame:
+      1. Tracks trash objects with a fresh per-video ByteTrack YOLO instance.
+      2. Detects persons with the shared person detector.
+      3. Applies the same temporal smoothing used by the live WebSocket monitor.
+      4. Feeds the LitteringDetector state machine — collects LitteringEvent
+         objects without touching the DB (DB writes happen in the async caller).
+      5. Draws an annotated frame with state overlay and writes it to the output video.
+
+    Returns a dict with aggregated stats + collected littering_events list.
     """
+    from ultralytics import YOLO
+    from backend.littering_detector import LitteringDetector
+    from backend.config import settings
+    import torch
+
     cap = cv2.VideoCapture(str(file_path))
     if not cap.isOpened():
         return {"error": "cannot_open"}
@@ -145,32 +159,132 @@ def _process_video_sync(
     total_ms = 0.0
     t_start = time.time()
 
+    # ── Per-video fresh tracker + state machine ──────────────────────────────
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    tracker = YOLO(str(settings.detector_path))
+    tracker.to(device)
+    detector = LitteringDetector(fps=fps_in, monitor_seconds=8.0, pre_event_seconds=4.0)
+
+    # Temporal smoothing (mirrors handle_monitor_ws logic)
+    _PERSON_CONFIRM = 2
+    _PERSON_CLEAR   = 8
+    _person_streak  = 0
+    _person_stable  = False
+    _trash_tracks: dict = {}
+
+    # Collected events — DB writes happen in the async caller after the thread finishes
+    collected_events: list = []          # list of (LitteringEvent, frame_timestamp_sec)
+
     try:
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
 
-            detections, annotated, elapsed_ms = infer.run_pipeline_frame(
-                frame, det_conf=det_conf
+            t0 = time.perf_counter()
+
+            # Stage 1 — trash tracking (ByteTrack, per-video instance)
+            results = tracker.track(
+                frame, conf=det_conf, imgsz=_TRASH_TRACK_IMGSZ, verbose=False,
+                persist=True, tracker="bytetrack.yaml",
             )
+            boxes = results[0].boxes
+            trash_dets: list = []
+            if boxes is not None and boxes.xyxy is not None:
+                xyxy_list = boxes.xyxy.tolist()
+                conf_list = boxes.conf.tolist() if boxes.conf is not None else [0.0] * len(xyxy_list)
+                id_list = (
+                    [int(x) for x in boxes.id.tolist()]
+                    if (hasattr(boxes, "id") and boxes.id is not None)
+                    else list(range(len(xyxy_list)))
+                )
+                h_f, w_f = frame.shape[:2]
+                for xyxy, det_score, track_id in zip(xyxy_list, conf_list, id_list):
+                    x1 = max(0, int(xyxy[0])); y1 = max(0, int(xyxy[1]))
+                    x2 = min(w_f, int(xyxy[2])); y2 = min(h_f, int(xyxy[3]))
+                    if _valid_trash_box((x1, y1, x2, y2), w_f, h_f):
+                        trash_dets.append({
+                            "track_id": track_id,
+                            "box": (x1, y1, x2, y2),
+                            "det_score": float(det_score),
+                            "material_name": "unknown",
+                        })
 
-            ah, aw = annotated.shape[:2]
-            if (aw, ah) != (out_w, out_h):
-                annotated = cv2.resize(annotated, (out_w, out_h))
+            # Stage 2 — person detection
+            person_boxes = infer.detect_persons(frame, conf=0.35, imgsz=640)
 
-            writer.write(annotated)
+            # Temporal smoothing
+            if person_boxes:
+                _person_streak = min(_person_streak + 1, _PERSON_CONFIRM)
+            else:
+                _person_streak = max(_person_streak - 1, -_PERSON_CLEAR)
+            if _person_streak >= _PERSON_CONFIRM:
+                _person_stable = True
+            elif _person_streak <= -_PERSON_CLEAR:
+                _person_stable = False
+            smoothed_person_boxes = person_boxes if _person_stable else []
 
+            # Suppress trash bboxes that are body false-positives
+            if person_boxes:
+                person_filter_boxes = [_shrink_box(pb, _PERSON_FILTER_SHRINK) for pb in person_boxes]
+                trash_dets = [
+                    d for d in trash_dets
+                    if not _should_suppress_overlapped_trash(d["box"], person_filter_boxes)
+                ]
+
+            # Track-level stabilizer
+            current_ids: set = set()
+            for d in trash_dets:
+                tid = d["track_id"]
+                current_ids.add(tid)
+                st = _trash_tracks.get(tid)
+                if st is None:
+                    _trash_tracks[tid] = {"seen": 1, "miss": 0, "det": d}
+                else:
+                    st["seen"] = min(st["seen"] + 1, 9999)
+                    st["miss"] = 0
+                    st["det"] = d
+            for tid in list(_trash_tracks):
+                if tid not in current_ids:
+                    _trash_tracks[tid]["miss"] += 1
+                    if _trash_tracks[tid]["miss"] > _TRASH_GRACE_MISSES:
+                        del _trash_tracks[tid]
+
+            stable_trash = [
+                st["det"] for st in _trash_tracks.values()
+                if st["seen"] >= _TRASH_STABLE_SEEN and st["miss"] == 0
+            ]
+            display_trash = [
+                st["det"] for st in _trash_tracks.values()
+                if st["seen"] >= _TRASH_STABLE_SEEN and st["miss"] <= _TRASH_GRACE_MISSES
+            ]
+
+            elapsed_ms = (time.perf_counter() - t0) * 1000.0
             total_frames += 1
             total_ms += elapsed_ms
-            total_objects += len(detections)
+            total_objects += len(trash_dets)
+            for d in trash_dets:
+                material_counts[d["material_name"]] += 1
 
-            for det in detections:
-                material_counts[det["material_name"]] += 1
+            # Stage 3 — state machine
+            event = detector.update(frame, stable_trash, smoothed_person_boxes)
+            if event is not None:
+                ts_sec = total_frames / fps_in
+                event.clip_frames = list(detector._frame_buffer)   # pre-event frames
+                collected_events.append((event, ts_sec))
 
-            # Report progress every 30 frames
+            # Draw annotated frame
+            annotated = _draw_littering_frame(
+                frame.copy(), smoothed_person_boxes, display_trash,
+                detector.current_state, event is not None,
+            )
+            if annotated.shape[1] != out_w or annotated.shape[0] != out_h:
+                annotated = cv2.resize(annotated, (out_w, out_h))
+            writer.write(annotated)
+
             if progress_callback and total_frames % 30 == 0:
                 progress_callback(total_frames, total_frames_expected)
+
     finally:
         cap.release()
         writer.release()
@@ -188,6 +302,8 @@ def _process_video_sync(
         "duration_sec": duration,
         "materials_summary": json.dumps(dict(material_counts)),
         "annotated_video_path": str(out_path),
+        "littering_events": collected_events,    # list of (LitteringEvent, ts_sec)
+        "littering_count": len(collected_events),
     }
 
 
@@ -237,6 +353,52 @@ async def process_uploaded_video(
                 materials_summary=result["materials_summary"],
                 annotated_video_path=result["annotated_video_path"],
             )
+
+        # ── Save littering events detected in the uploaded video ─────────────
+        for event, ts_sec in result.get("littering_events", []):
+            try:
+                # Save thumbnail to disk (blocking I/O → offload to thread)
+                thumb_rel = None
+                if event.thumbnail is not None:
+                    # Use a temporary id placeholder; real id comes from DB flush
+                    import tempfile, uuid
+                    tmp_id = int(uuid.uuid4().int % 1_000_000)
+                    thumb_rel = await asyncio.to_thread(
+                        _save_thumbnail, event.thumbnail, tmp_id
+                    )
+
+                async with db.AsyncSessionLocal() as s:
+                    db_event = await db.create_littering_event(
+                        s,
+                        material=event.material,
+                        det_score=event.det_score,
+                        person_present=event.person_present,
+                        person_count=1,
+                        thumbnail_path=thumb_rel,
+                        detection_method="zone",
+                    )
+
+                # Rename thumbnail to match real event id (best-effort)
+                if thumb_rel:
+                    old_path = LITTERING_DIR / thumb_rel
+                    new_name = f"event_{db_event.id:06d}_thumb.jpg"
+                    new_path = LITTERING_DIR / new_name
+                    try:
+                        old_path.rename(new_path)
+                        async with db.AsyncSessionLocal() as s:
+                            ev = await db.get_littering_event_by_id(s, db_event.id)
+                            if ev:
+                                ev.thumbnail_path = new_name
+                                await s.commit()
+                    except Exception:
+                        pass
+
+                logger.info(
+                    "Littering event #%d saved from uploaded video (t=%.1fs, material=%s)",
+                    db_event.id, ts_sec, event.material,
+                )
+            except Exception:
+                logger.exception("Failed to save littering event from uploaded video")
 
     except Exception as exc:
         import traceback
@@ -445,7 +607,7 @@ async def handle_monitor_ws(
 
     tracker = await asyncio.to_thread(_load_tracker)
 
-    det_conf   = max(det_conf, 0.25)    # floor — prevent chaotic detections at very low slider values
+    det_conf   = max(det_conf, 0.35)    # floor — minimum 0.35 to avoid false positives on non-trash items
     detector = LitteringDetector(fps=25.0, monitor_seconds=10.0, pre_event_seconds=5.0, zone_expand=0.35)
 
     # Temporal smoothing counters — require N consecutive frames to confirm/clear
@@ -574,12 +736,8 @@ async def handle_monitor_ws(
             total_ms += elapsed_ms
             avg_fps = total_frames / max(time.time() - t_start, 0.001)
 
-            # Reset trash tracks when a new person cycle starts (CLEAR → PERSON_PRESENT)
-            # so objects seen in a previous cycle don't pollute the known_ids of the next
-            prev_state = detector.current_state
+            # Stage 3: state machine update
             event = detector.update(frame, detector_trash_dets, smoothed_person_boxes)
-            if prev_state == "CLEAR" and detector.current_state == "PERSON_PRESENT":
-                _trash_tracks.clear()  # fresh tracking for this person's session
 
             # ── Event detected ────────────────────────────────────────────
             if event is not None:

@@ -34,7 +34,7 @@
       <video x-ref="monitorVideo" autoplay playsinline muted style="display:none"></video>
       <canvas x-ref="monitorCanvas" style="width:100%;height:100%;object-fit:cover;display:block"></canvas>
 
-      <!-- Top bar: state badge + FPS -->
+      <!-- Top bar: state badge + FPS + flip camera button -->
       <div style="position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;pointer-events:none">
         <span class="badge"
           :class="{
@@ -44,11 +44,24 @@
             'badge--gray':   !monitorActive
           }"
           style="font-size:11px;font-weight:700;letter-spacing:.04em"
-          x-text="monitorActive ? (monitorState === 'CLEAR' ? '✓ CLEAR' : monitorState === 'PERSON_PRESENT' ? '👤 PERSON DETECTED' : monitorState === 'MONITORING' ? '⏱ MONITORING' : 'Connecting…') : 'INACTIVE'">
+          x-text="monitorActive ? (monitorState === 'CLEAR' ? '✔ LIBER' : monitorState === 'PERSON_PRESENT' ? '👤 PERSOANĂ DETECTATĂ' : monitorState === 'MONITORING' ? '⏱ MONITORIZEZ' : 'Se conectează…') : 'INACTIV'">
         </span>
-        <span x-show="monitorActive" class="badge"
-          style="background:rgba(0,0,0,.55);color:#fff;backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.12);font-size:10px"
-          x-text="monitorFps.toFixed(1) + ' FPS'"></span>
+
+        <div style="display:flex;align-items:center;gap:6px">
+          <!-- Flip camera button (visible when monitor is active) -->
+          <button x-show="monitorActive" @click="flipMonitorCamera()"
+            title="Switch camera"
+            style="pointer-events:auto;display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:600;cursor:pointer;backdrop-filter:blur(6px);transition:background .2s"
+            @mouseenter="$el.style.background='rgba(99,102,241,.75)'"
+            @mouseleave="$el.style.background='rgba(0,0,0,.55)'">
+            <i data-lucide="refresh-cw" class="icon icon--xs"></i>
+            <span x-text="monitorFacingMode === 'environment' ? 'Față' : 'Spate'"></span>
+          </button>
+
+          <span x-show="monitorActive" class="badge"
+            style="background:rgba(0,0,0,.55);color:#fff;backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.12);font-size:10px"
+            x-text="monitorFps.toFixed(1) + ' FPS'"></span>
+        </div>
       </div>
 
       <!-- Person / trash counters -->
@@ -92,12 +105,19 @@
     <!-- Controls -->
     <div style="padding:16px">
 
-      <!-- Start / Stop -->
-      <button @click="startMonitor()" x-show="!monitorActive"
-        class="btn btn--scan" style="width:100%;height:52px;font-size:15px;font-weight:700;gap:10px;border-radius:12px">
-        <i data-lucide="play-circle" class="icon icon--md"></i>
-        Start Monitoring
-      </button>
+      <!-- Start / Stop + Flip Camera -->
+      <div x-show="!monitorActive" style="display:flex;gap:8px">
+        <button @click="startMonitor()"
+          class="btn btn--scan" style="flex:1;height:52px;font-size:15px;font-weight:700;gap:10px;border-radius:12px">
+          <i data-lucide="play-circle" class="icon icon--md"></i>
+          Start Monitoring
+        </button>
+        <button @click="monitorFacingMode = monitorFacingMode === 'environment' ? 'user' : 'environment'"
+          class="btn btn--ghost" style="height:52px;width:52px;border-radius:12px;flex-shrink:0"
+          :title="monitorFacingMode === 'environment' ? 'Camera spate activă' : 'Camera față activă'">
+          <i data-lucide="flip-horizontal-2" class="icon icon--md"></i>
+        </button>
+      </div>
       <button @click="stopMonitor()" x-show="monitorActive"
         class="btn btn--danger" style="width:100%;height:52px;font-size:15px;font-weight:700;gap:10px;border-radius:12px">
         <i data-lucide="stop-circle" class="icon icon--md"></i>
@@ -121,32 +141,37 @@
         </div>
       </div>
 
-      <!-- Settings (collapsed) -->
+      <!-- Settings (collapsed, expert only) -->
       <details style="margin-top:14px">
         <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--tx-muted);padding:8px 0;user-select:none">
           <i data-lucide="sliders-horizontal" class="icon icon--xs"></i>
           Detection settings
           <i data-lucide="chevron-down" class="icon icon--xs" style="margin-left:auto"></i>
         </summary>
-        <div style="padding:14px;background:var(--bg-raised);border-radius:10px;margin-top:6px;display:flex;flex-direction:column;gap:16px">
+        <div style="padding:14px;background:var(--bg-raised);border-radius:10px;margin-top:6px;display:flex;flex-direction:column;gap:12px">
+          <!-- Info banner: optimal values pre-set -->
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(99,102,241,.12);border-radius:8px;font-size:11px;color:var(--tx-secondary)">
+            <i data-lucide="info" class="icon icon--xs" style="color:#6366f1;flex-shrink:0"></i>
+            Valorile implicite sunt optime pentru spații exterioare. Modifică doar dacă știi ce faci.
+          </div>
           <div>
             <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
-              <span>Trash sensitivity</span>
+              <span>Trash confidence</span>
               <strong style="color:var(--eco-green-dark)" x-text="detConf.toFixed(2)"></strong>
             </div>
-            <input type="range" min="0.10" max="0.90" step="0.05" x-model.number="detConf" class="slider" />
+            <input type="range" min="0.35" max="0.90" step="0.05" x-model.number="detConf" class="slider" />
             <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
-              <span>Sensitive (0.10)</span><span>Strict (0.90)</span>
+              <span>Mai sensibil (0.35)</span><span>Mai strict (0.90)</span>
             </div>
           </div>
           <div>
             <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
-              <span>Person sensitivity</span>
+              <span>Person confidence</span>
               <strong style="color:var(--eco-green-dark)" x-text="monitorPersonConf.toFixed(2)"></strong>
             </div>
-            <input type="range" min="0.20" max="0.90" step="0.05" x-model.number="monitorPersonConf" class="slider" />
+            <input type="range" min="0.20" max="0.70" step="0.05" x-model.number="monitorPersonConf" class="slider" />
             <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
-              <span>Detect from far (0.20)</span><span>High certainty (0.90)</span>
+              <span>De la distanță (0.20)</span><span>Sigur (0.70)</span>
             </div>
           </div>
           <div>
