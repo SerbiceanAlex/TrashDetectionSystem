@@ -574,8 +574,12 @@ async def handle_monitor_ws(
             total_ms += elapsed_ms
             avg_fps = total_frames / max(time.time() - t_start, 0.001)
 
-            # Stage 3: state machine update — use smoothed boxes to avoid flicker
+            # Reset trash tracks when a new person cycle starts (CLEAR → PERSON_PRESENT)
+            # so objects seen in a previous cycle don't pollute the known_ids of the next
+            prev_state = detector.current_state
             event = detector.update(frame, detector_trash_dets, smoothed_person_boxes)
+            if prev_state == "CLEAR" and detector.current_state == "PERSON_PRESENT":
+                _trash_tracks.clear()  # fresh tracking for this person's session
 
             # ── Event detected ────────────────────────────────────────────
             if event is not None:

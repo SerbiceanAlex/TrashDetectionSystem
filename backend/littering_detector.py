@@ -480,17 +480,17 @@ class LitteringDetector:
         trash_detections: list[dict],
         frame: np.ndarray,
     ) -> Optional[LitteringEvent]:
+        # Fire on the FIRST new trash object found anywhere in the frame.
+        # The person zone is used only for the evidence thumbnail, not as a
+        # spatial filter — this avoids misses when the person exits at the
+        # frame edge and the object lands in the centre.
+        best_zone = self._person_zones[0] if self._person_zones else None
         for det in trash_detections:
             if det["track_id"] not in new_trash_ids:
                 continue
-            bx1, by1, bx2, by2 = det["box"]
-            cx = (bx1 + bx2) // 2
-            cy = (by1 + by2) // 2
-            for zone in self._person_zones:
-                zx1, zy1, zx2, zy2 = zone.expanded(self.zone_expand)
-                if zx1 <= cx <= zx2 and zy1 <= cy <= zy2:
-                    thumbnail = _make_thumbnail(frame, det["box"], zone)
-                    return LitteringEvent(
+            zone = best_zone or PersonZone(0, 0, frame.shape[1], frame.shape[0], self.frame_idx)
+            thumbnail = _make_thumbnail(frame, det["box"], zone)
+            return LitteringEvent(
                         detected_at_ts   = time.time(),
                         frame_idx        = self.frame_idx,
                         material         = det["material_name"],
