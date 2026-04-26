@@ -320,8 +320,8 @@ _MAX_TRASH_AREA_FRAC = 0.18     # ignore huge background regions (e.g. bed/floor
 _TRASH_TRACK_IMGSZ = 416         # better small-object recall vs 320 with moderate latency
 _PERSON_FILTER_SHRINK = 0.72     # shrink person boxes for overlap filtering only
 _HANDHELD_MAX_PERSON_RATIO = 0.12  # keep small objects overlapping a person (in hand)
-_TRASH_STABLE_SEEN = 2             # require 2 consecutive detections for stability
-_TRASH_GRACE_MISSES = 3            # keep last box for a few missed frames (visual stability)
+_TRASH_STABLE_SEEN = 4             # require 4 consecutive detections — reduces duplicate/ghost boxes
+_TRASH_GRACE_MISSES = 4            # keep last box for a few missed frames (visual stability)
 
 
 def _valid_trash_box(box: tuple[int, int, int, int], frame_w: int, frame_h: int) -> bool:
@@ -445,7 +445,8 @@ async def handle_monitor_ws(
 
     tracker = await asyncio.to_thread(_load_tracker)
 
-    detector = LitteringDetector(fps=25.0, monitor_seconds=10.0, pre_event_seconds=5.0)
+    det_conf   = max(det_conf, 0.25)    # floor — prevent chaotic detections at very low slider values
+    detector = LitteringDetector(fps=25.0, monitor_seconds=10.0, pre_event_seconds=5.0, zone_expand=0.35)
 
     # Temporal smoothing counters — require N consecutive frames to confirm/clear
     _PERSON_CONFIRM = 2   # frames needed to count person as "present"
@@ -679,6 +680,11 @@ async def handle_monitor_ws(
                     ],
                     "frame_w": frame.shape[1],
                     "frame_h": frame.shape[0],
+                    # Send last person zones when monitoring — lets UI draw the target area
+                    "last_person_zones": [
+                        [z.x1, z.y1, z.x2, z.y2]
+                        for z in detector._person_zones
+                    ] if detector.current_state == "MONITORING" else [],
                 }))
 
     except WebSocketDisconnect:

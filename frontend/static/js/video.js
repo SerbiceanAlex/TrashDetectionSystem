@@ -582,15 +582,37 @@ function videoApp() {
     },
 
     _drawMonitorOverlay(canvas, msg) {
-      if (!msg.person_boxes && !msg.trash_boxes) return;
+      if (!msg.person_boxes && !msg.trash_boxes && !msg.last_person_zones) return;
       const ctx = canvas.getContext('2d');
       const scaleX = canvas.width / (msg.frame_w || 640);
       const scaleY = canvas.height / (msg.frame_h || 480);
 
-      // Draw person boxes (orange)
+      // Draw monitored zone (dashed orange) when in MONITORING state — shows WHERE to drop object
+      if (msg.state === 'MONITORING' && msg.last_person_zones && msg.last_person_zones.length > 0) {
+        const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 300);  // pulsating opacity
+        ctx.strokeStyle = `rgba(251,146,60,${0.6 + 0.4 * pulse})`;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([12, 6]);
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillStyle = `rgba(251,146,60,${0.7 + 0.3 * pulse})`;
+        for (const z of msg.last_person_zones) {
+          const [x1, y1, x2, y2] = z;
+          // Draw expanded zone (35% expansion matches zone_expand=0.35)
+          const expand = 0.35;
+          const dw = (x2 - x1) * expand, dh = (y2 - y1) * expand;
+          const zx1 = (x1 - dw) * scaleX, zy1 = (y1 - dh) * scaleY;
+          const zw  = (x2 - x1 + 2 * dw) * scaleX, zh = (y2 - y1 + 2 * dh) * scaleY;
+          ctx.strokeRect(zx1, zy1, zw, zh);
+          ctx.fillText('⬇ Aruncă aici', zx1 + 4, zy1 + 16);
+        }
+        ctx.setLineDash([]);
+      }
+
+      // Draw person boxes (orange solid)
       if (msg.person_boxes) {
         ctx.strokeStyle = 'rgba(251,191,36,0.9)';
         ctx.lineWidth = 2;
+        ctx.setLineDash([]);
         ctx.font = '11px sans-serif';
         ctx.fillStyle = 'rgba(251,191,36,0.9)';
         for (const b of msg.person_boxes) {

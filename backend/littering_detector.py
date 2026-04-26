@@ -472,6 +472,7 @@ class LitteringDetector:
     def _enter_clear(self) -> None:
         self.state = DetectorState.CLEAR
         self._person_zones.clear()
+        self._known_trash_ids.clear()  # reset so next session starts fresh
 
     def _check_zone_overlap(
         self,
