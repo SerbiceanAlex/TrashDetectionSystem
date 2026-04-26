@@ -507,7 +507,7 @@ async def handle_monitor_ws(
             # Stage 2: person detection (slightly stricter + smaller imgsz for speed)
             person_boxes = infer.detect_persons(
                 frame,
-                conf=max(person_conf, 0.28),
+                conf=max(person_conf, 0.22),
                 imgsz=640,
             )
 

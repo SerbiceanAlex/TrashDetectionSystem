@@ -242,8 +242,8 @@ def run_pipeline_track(
 
 # Minimum person bbox size — filters out partial-body detections (arm/leg
 # visible as person leaves the frame edge), which would falsely spike the count.
-_MIN_PERSON_W = 40   # pixels after _resize_if_needed
-_MIN_PERSON_H = 60
+_MIN_PERSON_W = 25   # pixels — lowered to detect distant/partial persons
+_MIN_PERSON_H = 35   # pixels — lowered for lying/crouching/distant poses
 
 
 def detect_persons(
@@ -264,7 +264,7 @@ def detect_persons(
     with _person_lock:
         results = _person_det.predict(
             frame, conf=conf, imgsz=imgsz, verbose=False,
-            classes=[0], iou=0.4,
+            classes=[0], iou=0.5,
         )
     boxes = results[0].boxes
     if boxes is None or boxes.xyxy is None:
