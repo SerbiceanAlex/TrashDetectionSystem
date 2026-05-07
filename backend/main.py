@@ -20,7 +20,6 @@ from sqlalchemy import case, delete as sa_delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import database as db
-from backend import geo
 from backend import inference as infer
 from backend import schemas
 from backend.auth_router import router as auth_router, get_current_active_user, oauth2_scheme
@@ -239,16 +238,10 @@ async def detect(
     if len(image_bytes) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {MAX_UPLOAD_BYTES // 1024 // 1024} MB.")
 
-    # ── Determine location (EXIF GPS first, browser GPS fallback) ────────────
-    location = await geo.get_image_location(
-        image_bytes,
-        fallback_lat=latitude,
-        fallback_lng=longitude,
-    )
-    final_lat = location["latitude"]
-    final_lng = location["longitude"]
-    address   = location["address"]
-    gps_src   = location["gps_source"]
+    final_lat = latitude
+    final_lng = longitude
+    address   = None
+    gps_src   = "browser" if latitude else None
 
     # Run inference
     try:

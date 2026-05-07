@@ -59,6 +59,17 @@ backend/videos/
 backend/avatars/
 backend/photos/
 
+# Littering evidence (clips + thumbnails — generated at runtime)
+backend/littering/*.mp4
+backend/littering/*.jpg
+backend/littering/*.png
+
+# Test videos — downloaded at runtime, not committed
+datasets/test_videos/
+
+# Claude internal
+.claude/scheduled_tasks.lock
+
 # Temporary files
 tmp/
 

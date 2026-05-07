@@ -669,7 +669,6 @@ async def handle_monitor_ws(
     from ultralytics import YOLO
     from backend.littering_detector import LitteringDetector
     from backend.config import settings
-    from backend import geo
     from datetime import timezone
     import torch
 
@@ -700,13 +699,7 @@ async def handle_monitor_ws(
     total_ms = 0.0
     t_start = time.time()
 
-    # Resolve address from GPS once (if provided)
     resolved_address: str | None = None
-    if latitude is not None and longitude is not None:
-        try:
-            resolved_address = await geo.reverse_geocode(latitude, longitude)
-        except Exception:
-            pass
 
     try:
         while True:
