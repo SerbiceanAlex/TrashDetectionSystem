@@ -21,10 +21,6 @@ function ecoApp() {
     // Lightbox
     lightboxSrc: null,
 
-    // Dashboard stats (legacy)
-    dashStats: null,
-    dashLoading: false,
-
     // Dashboard B2B
     dashB2B: null,
     dashB2BLoading: false,
@@ -144,9 +140,6 @@ function ecoApp() {
       this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
     },
 
-    /* ── Dashboard ────────────────────────────────────────────────────── */
-    dashMyStats: null,
-
     /* ── Notifications ────────────────────────────────────────────────── */
     notifOpen: false,
     notifications: [],
@@ -201,8 +194,6 @@ function ecoApp() {
       return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
     },
     dashWeeklyChart: null,
-    myProfile: null,
-
     async loadDashboard() {
       this.dashB2BLoading = true;
       try {
@@ -361,68 +352,6 @@ function ecoApp() {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(a.href);
-    },
-
-    /* ── Legacy dashboard (păstrat pentru compatibilitate) ────────────── */
-    async _legacy_loadDashboard() {
-      this.dashLoading = true;
-      try {
-        const [global, personal, profile] = await Promise.all([
-          fetch('/api/stats').then(r => r.ok ? r.json() : null),
-          fetch('/api/me/stats', {
-            headers: { Authorization: 'Bearer ' + this.token }
-          }).then(r => r.ok ? r.json() : null).catch(() => null),
-          fetch('/api/me/profile', {
-            headers: { Authorization: 'Bearer ' + this.token }
-          }).then(r => r.ok ? r.json() : null).catch(() => null),
-        ]);
-        if (global)   this.dashStats   = global;
-        if (personal) this.dashMyStats  = personal;
-        if (profile)  this.myProfile    = profile;
-      } catch (_) {}
-      this.dashLoading = false;
-    },
-
-    _renderWeeklyChart() {
-      const canvas = document.getElementById('dashWeeklyChart');
-      if (!canvas || !this.dashMyStats?.weekly_activity) return;
-      if (this.dashWeeklyChart) { this.dashWeeklyChart.destroy(); this.dashWeeklyChart = null; }
-
-      // Build last-7-days labels
-      const days = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(); d.setDate(d.getDate() - i);
-        days.push(d.toISOString().slice(0, 10));
-      }
-      const actMap = {};
-      (this.dashMyStats.weekly_activity || []).forEach(r => { actMap[r.day] = r.reports; });
-      const counts = days.map(d => actMap[d] || 0);
-      const labels = days.map(d => {
-        const dt = new Date(d + 'T12:00:00');
-        return dt.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
-      });
-      const dark = document.documentElement.classList.contains('dark');
-
-      this.dashWeeklyChart = new Chart(canvas, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Reports',
-            data: counts,
-            backgroundColor: counts.map((v, i) => i === 6 ? '#16a34a' : 'rgba(74,222,128,.55)'),
-            borderRadius: 6,
-          }],
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0, color: dark ? '#9ca3af' : '#6b7280', font: { size: 11 } }, grid: { color: dark ? '#1f2937' : '#f3f4f6' } },
-            x: { ticks: { color: dark ? '#9ca3af' : '#6b7280', font: { size: 10 } }, grid: { display: false } },
-          },
-        },
-      });
     },
 
     /* ── Tab navigation ───────────────────────────────────────────────── */
