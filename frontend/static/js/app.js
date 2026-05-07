@@ -7,11 +7,8 @@ function ecoApp() {
     /* ── Spread all sub-modules ──────────────────────────────────────── */
     ...authApp(),
     ...detectApp(),
-    ...mapApp(),
-    ...historyApp(),
     ...videoApp(),
     ...adminApp(),
-    ...communityApp(),
 
     /* ── Global state ─────────────────────────────────────────────────── */
     activeTab: 'dashboard',
@@ -80,23 +77,6 @@ function ecoApp() {
       svgPath: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'
     },
 
-    // Sub-navigation state
-    communitySubTab: 'feed',      // 'feed' | 'top' | 'announcements' | 'campaigns'
-
-    // Onboarding
-    onboardingOpen: false,
-    onboardingStep: 1,
-
-    // Impact metrics
-    impactMetrics: null,
-
-    // Avatar upload
-    avatarUploading: false,
-
-    // Photo gallery
-    sessionPhotos: [],
-    sessionPhotosLoading: false,
-    photoUploading: false,
 
     /* ── Init ─────────────────────────────────────────────────────────── */
     async init() {
@@ -109,11 +89,8 @@ function ecoApp() {
 
       this.initAuth();
       this.initDetect();
-      this.initHistory();
-      this.initMap();
       this.initVideo();
       this.initAdmin();
-      this.initCommunity();
 
       if (this.isLoggedIn) {
         await this.loadDashboard();
@@ -147,25 +124,10 @@ function ecoApp() {
         if (tab === 'incidents') this.loadIncidents();
         if (tab === 'locations') this.loadLocations();
         if (tab === 'reports') this.loadReportStats();
-        if (tab === 'community') {
-          if (this.communitySubTab === 'top') this.loadLeaderboard();
-          else this.loadCommunityFeed();
-        }
         if (tab === 'admin') this.loadAdminAll();
-        if (tab === 'more') this.loadPrivacySettings();
-        // Stop webcam when leaving scan tab or switching away from live mode
-        if (tab !== 'scan' && this.webcamActive) this.stopWebcam();
-        // Stop monitor when navigating away from the scan tab
         if (tab !== 'scan' && this.monitorActive) this.stopMonitor();
         this.sidebarOpen = false;
         this.refreshIcons();
-      });
-
-      this.$watch('communitySubTab', (sub) => {
-        if (this.activeTab !== 'community') return;
-        if (sub === 'top') this.loadLeaderboard();
-        else if (sub === 'feed') this.loadCommunityFeed();
-        else if (sub === 'campaigns') this.loadCampaigns();
       });
 
       this.$watch('darkMode', (dark) => {
@@ -249,7 +211,7 @@ function ecoApp() {
         }).then(r => r.ok ? r.json() : null);
         if (data) this.dashB2B = data;
         await this.$nextTick();
-        this._renderB2BTrendChart();
+        setTimeout(() => this._renderB2BTrendChart(), 100);
       } catch (e) { console.error('loadDashboard B2B', e); }
       this.dashB2BLoading = false;
     },
@@ -461,68 +423,6 @@ function ecoApp() {
           },
         },
       });
-    },
-
-    /* ── Impact metrics ───────────────────────────────────────────────── */
-    async loadImpactMetrics() {
-      try {
-        this.impactMetrics = await fetch('/api/impact').then(r => r.ok ? r.json() : null);
-      } catch (_) {}
-    },
-
-    /* ── Onboarding ───────────────────────────────────────────────────── */
-    async finishOnboarding() {
-      this.onboardingOpen = false;
-      try {
-        await fetchAPI('/api/me/onboarding-done', { method: 'POST' });
-      } catch (_) {}
-    },
-
-    /* ── Avatar upload ────────────────────────────────────────────────── */
-    async uploadAvatar(event) {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      this.avatarUploading = true;
-      try {
-        const form = new FormData();
-        form.append('file', file);
-        const res = await fetchAPI('/api/me/avatar', { method: 'POST', body: form });
-        if (this.myProfile) this.myProfile.avatar_url = res.avatar_url;
-        showToast('Avatar updated');
-      } catch (e) {
-        showToast(e.message, 'error');
-      } finally {
-        this.avatarUploading = false;
-      }
-    },
-
-    /* ── Photo gallery ────────────────────────────────────────────────── */
-    async loadSessionPhotos(sessionId) {
-      this.sessionPhotosLoading = true;
-      try {
-        this.sessionPhotos = await fetchAPI(`/api/sessions/${sessionId}/photos`);
-      } catch (_) {
-        this.sessionPhotos = [];
-      } finally {
-        this.sessionPhotosLoading = false;
-      }
-    },
-
-    async uploadSessionPhoto(event, sessionId) {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      this.photoUploading = true;
-      try {
-        const form = new FormData();
-        form.append('file', file);
-        const photo = await fetchAPI(`/api/sessions/${sessionId}/photos`, { method: 'POST', body: form });
-        this.sessionPhotos.push(photo);
-        showToast('Photo added');
-      } catch (e) {
-        showToast(e.message, 'error');
-      } finally {
-        this.photoUploading = false;
-      }
     },
 
     /* ── Tab navigation ───────────────────────────────────────────────── */

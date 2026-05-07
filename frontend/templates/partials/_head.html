@@ -4,8 +4,8 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="description" content="TrashDet — Detectare AI și raportare deșeuri în timp real pentru comunitate." />
-<title>TrashDet — AI Trash Detection</title>
+<meta name="description" content="TrashDet — Sistem automat de detecție a abandonării ilegale de deșeuri." />
+<title>TrashDet — Illegal Dumping Detection</title>
 
 <!-- PWA -->
 <link rel="manifest" href="/static/manifest.json" />
@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-<!-- Leaflet CSS -->
+<!-- Leaflet CSS (kept for admin map if needed) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
 <!-- App CSS -->
@@ -33,13 +33,10 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
-<!-- App JS (order matters: utils first) -->
+<!-- App JS -->
 <script src="/static/js/utils.js"></script>
 <script src="/static/js/detect.js"></script>
-<script src="/static/js/map.js"></script>
-<script src="/static/js/history.js"></script>
 <script src="/static/js/video.js"></script>
 <script src="/static/js/admin.js"></script>
-<script src="/static/js/community.js"></script>
 <script src="/static/js/auth.js"></script>
 <script src="/static/js/app.js"></script>

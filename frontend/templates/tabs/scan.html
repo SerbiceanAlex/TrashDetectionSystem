@@ -205,19 +205,10 @@
           </div>
         </div>
 
-        <!-- GDPR + GPS (compact) -->
-        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
-          <div style="display:flex;align-items:center;gap:7px;padding:8px 12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.12);border-radius:10px">
-            <i data-lucide="shield-check" class="icon icon--xs" style="color:#6366f1;flex-shrink:0"></i>
-            <span style="font-size:11px;color:var(--tx-secondary)">Fețe <strong>anonimizate automat</strong> (GDPR Art. 25)</span>
-          </div>
-          <button @click="requestGeo()"
-            :class="geoStatus==='ok'?'gps-chip gps-chip--ok':'gps-chip'"
-            :disabled="geoStatus==='loading'" style="width:100%;justify-content:center">
-            <span x-text="geoLabel"></span>
-            <span x-show="geoStatus==='ok'" style="font-family:monospace;font-size:10px;opacity:.7"
-              x-text="`${geoLat?.toFixed(4)}, ${geoLng?.toFixed(4)}`"></span>
-          </button>
+        <!-- GDPR notice -->
+        <div style="display:flex;align-items:center;gap:7px;padding:8px 12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.12);border-radius:10px;margin-bottom:12px">
+          <i data-lucide="shield-check" class="icon icon--xs" style="color:#6366f1;flex-shrink:0"></i>
+          <span style="font-size:11px;color:var(--tx-secondary)">Fețe <strong>anonimizate automat</strong> înainte de stocare (GDPR Art. 25)</span>
         </div>
 
         <!-- Advanced settings (collapsed) -->

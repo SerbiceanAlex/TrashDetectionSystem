@@ -27,8 +27,6 @@ from backend.auth_router import router as auth_router, get_current_active_user, 
 from backend.auth import decode_access_token
 from backend.config import settings
 from backend import video as vid
-from backend import ecoscore as eco
-from backend import notifications as notif
 
 APP_DIR = Path(__file__).parent
 UPLOADS_DIR = APP_DIR / "uploads"
@@ -131,18 +129,7 @@ async def lifespan(app: FastAPI):
                     users = await session.execute(
                         select(db.User).where(db.User.streak_days >= 3)
                     )
-                    for user in users.scalars():
-                        await notif.notify_motivation(session, user)
-
-                    # Auto-expire old pending reports with no votes
-                    pending = await session.execute(
-                        select(db.DetectionSession)
-                        .where(db.DetectionSession.status == "pending")
-                        .where(db.DetectionSession.upload_time <= datetime.now(timezone.utc) - __import__('datetime').timedelta(hours=72))
-                    )
-                    for det_s in pending.scalars():
-                        await eco.check_auto_expire(session, det_s)
-                        await eco.check_auto_verify(session, det_s)
+                    pass  # streak/auto-expire removed with gamification
 
                     await session.commit()
             except asyncio.CancelledError:
@@ -286,21 +273,8 @@ async def detect(
         reporter_id=current_user.id if current_user else None,
         user_note=user_note.strip()[:500] if user_note else None
     )
-    if current_user:
-        base_pts = eco.POINTS_REPORT_PER_OBJECT * len(detections)
-        actual_pts, ranked_up, new_rank = await eco.award_ecoscore(session, current_user, base_pts)
-        # Smart notifications for rank up and streak milestones
-        if ranked_up:
-            await notif.notify_rank_up(session, current_user.id, new_rank)
-        await notif.notify_streak_milestone(session, current_user.id, current_user.streak_days)
     session.add(det_session)
     await session.flush()  # get the auto-generated id
-
-    # Proximity clustering — if nearby pending report exists, link to it
-    if final_lat and final_lng:
-        nearby = await eco.find_nearby_pending(session, final_lat, final_lng, exclude_id=det_session.id)
-        if nearby:
-            det_session.cluster_id = nearby.id
 
     # Persist individual detection records
     records = []
@@ -1581,34 +1555,9 @@ async def vote_on_session(
     else:
         det_session.verification_score = (det_session.verification_score or 0.0) - weight
 
-    # Award EcoScore to voter
-    voter_pts, voter_ranked_up, voter_new_rank = await eco.award_ecoscore(session, current_user, eco.POINTS_VOTE)
-    if voter_ranked_up:
-        await notif.notify_rank_up(session, current_user.id, voter_new_rank)
-    await notif.notify_streak_milestone(session, current_user.id, current_user.streak_days)
-
-    # Notify reporter about the vote
-    if det_session.reporter_id and det_session.reporter_id != current_user.id:
-        await notif.notify_vote_on_report(session, det_session.reporter_id, session_id, body.vote_type)
-
-    # Check auto-verify
-    verified = await eco.check_auto_verify(session, det_session)
-
-    # Notify reporter on verification
-    if verified and det_session.reporter_id:
-        reporter_user = (await session.execute(select(db.User).where(db.User.id == det_session.reporter_id))).scalar_one()
-        pts_awarded, rep_ranked_up, rep_new_rank = await eco.award_ecoscore(
-            session, reporter_user, eco.POINTS_REPORT_VERIFIED,
-        )
-        await notif.notify_report_verified(session, det_session.reporter_id, session_id, pts_awarded)
-        if rep_ranked_up:
-            await notif.notify_rank_up(session, det_session.reporter_id, rep_new_rank)
-
-    # Check fake threshold — if score drops to negative threshold
-    if not verified and det_session.verification_score <= -(await eco.get_verification_threshold(session)):
+    verified = False
+    if not verified and det_session.verification_score <= -999:
         det_session.status = "fake"
-        if det_session.reporter_id:
-            await notif.notify_report_rejected(session, det_session.reporter_id, session_id)
 
     await session.commit()
 
@@ -1692,7 +1641,7 @@ async def claim_session(
 
     # Check rank — minimum Ranger required
     user_rank = current_user.rank or "Novice"
-    rank_names = [r["name"] for r in eco.RANKS]
+    rank_names = ["User"]
     if rank_names.index(user_rank) < rank_names.index("Ranger"):
         raise HTTPException(status_code=403, detail="Ai nevoie de rangul Ranger sau mai mare pentru a revendica curățări.")
 
@@ -1703,13 +1652,6 @@ async def claim_session(
     det_session.claimed_at = datetime.now(timezone.utc)
     det_session.status = "in_progress"
 
-    # Notify reporter
-    if det_session.reporter_id and det_session.reporter_id != current_user.id:
-        await notif.send_notification(
-            session, det_session.reporter_id,
-            f"🧹 Cineva a revendicat curățarea raportului tău #{session_id}!",
-            "info", session_id=session_id,
-        )
 
     await session.commit()
     return {"session_id": session_id, "status": det_session.status, "claimed_by": current_user.id}
@@ -1754,16 +1696,6 @@ async def clean_session(
     det_session.is_resolved = 1
     det_session.resolved_at = datetime.now(timezone.utc)
     det_session.resolver_id = current_user.id
-
-    # Award EcoScore for cleanup
-    pts_awarded, ranked_up, new_rank = await eco.award_ecoscore(session, current_user, eco.POINTS_CLEANUP)
-    if ranked_up:
-        await notif.notify_rank_up(session, current_user.id, new_rank)
-    await notif.notify_streak_milestone(session, current_user.id, current_user.streak_days)
-
-    # Notify reporter
-    if det_session.reporter_id and det_session.reporter_id != current_user.id:
-        await notif.notify_report_cleaned(session, det_session.reporter_id, session_id)
 
     await session.commit()
     return {
@@ -1932,7 +1864,7 @@ async def suggest_material(
 ):
     # Minimum Guardian rank
     user_rank = current_user.rank or "Novice"
-    rank_names = [r["name"] for r in eco.RANKS]
+    rank_names = ["User"]
     if rank_names.index(user_rank) < rank_names.index("Guardian"):
         raise HTTPException(status_code=403, detail="Ai nevoie de rangul Guardian pentru sugestii de material.")
 
@@ -1982,8 +1914,8 @@ async def suggest_material(
                 u_result = await session.execute(select(db.User).where(db.User.id == uid))
                 u = u_result.scalar_one_or_none()
                 if u:
-                    await eco.award_ecoscore(session, u, eco.POINTS_MATERIAL_CORRECTION)
-        await eco.award_ecoscore(session, current_user, eco.POINTS_MATERIAL_CORRECTION)
+                    None
+        None
 
     await session.commit()
     return {"ok": True, "suggested_material": body.suggested_material.lower(), "auto_corrected": same_count >= 3}
@@ -1999,7 +1931,7 @@ async def get_ranks():
             "trust_weight": r["trust"],
             "benefits": r["benefits"],
         }
-        for r in eco.RANKS
+        for r in []
     ]
 
 
@@ -2523,14 +2455,7 @@ async def add_comment(
     await session.commit()
     await session.refresh(comment)
 
-    # Notify report owner about new comment
-    if det_session.reporter_id and det_session.reporter_id != current_user.id:
-        await notif.send_notification(
-            session, det_session.reporter_id,
-            f"💬 {current_user.username} a comentat pe raportul tău #{session_id}",
-            "info", session_id=session_id,
-        )
-        await session.commit()
+    await session.commit()
 
     return {
         "id": comment.id,
@@ -3328,8 +3253,8 @@ async def impact_metrics(
     total_co2 = 0.0
     material_impact = []
     for mat, cnt in rows:
-        w = eco.WEIGHT_PER_ITEM.get(mat, 0.02) * cnt
-        c = eco.CO2_PER_KG.get(mat, 1.0) * w
+        w = 0.02 * cnt
+        c = 1.0 * w
         total_weight += w
         total_co2 += c
         material_impact.append({"material": mat, "count": cnt, "weight_kg": round(w, 2), "co2_kg": round(c, 2)})
