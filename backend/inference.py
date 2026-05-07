@@ -242,8 +242,8 @@ def run_pipeline_track(
 
 # Minimum person bbox size — filters out partial-body detections (arm/leg
 # visible as person leaves the frame edge), which would falsely spike the count.
-_MIN_PERSON_W = 25   # pixels — lowered to detect distant/partial persons
-_MIN_PERSON_H = 35   # pixels — lowered for lying/crouching/distant poses
+_MIN_PERSON_W = 15   # pixels — supports distant persons in CCTV footage
+_MIN_PERSON_H = 20   # pixels — supports small persons in overhead CCTV cameras
 
 
 def detect_persons(

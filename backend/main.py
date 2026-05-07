@@ -13,7 +13,7 @@ from pathlib import Path
 
 from typing import Annotated, Optional
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, UploadFile, WebSocket, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import case, delete as sa_delete, func, select, update
@@ -177,7 +177,15 @@ app.mount("/littering", StaticFiles(directory=str(LITTERING_DIR)), name="litteri
 app.include_router(auth_router)
 
 # Serve the frontend SPA
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=False), name="static")
+
+@app.middleware("http")
+async def no_cache_static(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static/js/") or request.url.path.startswith("/static/css/"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -878,7 +886,7 @@ async def ws_video_live(
 async def ws_video_monitor(
     websocket: WebSocket,
     det_conf: float = Query(default=0.40, ge=0.10, le=0.95),
-    person_conf: float = Query(default=0.28, ge=0.10, le=0.95),
+    person_conf: float = Query(default=0.20, ge=0.10, le=0.95),
     lat: Optional[float] = Query(default=None),
     lng: Optional[float] = Query(default=None),
 ):
@@ -1004,6 +1012,342 @@ async def get_littering_thumbnail(
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="Fișier thumbnail negăsit pe disk.")
     return FileResponse(str(full_path), media_type="image/jpeg")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# B2B Dashboard / Locations / Reports — endpoint-uri pentru produsul B2B
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/dashboard/b2b", summary="B2B dashboard — KPI + trend + recent incidents")
+async def get_dashboard_b2b(
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    """KPI-uri și statistici pentru dashboard-ul B2B (incidente, trend, locații)."""
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=7)
+    month_start = today_start - timedelta(days=30)
+
+    LE = db.LitteringEvent
+
+    async def count_where(*conds):
+        q = db.select(db.func.count()).select_from(LE)
+        for c in conds:
+            q = q.where(c)
+        return (await session.execute(q)).scalar_one() or 0
+
+    incidents_today = await count_where(LE.detected_at >= today_start)
+    incidents_week = await count_where(LE.detected_at >= week_start)
+    incidents_month = await count_where(LE.detected_at >= month_start)
+    pending_review = await count_where(LE.status == "pending")
+    forwarded = await count_where(LE.status == "forwarded")
+
+    # Active locations
+    try:
+        ML = db.MonitoredLocation
+        active_locations = (
+            await session.execute(db.select(db.func.count()).select_from(ML).where(ML.is_active == 1))
+        ).scalar_one() or 0
+    except Exception:
+        active_locations = 0
+
+    # Recent incidents (last 5)
+    rec = (
+        await session.execute(
+            db.select(LE).order_by(LE.detected_at.desc()).limit(5)
+        )
+    ).scalars().all()
+    recent_incidents = [
+        {
+            "id": e.id,
+            "detected_at": e.detected_at.isoformat() if e.detected_at else None,
+            "material": e.material,
+            "status": e.status,
+            "lat": e.latitude,
+            "lng": e.longitude,
+            "address": e.address,
+        }
+        for e in rec
+    ]
+
+    # Material distribution (last 30 days)
+    mat_q = await session.execute(
+        db.select(LE.material, db.func.count())
+        .where(LE.detected_at >= month_start)
+        .group_by(LE.material)
+        .order_by(db.func.count().desc())
+    )
+    material_distribution = [
+        {"material": m or "unknown", "count": c} for m, c in mat_q.all()
+    ]
+
+    # Trend last 30 days — group by day
+    trend_q = await session.execute(
+        db.select(db.func.date(LE.detected_at), db.func.count())
+        .where(LE.detected_at >= month_start)
+        .group_by(db.func.date(LE.detected_at))
+        .order_by(db.func.date(LE.detected_at))
+    )
+    trend_map = {str(d): c for d, c in trend_q.all()}
+    trend_30d = []
+    for i in range(30):
+        day = (today_start - timedelta(days=29 - i)).date().isoformat()
+        trend_30d.append({"day": day, "count": trend_map.get(day, 0)})
+
+    return {
+        "incidents_today": incidents_today,
+        "incidents_week": incidents_week,
+        "incidents_month": incidents_month,
+        "pending_review": pending_review,
+        "forwarded": forwarded,
+        "active_locations": active_locations,
+        "recent_incidents": recent_incidents,
+        "material_distribution": material_distribution,
+        "trend_30d": trend_30d,
+    }
+
+
+@app.get("/api/locations", summary="List monitored locations (B2B)")
+async def list_locations(
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    ML = db.MonitoredLocation
+    LE = db.LitteringEvent
+    locs = (await session.execute(db.select(ML).order_by(ML.created_at.desc()))).scalars().all()
+
+    out = []
+    for loc in locs:
+        # incidente associate (by gps proximity ~ 100m radius — temporar simplificat)
+        incidents_count = 0
+        pending_count = 0
+        last_event_at = None
+        if loc.latitude and loc.longitude:
+            # raza ~ 0.001 deg ≈ 100m
+            r = 0.001
+            cnt_q = await session.execute(
+                db.select(db.func.count()).select_from(LE).where(
+                    LE.latitude.between(loc.latitude - r, loc.latitude + r),
+                    LE.longitude.between(loc.longitude - r, loc.longitude + r),
+                )
+            )
+            incidents_count = cnt_q.scalar_one() or 0
+            pend_q = await session.execute(
+                db.select(db.func.count()).select_from(LE).where(
+                    LE.latitude.between(loc.latitude - r, loc.latitude + r),
+                    LE.longitude.between(loc.longitude - r, loc.longitude + r),
+                    LE.status == "pending",
+                )
+            )
+            pending_count = pend_q.scalar_one() or 0
+            last_q = await session.execute(
+                db.select(db.func.max(LE.detected_at)).where(
+                    LE.latitude.between(loc.latitude - r, loc.latitude + r),
+                    LE.longitude.between(loc.longitude - r, loc.longitude + r),
+                )
+            )
+            last_event_at = last_q.scalar_one()
+
+        out.append({
+            "id": loc.id,
+            "name": loc.name,
+            "address": loc.address,
+            "lat": loc.latitude,
+            "lng": loc.longitude,
+            "rtsp_url": loc.rtsp_url,
+            "alert_email": loc.alert_email,
+            "is_active": bool(loc.is_active),
+            "created_at": loc.created_at.isoformat() if loc.created_at else None,
+            "incidents_count": incidents_count,
+            "pending_count": pending_count,
+            "last_event_at": last_event_at.isoformat() if last_event_at else None,
+        })
+    return {"locations": out}
+
+
+@app.post("/api/locations", summary="Create monitored location (B2B)")
+async def create_location(
+    payload: dict,
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    ML = db.MonitoredLocation
+    loc = ML(
+        name=payload.get("name", "").strip(),
+        address=payload.get("address"),
+        latitude=payload.get("lat"),
+        longitude=payload.get("lng"),
+        rtsp_url=payload.get("rtsp_url"),
+        alert_email=payload.get("alert_email"),
+        is_active=1 if payload.get("is_active", True) else 0,
+        created_by=current_user.id if current_user else None,
+    )
+    if not loc.name:
+        raise HTTPException(status_code=400, detail="Numele locației este obligatoriu.")
+    session.add(loc)
+    await session.commit()
+    await session.refresh(loc)
+    return {"id": loc.id, "name": loc.name}
+
+
+@app.patch("/api/locations/{loc_id}", summary="Update monitored location (B2B)")
+async def update_location(
+    loc_id: int,
+    payload: dict,
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    ML = db.MonitoredLocation
+    loc = (await session.execute(db.select(ML).where(ML.id == loc_id))).scalar_one_or_none()
+    if not loc:
+        raise HTTPException(status_code=404, detail="Locație inexistentă.")
+    if "name" in payload and payload["name"]: loc.name = payload["name"]
+    if "address" in payload: loc.address = payload["address"]
+    if "lat" in payload: loc.latitude = payload["lat"]
+    if "lng" in payload: loc.longitude = payload["lng"]
+    if "rtsp_url" in payload: loc.rtsp_url = payload["rtsp_url"]
+    if "alert_email" in payload: loc.alert_email = payload["alert_email"]
+    if "is_active" in payload: loc.is_active = 1 if payload["is_active"] else 0
+    await session.commit()
+    return {"id": loc.id, "is_active": bool(loc.is_active)}
+
+
+@app.delete("/api/locations/{loc_id}", summary="Delete monitored location (B2B)")
+async def delete_location(
+    loc_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    ML = db.MonitoredLocation
+    loc = (await session.execute(db.select(ML).where(ML.id == loc_id))).scalar_one_or_none()
+    if not loc:
+        raise HTTPException(status_code=404, detail="Locație inexistentă.")
+    await session.delete(loc)
+    await session.commit()
+    return {"deleted": True}
+
+
+@app.get("/api/reports/stats", summary="Reports stats (B2B export)")
+async def reports_stats(
+    period: str = Query(default="week"),
+    from_: Optional[str] = Query(default=None, alias="from"),
+    to: Optional[str] = Query(default=None),
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    if period == "today":
+        start = today_start; end = now
+    elif period == "week":
+        start = today_start - timedelta(days=7); end = now
+    elif period == "month":
+        start = today_start - timedelta(days=30); end = now
+    elif period == "year":
+        start = today_start - timedelta(days=365); end = now
+    elif period == "custom" and from_ and to:
+        start = datetime.fromisoformat(from_).replace(tzinfo=timezone.utc)
+        end = datetime.fromisoformat(to).replace(tzinfo=timezone.utc) + timedelta(days=1)
+    else:
+        start = today_start - timedelta(days=7); end = now
+
+    LE = db.LitteringEvent
+    cond = db.and_(LE.detected_at >= start, LE.detected_at <= end)
+
+    total_incidents = (await session.execute(db.select(db.func.count()).select_from(LE).where(cond))).scalar_one() or 0
+    pending = (await session.execute(db.select(db.func.count()).select_from(LE).where(cond, LE.status == "pending"))).scalar_one() or 0
+    forwarded = (await session.execute(db.select(db.func.count()).select_from(LE).where(cond, LE.status == "forwarded"))).scalar_one() or 0
+
+    # Hourly distribution (24 buckets)
+    hourly_q = await session.execute(
+        db.select(db.func.strftime("%H", LE.detected_at), db.func.count())
+        .where(cond).group_by(db.func.strftime("%H", LE.detected_at))
+    )
+    hourly_distribution = [0] * 24
+    for h_str, c in hourly_q.all():
+        try:
+            hourly_distribution[int(h_str)] = c
+        except Exception: pass
+
+    # Material distribution
+    mat_q = await session.execute(
+        db.select(LE.material, db.func.count()).where(cond).group_by(LE.material).order_by(db.func.count().desc())
+    )
+    material_distribution = [{"material": m or "unknown", "count": c} for m, c in mat_q.all()]
+
+    # Active locations count
+    try:
+        ML = db.MonitoredLocation
+        locations_active = (await session.execute(db.select(db.func.count()).select_from(ML).where(ML.is_active == 1))).scalar_one() or 0
+    except Exception:
+        locations_active = 0
+
+    return {
+        "period": period,
+        "from": start.isoformat(),
+        "to": end.isoformat(),
+        "total_incidents": total_incidents,
+        "pending": pending,
+        "forwarded": forwarded,
+        "locations_active": locations_active,
+        "hourly_distribution": hourly_distribution,
+        "material_distribution": material_distribution,
+        "top_locations": [],  # to be populated when location-incident linkage exists
+    }
+
+
+@app.get("/api/reports/export", summary="Export report (CSV / PDF / ZIP)")
+async def reports_export(
+    period: str = Query(default="week"),
+    format: str = Query(default="csv"),
+    from_: Optional[str] = Query(default=None, alias="from"),
+    to: Optional[str] = Query(default=None),
+    session: AsyncSession = Depends(db.get_db),
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+):
+    """Export incidents as CSV (PDF/ZIP — TODO)."""
+    from datetime import datetime, timedelta, timezone
+    import csv, io
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    if period == "today":
+        start = today_start; end = now
+    elif period == "week":
+        start = today_start - timedelta(days=7); end = now
+    elif period == "month":
+        start = today_start - timedelta(days=30); end = now
+    elif period == "year":
+        start = today_start - timedelta(days=365); end = now
+    elif period == "custom" and from_ and to:
+        start = datetime.fromisoformat(from_).replace(tzinfo=timezone.utc)
+        end = datetime.fromisoformat(to).replace(tzinfo=timezone.utc) + timedelta(days=1)
+    else:
+        start = today_start - timedelta(days=7); end = now
+
+    LE = db.LitteringEvent
+    rows = (await session.execute(
+        db.select(LE).where(LE.detected_at >= start, LE.detected_at <= end).order_by(LE.detected_at.desc())
+    )).scalars().all()
+
+    if format == "csv":
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(["ID", "Detected At", "Material", "Det Score", "Status", "Latitude", "Longitude", "Address", "Image Hash", "Notes"])
+        for e in rows:
+            w.writerow([e.id, e.detected_at.isoformat() if e.detected_at else "", e.material, e.det_score,
+                        e.status, e.latitude or "", e.longitude or "", e.address or "", e.image_hash or "", e.notes or ""])
+        return PlainTextResponse(
+            buf.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="incidente_{period}.csv"'},
+        )
+
+    raise HTTPException(status_code=501, detail=f"Format '{format}' nu este implementat încă (doar CSV pentru moment).")
 
 
 @app.post("/api/video/upload", response_model=schemas.VideoUploadResponse,

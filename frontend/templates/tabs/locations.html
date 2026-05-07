@@ -1,0 +1,194 @@
+<!-- ══ Locații Tab — multi-camera B2B ═════════════════════════════════════ -->
+<div x-show="activeTab === 'locations'" x-cloak
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0 translate-y-2"
+  x-transition:enter-end="opacity-100 translate-y-0"
+  x-init="if(activeTab === 'locations') loadLocations()">
+
+  <!-- Header -->
+  <div class="card" style="margin-bottom:16px;padding:16px;background:linear-gradient(135deg, rgba(16,185,129,0.06), rgba(16,185,129,0.01));border-left:4px solid var(--eco-green)">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="width:48px;height:48px;border-radius:12px;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center">
+        <i data-lucide="map-pin" class="icon icon--lg" style="color:var(--eco-green-dark)"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <h1 style="font-size:18px;font-weight:700;margin:0">Locații monitorizate</h1>
+        <p style="font-size:12px;color:var(--tx-secondary);margin:2px 0 0">
+          Configurează camerele IP (RTSP) pentru fiecare locație monitorizată
+        </p>
+      </div>
+      <button @click="locationModalOpen = true; locationEdit = null" class="btn btn--brand" style="font-size:13px">
+        <i data-lucide="plus" class="icon icon--sm"></i> Adaugă locație
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div x-show="locationsLoading" class="skeleton" style="height:200px;border-radius:12px"></div>
+
+  <!-- Empty -->
+  <template x-if="!locationsLoading && (!locations || locations.length === 0)">
+    <div class="empty-state" style="padding:48px 20px">
+      <div class="empty-state__icon" style="background:rgba(16,185,129,0.12);color:var(--eco-green-dark)">
+        <i data-lucide="map-pin" class="icon icon--2xl"></i>
+      </div>
+      <p class="empty-state__text" style="font-size:15px;font-weight:600">Nicio locație configurată</p>
+      <p style="font-size:12px;color:var(--tx-muted);margin-top:6px;max-width:340px;margin-left:auto;margin-right:auto">
+        Adaugă prima locație cu adresa și URL-ul stream-ului RTSP de la camera IP.
+        Sistemul va monitoriza automat 24/7.
+      </p>
+      <button @click="locationModalOpen = true; locationEdit = null" class="btn btn--brand" style="margin-top:16px">
+        <i data-lucide="plus" class="icon icon--sm"></i> Adaugă prima locație
+      </button>
+    </div>
+  </template>
+
+  <!-- Locations grid -->
+  <div x-show="!locationsLoading && locations && locations.length > 0"
+    style="display:grid;grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));gap:14px">
+    <template x-for="loc in (locations || [])" :key="loc.id">
+      <div class="card card--elevated" style="padding:16px">
+        <!-- Status indicator -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:10px;height:10px;border-radius:50%"
+              :style="loc.is_active ? 'background:#22c55e;box-shadow:0 0 8px #22c55e' : 'background:#9ca3af'"></div>
+            <span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px"
+              :style="loc.is_active ? 'color:#22c55e' : 'color:var(--tx-muted)'"
+              x-text="loc.is_active ? 'Activă' : 'Inactivă'"></span>
+          </div>
+          <span style="font-size:11px;color:var(--tx-muted);font-family:monospace" x-text="'#' + loc.id"></span>
+        </div>
+
+        <!-- Name + address -->
+        <h3 style="font-size:15px;font-weight:700;margin:0 0 4px" x-text="loc.name"></h3>
+        <p style="font-size:12px;color:var(--tx-secondary);margin:0 0 10px;display:flex;align-items:center;gap:4px">
+          <i data-lucide="map-pin" class="icon icon--xs"></i>
+          <span x-text="loc.address || 'Fără adresă'"></span>
+        </p>
+
+        <!-- Camera info -->
+        <div style="background:var(--bg-raised);border-radius:8px;padding:10px;font-size:11px;font-family:monospace;color:var(--tx-secondary);margin-bottom:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <i data-lucide="video" class="icon icon--xs"></i>
+          <span x-text="loc.rtsp_url || 'Fără stream configurat'"></span>
+        </div>
+
+        <!-- Stats -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+          <div style="text-align:center;padding:8px;background:var(--bg-raised);border-radius:8px">
+            <div style="font-size:16px;font-weight:700;color:var(--tx-primary)" x-text="loc.incidents_count || 0"></div>
+            <div style="font-size:10px;color:var(--tx-muted)">Incidente</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:var(--bg-raised);border-radius:8px">
+            <div style="font-size:16px;font-weight:700;color:#f59e0b" x-text="loc.pending_count || 0"></div>
+            <div style="font-size:10px;color:var(--tx-muted)">Așteptare</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:var(--bg-raised);border-radius:8px">
+            <div style="font-size:13px;font-weight:600;color:var(--tx-secondary)"
+              x-text="loc.last_event_at ? new Date(loc.last_event_at).toLocaleDateString('ro-RO', {day:'2-digit',month:'short'}) : '—'"></div>
+            <div style="font-size:10px;color:var(--tx-muted)">Ultim eveniment</div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="display:flex;gap:6px">
+          <button @click="locationEdit = loc; locationModalOpen = true" class="btn btn--ghost" style="font-size:11px;padding:5px 10px;flex:1">
+            <i data-lucide="edit" class="icon icon--xs"></i> Editează
+          </button>
+          <button @click="toggleLocation(loc)" class="btn btn--ghost"
+            :style="loc.is_active ? 'color:#9ca3af' : 'color:#22c55e'"
+            style="font-size:11px;padding:5px 10px;flex:1">
+            <i :data-lucide="loc.is_active ? 'pause' : 'play'" class="icon icon--xs"></i>
+            <span x-text="loc.is_active ? 'Oprește' : 'Pornește'"></span>
+          </button>
+          <button @click="deleteLocation(loc)" class="btn btn--ghost" style="font-size:11px;padding:5px 10px;color:#ef4444">
+            <i data-lucide="trash-2" class="icon icon--xs"></i>
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Modal — adaugă/editează locație -->
+  <div x-show="locationModalOpen" x-cloak @click="locationModalOpen = false"
+    style="position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div @click.stop class="card" style="max-width:480px;width:100%;padding:24px;max-height:90vh;overflow-y:auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <h2 style="font-size:18px;font-weight:700;margin:0" x-text="locationEdit ? 'Editează locație' : 'Adaugă locație nouă'"></h2>
+        <button @click="locationModalOpen = false" class="btn btn--ghost" style="padding:6px">
+          <i data-lucide="x" class="icon icon--md"></i>
+        </button>
+      </div>
+
+      <form @submit.prevent="saveLocation()" style="display:flex;flex-direction:column;gap:14px">
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--tx-secondary);display:block;margin-bottom:6px">
+            Nume locație
+          </label>
+          <input type="text" x-model="locationForm.name" required
+            placeholder="ex: Parcare Mall AFI Cotroceni"
+            style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);font-size:14px" />
+        </div>
+
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--tx-secondary);display:block;margin-bottom:6px">
+            Adresă completă
+          </label>
+          <input type="text" x-model="locationForm.address"
+            placeholder="ex: Bd. Vasile Milea 4, București"
+            style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);font-size:14px" />
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--tx-secondary);display:block;margin-bottom:6px">Latitudine</label>
+            <input type="number" step="0.000001" x-model.number="locationForm.lat" placeholder="44.4268"
+              style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);font-size:14px" />
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--tx-secondary);display:block;margin-bottom:6px">Longitudine</label>
+            <input type="number" step="0.000001" x-model.number="locationForm.lng" placeholder="26.1025"
+              style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);font-size:14px" />
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--tx-secondary);display:block;margin-bottom:6px">
+            URL Stream RTSP <span style="color:var(--tx-muted);font-weight:400">(opțional)</span>
+          </label>
+          <input type="text" x-model="locationForm.rtsp_url"
+            placeholder="rtsp://user:pass@192.168.1.100:554/Streaming/Channels/101"
+            style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);font-size:13px;font-family:monospace" />
+          <p style="font-size:11px;color:var(--tx-muted);margin-top:4px">
+            Suport: Hikvision, Dahua, ONVIF. Lasă gol pentru webcam.
+          </p>
+        </div>
+
+        <div>
+          <label style="font-size:12px;font-weight:600;color:var(--tx-secondary);display:block;margin-bottom:6px">
+            Email alertă (când se detectează incident)
+          </label>
+          <input type="email" x-model="locationForm.alert_email"
+            placeholder="securitate@locatie.ro"
+            style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary);font-size:14px" />
+        </div>
+
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:10px;background:var(--bg-raised);border-radius:8px">
+          <input type="checkbox" x-model="locationForm.is_active" />
+          <span>Activează monitorizare imediat</span>
+        </label>
+
+        <div style="display:flex;gap:10px;margin-top:6px">
+          <button type="button" @click="locationModalOpen = false" class="btn btn--ghost" style="flex:1">
+            Anulează
+          </button>
+          <button type="submit" class="btn btn--brand" style="flex:1">
+            <i data-lucide="save" class="icon icon--sm"></i>
+            <span x-text="locationEdit ? 'Salvează' : 'Adaugă'"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>

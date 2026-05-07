@@ -25,11 +25,11 @@ function videoApp() {
 
     // Upload state
     uploadFile: null,
-    uploadLoading: false,
+    videoProcessing: false,
     uploadSessionId: null,
-    uploadStatus: '',
+    videoProcessingMsg: '',
     uploadPollTimer: null,
-    uploadProgress: 0,       // 0–100 percent for progress bar
+    videoProgress: 0,       // 0–100 percent for progress bar
 
     // Video sessions list
     videoSessions: [],
@@ -317,16 +317,17 @@ function videoApp() {
       const f = ev.target.files[0];
       if (f) {
         this.uploadFile = f;
-        this.uploadStatus = '';
+        this.videoProcessingMsg = '';
         this.uploadSessionId = null;
+        this.uploadVideo();
       }
     },
 
     async uploadVideo() {
       if (!this.uploadFile) return;
-      this.uploadLoading = true;
-      this.uploadStatus = 'Uploading...';
-      this.uploadProgress = 0;
+      this.videoProcessing = true;
+      this.videoProcessingMsg = 'Uploading...';
+      this.videoProgress = 0;
 
       try {
         const fd = new FormData();
@@ -340,13 +341,13 @@ function videoApp() {
         }
         const data = await resp.json();
         this.uploadSessionId = data.session_id;
-        this.uploadStatus = 'Processing...';
+        this.videoProcessingMsg = 'Processing...';
 
         // Poll for completion
         this._pollUploadStatus(data.session_id);
       } catch (e) {
-        this.uploadStatus = 'Error: ' + e.message;
-        this.uploadLoading = false;
+        this.videoProcessingMsg = 'Error: ' + e.message;
+        this.videoProcessing = false;
       }
     },
 
@@ -359,22 +360,26 @@ function videoApp() {
 
           // Update progress bar
           if (vs.total_frames_expected > 0) {
-            this.uploadProgress = Math.round((vs.frames_processed / vs.total_frames_expected) * 100);
-            this.uploadStatus = `Processing... ${this.uploadProgress}% (${vs.frames_processed}/${vs.total_frames_expected} frames)`;
+            this.videoProgress = Math.round((vs.frames_processed / vs.total_frames_expected) * 100);
+            this.videoProcessingMsg = `Processing... ${this.videoProgress}% (${vs.frames_processed}/${vs.total_frames_expected} frames)`;
           }
 
           if (vs.status === 'completed') {
             clearInterval(this.uploadPollTimer);
-            this.uploadProgress = 100;
-            this.uploadStatus = `Complete! ${vs.total_frames} frames, ${vs.total_objects} objects, ${vs.avg_fps.toFixed(1)} FPS`;
-            this.uploadLoading = false;
+            this.videoProgress = 100;
+            const evCount = vs.littering_count || 0;
+            this.videoProcessingMsg = `Gata! ${vs.total_frames} frames · ${vs.total_objects} obiecte detectate${evCount > 0 ? ` · ${evCount} incident${evCount > 1 ? 'e' : ''} salvat${evCount > 1 ? 'e' : ''}` : ''}`;
+            this.videoProcessing = false;
             this.selectedVideoSession = vs;
             this.loadVideoSessions();
+            // Auto-refresh incidents tab
+            if (typeof this.loadIncidents === 'function') this.loadIncidents();
+            if (evCount > 0) showToast(`${evCount} incident${evCount > 1 ? 'e' : ''} detectat${evCount > 1 ? 'e' : ''} și salvat${evCount > 1 ? 'e' : ''}!`, 'success');
           } else if (vs.status === 'failed') {
             clearInterval(this.uploadPollTimer);
-            this.uploadProgress = 0;
-            this.uploadStatus = 'Processing failed.';
-            this.uploadLoading = false;
+            this.videoProgress = 0;
+            this.videoProcessingMsg = 'Processing failed.';
+            this.videoProcessing = false;
           }
         } catch (_) {}
       }, 2000);
@@ -426,7 +431,16 @@ function videoApp() {
       return m > 0 ? `${m}m ${s}s` : `${s}s`;
     },
 
+    // ── Upload video state ────────────────────────────────────────────────
+    videoProcessing: false,
+    videoProgress: 0,
+    videoProcessingMsg: '',
+    uploadLoading: false,
+    uploadStatus: '',
+    uploadSessionId: null,
+
     // ── Monitor Mode (Littering Event Detection) ───────────────────────────
+    monitorSource: 'camera',  // 'camera' | 'video'
     monitorActive: false,
     monitorStream: null,
     monitorWs: null,
@@ -493,9 +507,33 @@ function videoApp() {
           const msg = JSON.parse(ev.data);
           if (msg.type === 'alert') {
             this.monitorAlerts.push(msg);
-            showToast(`⚠ Illegal dumping detected! Material: ${msg.material}`, 'error');
+            const material = msg.material || 'unknown';
+            showToast(`⚠ Incident detectat! Material: ${material}`, 'error');
             // Vibrate on mobile
             if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            // Browser push notification
+            if ('Notification' in window) {
+              if (Notification.permission === 'granted') {
+                new Notification('TrashDet — Incident detectat!', {
+                  body: `Material: ${material} • ${new Date().toLocaleTimeString('ro-RO')}`,
+                  icon: '/static/icons/icon-192.png',
+                  tag: 'littering-alert',
+                  requireInteraction: true,
+                });
+              } else if (Notification.permission === 'default') {
+                Notification.requestPermission().then(p => {
+                  if (p === 'granted') {
+                    new Notification('TrashDet — Incident detectat!', {
+                      body: `Material: ${material}`,
+                      icon: '/static/icons/icon-192.png',
+                      tag: 'littering-alert',
+                    });
+                  }
+                });
+              }
+            }
+            // Refresh incidents tab if open
+            if (typeof this.loadIncidents === 'function') this.loadIncidents();
             // Notify admin panel
             window.dispatchEvent(new CustomEvent('eco:litteringAlert', { detail: msg }));
           } else {

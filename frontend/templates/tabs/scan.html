@@ -1,292 +1,347 @@
-<!-- ╔═══════════════════════════════════════════════════╗
-     ║  TAB: LITTERING MONITOR                          ║
-     ╚═══════════════════════════════════════════════════╝ -->
+<!-- ══ TAB: MONITOR ══════════════════════════════════════════════════════ -->
 <div x-show="activeTab === 'scan'" x-cloak
   x-transition:enter="transition ease-out duration-200"
-  x-transition:enter-start="opacity-0 translate-y-2"
+  x-transition:enter-start="opacity-0 translate-y-1"
   x-transition:enter-end="opacity-100 translate-y-0">
 
-  <!-- Page header -->
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
-    <div style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-      <i data-lucide="eye" class="icon icon--md" style="color:#fff"></i>
-    </div>
-    <div>
-      <h1 style="margin:0;font-size:20px;font-weight:800;color:var(--tx-primary)">Littering Monitor</h1>
-      <p style="margin:0;font-size:12px;color:var(--tx-muted)">Automated illegal dumping detection powered by AI</p>
-    </div>
+  <!-- Source toggle: Live / Upload -->
+  <div style="display:flex;gap:4px;padding:4px;background:var(--bg-raised);border-radius:14px;margin-bottom:18px">
+    <button @click="monitorSource='camera'"
+      class="btn" :class="monitorSource!=='video'?'btn--brand':'btn--ghost'"
+      style="flex:1;height:40px;font-size:13px;font-weight:600;border-radius:10px;gap:7px">
+      <i data-lucide="video" class="icon icon--sm"></i> Cameră live
+    </button>
+    <button @click="monitorSource='video'"
+      class="btn" :class="monitorSource==='video'?'btn--brand':'btn--ghost'"
+      style="flex:1;height:40px;font-size:13px;font-weight:600;border-radius:10px;gap:7px">
+      <i data-lucide="file-video" class="icon icon--sm"></i> Analizează video
+    </button>
   </div>
 
-  <!-- GDPR info banner -->
-  <div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:rgba(99,102,241,.08);border-radius:12px;border:1px solid rgba(99,102,241,.2);margin-bottom:16px">
-    <i data-lucide="shield-check" class="icon icon--sm" style="color:#6366f1;flex-shrink:0;margin-top:1px"></i>
-    <div style="font-size:12px;line-height:1.6;color:var(--tx-secondary)">
-      Faces are <strong style="color:var(--tx-primary)">automatically anonymized</strong> before storage (GDPR Art. 25).
-      Evidence is stored securely and accessed only by authorized administrators.
+  <!-- ══ UPLOAD VIDEO ══════════════════════════════════════════════════════ -->
+  <div x-show="monitorSource==='video'" x-cloak>
+
+    <!-- Drop zone -->
+    <div class="card" style="margin-bottom:16px;overflow:hidden">
+      <div x-show="!videoProcessing">
+        <label style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:40px 24px;cursor:pointer;border:2px dashed var(--bg-border);border-radius:12px;margin:16px;transition:all .2s"
+          onmouseover="this.style.borderColor='var(--eco-green)';this.style.background='rgba(16,185,129,.04)'"
+          onmouseout="this.style.borderColor='var(--bg-border)';this.style.background='transparent'">
+          <input type="file" accept="video/mp4,video/avi,video/mov,video/mkv,video/webm"
+            @change="handleVideoFileSelect($event)" style="display:none"/>
+          <div style="width:56px;height:56px;border-radius:16px;background:var(--eco-green-dim);display:flex;align-items:center;justify-content:center">
+            <i data-lucide="upload-cloud" class="icon icon--xl" style="color:var(--eco-green-dark)"></i>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:15px;font-weight:700;color:var(--tx-primary);margin-bottom:4px">Selectează un videoclip</div>
+            <div style="font-size:12px;color:var(--tx-muted)">MP4, AVI, MOV, MKV · max 200 MB</div>
+          </div>
+          <div style="font-size:11px;color:var(--tx-muted);display:flex;align-items:center;gap:5px">
+            <i data-lucide="shield-check" class="icon icon--xs" style="color:#6366f1"></i>
+            Fețele sunt anonimizate automat · GDPR Art. 25
+          </div>
+        </label>
+        <div style="padding:0 16px 16px;font-size:12px;color:var(--tx-muted);text-align:center">
+          Timp estimat: ~1 minut per minut de video
+        </div>
+      </div>
+
+      <!-- Processing -->
+      <div x-show="videoProcessing" style="padding:32px 24px;text-align:center">
+        <div style="position:relative;width:72px;height:72px;margin:0 auto 18px">
+          <div style="position:absolute;inset:0;border-radius:50%;border:3px solid var(--bg-border)"></div>
+          <div style="position:absolute;inset:0;border-radius:50%;border:3px solid transparent;border-top-color:var(--eco-green-dark);animation:spin .9s linear infinite"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:var(--eco-green-dark)" x-text="videoProgress.toFixed(0)+'%'"></div>
+        </div>
+        <div style="font-size:14px;font-weight:700;color:var(--tx-primary);margin-bottom:14px" x-text="videoProcessingMsg||'Procesez video…'"></div>
+        <div style="height:6px;background:var(--bg-raised);border-radius:99px;overflow:hidden;max-width:320px;margin:0 auto">
+          <div :style="`width:${videoProgress}%;height:100%;background:linear-gradient(90deg,var(--eco-green-dark),var(--eco-green));border-radius:99px;transition:width .4s ease`"></div>
+        </div>
+      </div>
     </div>
+
+    <!-- Recent sessions -->
+    <template x-if="videoSessions && videoSessions.length > 0">
+      <div>
+        <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--tx-muted);margin-bottom:10px">Procesări recente</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <template x-for="s in (videoSessions||[]).slice(0,5)" :key="s.id">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:12px">
+              <div style="width:36px;height:36px;border-radius:10px;background:rgba(99,102,241,.1);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <i data-lucide="film" class="icon icon--sm" style="color:#6366f1"></i>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="s.filename"></div>
+                <div style="font-size:11px;color:var(--tx-muted);margin-top:1px"
+                  x-text="`${s.total_objects} obiecte · ${s.total_frames} fr · ${formatDate(s.upload_time)}`"></div>
+              </div>
+              <span class="badge"
+                :style="['done','completed'].includes(s.status)?'background:rgba(16,185,129,.15);color:#10b981':s.status==='processing'?'background:rgba(99,102,241,.15);color:#6366f1':s.status==='failed'?'background:rgba(239,68,68,.15);color:#ef4444':'background:var(--bg-raised);color:var(--tx-muted)'"
+                x-text="['done','completed'].includes(s.status)?'Gata':s.status==='processing'?'Procesez…':s.status==='failed'?'Eroare':s.status"></span>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
   </div>
 
-  <!-- ══ Camera card ══════════════════════════════════════════════════════ -->
-  <div class="card card--elevated" style="padding:0;overflow:hidden">
+  <!-- ══ CAMERĂ LIVE ════════════════════════════════════════════════════════ -->
+  <div x-show="monitorSource!=='video'" x-cloak>
 
-    <!-- Camera viewport -->
-    <div style="position:relative;width:100%;background:#0a0a0f;aspect-ratio:16/9">
-      <video x-ref="monitorVideo" autoplay playsinline muted style="display:none"></video>
-      <canvas x-ref="monitorCanvas" style="width:100%;height:100%;object-fit:cover;display:block"></canvas>
+    <!-- Desktop: 2 col · Mobile: stacked -->
+    <div class="monitor-grid">
 
-      <!-- Top bar: state badge + FPS + flip camera button -->
-      <div style="position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;pointer-events:none">
-        <span class="badge"
-          :class="{
-            'badge--green':  monitorState === 'CLEAR',
-            'badge--yellow': monitorState === 'PERSON_PRESENT',
-            'badge--blue':   monitorState === 'MONITORING',
-            'badge--gray':   !monitorActive
-          }"
-          style="font-size:11px;font-weight:700;letter-spacing:.04em"
-          x-text="monitorActive ? (monitorState === 'CLEAR' ? '✔ LIBER' : monitorState === 'PERSON_PRESENT' ? '👤 PERSOANĂ DETECTATĂ' : monitorState === 'MONITORING' ? '⏱ MONITORIZEZ' : 'Se conectează…') : 'INACTIV'">
-        </span>
+      <!-- ── Camera viewport ── -->
+      <div class="monitor-viewport" style="border-radius:16px;overflow:hidden;background:#080c10;position:relative;aspect-ratio:16/9;box-shadow:0 8px 32px rgba(0,0,0,.35)">
+        <video x-ref="monitorVideo" autoplay playsinline muted style="display:none"></video>
+        <canvas x-ref="monitorCanvas" style="width:100%;height:100%;object-fit:cover;display:block"></canvas>
 
-        <div style="display:flex;align-items:center;gap:6px">
-          <!-- Flip camera button (visible when monitor is active) -->
+        <!-- State pill (top-left) -->
+        <div style="position:absolute;top:12px;left:12px">
+          <div style="display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:99px;backdrop-filter:blur(12px);font-size:12px;font-weight:700;letter-spacing:.02em;transition:background .3s"
+            :style="!monitorActive
+              ? 'background:rgba(15,20,30,.75);color:rgba(255,255,255,.45);border:1px solid rgba(255,255,255,.08)'
+              : monitorState==='CLEAR'
+              ? 'background:rgba(22,163,74,.85);color:#fff;border:1px solid rgba(255,255,255,.15)'
+              : monitorState==='PERSON_PRESENT'
+              ? 'background:rgba(217,119,6,.9);color:#fff;border:1px solid rgba(255,255,255,.15)'
+              : monitorState==='MONITORING'
+              ? 'background:rgba(79,70,229,.9);color:#fff;border:1px solid rgba(255,255,255,.15)'
+              : 'background:rgba(15,20,30,.75);color:rgba(255,255,255,.45);border:1px solid rgba(255,255,255,.08)'">
+            <span style="width:7px;height:7px;border-radius:50%;flex-shrink:0"
+              :style="!monitorActive ? 'background:rgba(255,255,255,.3)' : monitorState==='CLEAR' ? 'background:#fff;box-shadow:0 0 6px #fff' : monitorState==='PERSON_PRESENT' ? 'background:#fde68a;box-shadow:0 0 6px #fde68a' : 'background:#a5b4fc;box-shadow:0 0 6px #a5b4fc'"></span>
+            <span x-text="!monitorActive ? 'INACTIV' : monitorState==='CLEAR' ? 'ZONĂ LIBERĂ' : monitorState==='PERSON_PRESENT' ? 'PERSOANĂ DETECTATĂ' : monitorState==='MONITORING' ? 'VERIFICARE ACTIVĂ' : 'CONECTARE…'"></span>
+          </div>
+        </div>
+
+        <!-- FPS + flip (top-right) -->
+        <div style="position:absolute;top:12px;right:12px;display:flex;gap:6px;align-items:center">
           <button x-show="monitorActive" @click="flipMonitorCamera()"
-            title="Switch camera"
-            style="pointer-events:auto;display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:600;cursor:pointer;backdrop-filter:blur(6px);transition:background .2s"
-            @mouseenter="$el.style.background='rgba(99,102,241,.75)'"
-            @mouseleave="$el.style.background='rgba(0,0,0,.55)'">
+            style="pointer-events:auto;display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:99px;border:1px solid rgba(255,255,255,.18);background:rgba(10,14,20,.65);color:rgba(255,255,255,.85);font-size:11px;font-weight:600;cursor:pointer;backdrop-filter:blur(10px);transition:background .2s"
+            @mouseenter="$el.style.background='rgba(79,70,229,.75)'"
+            @mouseleave="$el.style.background='rgba(10,14,20,.65)'">
             <i data-lucide="refresh-cw" class="icon icon--xs"></i>
-            <span x-text="monitorFacingMode === 'environment' ? 'Față' : 'Spate'"></span>
+            <span x-text="monitorFacingMode==='environment'?'Față':'Spate'"></span>
           </button>
+          <span x-show="monitorActive"
+            style="padding:5px 10px;border-radius:99px;background:rgba(10,14,20,.65);color:rgba(255,255,255,.7);font-size:11px;font-weight:600;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.1)"
+            x-text="monitorFps.toFixed(1)+' FPS'"></span>
+        </div>
 
-          <span x-show="monitorActive" class="badge"
-            style="background:rgba(0,0,0,.55);color:#fff;backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.12);font-size:10px"
-            x-text="monitorFps.toFixed(1) + ' FPS'"></span>
+        <!-- Live counters (bottom-center, only when active) -->
+        <div x-show="monitorActive && (monitorPersons>0||monitorTrash>0)"
+          style="position:absolute;bottom:46px;left:50%;transform:translateX(-50%);display:flex;gap:8px">
+          <span x-show="monitorPersons>0"
+            style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:99px;background:rgba(10,14,20,.7);border:1px solid rgba(251,191,36,.4);color:#fbbf24;font-size:12px;font-weight:700;backdrop-filter:blur(10px)">
+            <i data-lucide="user" class="icon icon--xs"></i>
+            <span x-text="monitorPersons+(monitorPersons===1?' persoană':' persoane')"></span>
+          </span>
+          <span x-show="monitorTrash>0"
+            style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:99px;background:rgba(239,68,68,.75);border:1px solid rgba(239,68,68,.5);color:#fff;font-size:12px;font-weight:700;backdrop-filter:blur(10px)">
+            <i data-lucide="trash-2" class="icon icon--xs"></i>
+            <span x-text="monitorTrash+' detectat'+(monitorTrash>1?'e':'')"></span>
+          </span>
+        </div>
+
+        <!-- Monitoring progress (bottom) -->
+        <div x-show="monitorActive && monitorState==='MONITORING'"
+          style="position:absolute;bottom:0;left:0;right:0;background:rgba(10,14,20,.7);backdrop-filter:blur(8px);padding:8px 14px;display:flex;align-items:center;gap:10px">
+          <div style="flex:1;height:4px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden">
+            <div :style="`width:${(monitorProgress*100).toFixed(0)}%;height:100%;background:linear-gradient(90deg,#818cf8,#6366f1);border-radius:99px;transition:width .3s linear`"></div>
+          </div>
+          <span style="font-size:11px;color:rgba(255,255,255,.7);font-weight:600;white-space:nowrap"
+            x-text="'Verificare '+( monitorProgress*100).toFixed(0)+'%'"></span>
+        </div>
+
+        <!-- Idle overlay -->
+        <div x-show="!monitorActive"
+          style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:rgba(8,12,16,.6)">
+          <div style="width:64px;height:64px;border-radius:50%;border:1.5px dashed rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center">
+            <i data-lucide="video-off" class="icon icon--xl" style="color:rgba(255,255,255,.25)"></i>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:15px;font-weight:700;color:rgba(255,255,255,.55);margin-bottom:3px">Sistem inactiv</div>
+            <div style="font-size:12px;color:rgba(255,255,255,.25)">Apasă butonul de jos pentru a porni</div>
+          </div>
         </div>
       </div>
 
-      <!-- Person / trash counters -->
-      <div x-show="monitorActive" style="position:absolute;bottom:56px;left:50%;transform:translateX(-50%);display:flex;gap:8px;pointer-events:none">
-        <span class="badge" style="background:rgba(251,191,36,.9);color:#000;font-size:11px;font-weight:700;gap:4px">
-          <i data-lucide="user" class="icon icon--xs"></i>
-          <span x-text="monitorPersons + ' pers.'"></span>
-        </span>
-        <span class="badge" style="background:rgba(239,68,68,.9);color:#fff;font-size:11px;font-weight:700;gap:4px">
-          <i data-lucide="trash-2" class="icon icon--xs"></i>
-          <span x-text="monitorTrash + ' trash'"></span>
-        </span>
-      </div>
+      <!-- ── Controls panel ── -->
+      <div>
 
-      <!-- Monitoring progress bar -->
-      <div x-show="monitorActive && monitorState === 'MONITORING'"
-        style="position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(255,255,255,.15)">
-        <div :style="`width:${(monitorProgress*100).toFixed(0)}%;height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);transition:width .3s linear`"></div>
-      </div>
-
-      <!-- Progress label -->
-      <div x-show="monitorActive && monitorState === 'MONITORING'"
-        style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);pointer-events:none">
-        <span style="font-size:10px;color:rgba(255,255,255,.7);white-space:nowrap"
-          x-text="`Checking: ${(monitorProgress*100).toFixed(0)}%`"></span>
-      </div>
-
-      <!-- Idle placeholder -->
-      <div x-show="!monitorActive"
-        style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:rgba(255,255,255,.6)">
-        <div style="width:64px;height:64px;border-radius:50%;border:2px dashed rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center">
-          <i data-lucide="eye" class="icon icon--xl" style="opacity:.4"></i>
+        <!-- Start / Stop -->
+        <div x-show="!monitorActive" style="display:flex;gap:8px;margin-bottom:12px">
+          <button @click="startMonitor()" class="btn btn--brand"
+            style="flex:1;height:52px;font-size:15px;font-weight:800;border-radius:12px;gap:10px;box-shadow:0 4px 20px rgba(5,150,105,.3)">
+            <i data-lucide="play-circle" class="icon icon--md"></i>
+            Pornește monitorizarea
+          </button>
+          <button @click="monitorFacingMode=monitorFacingMode==='environment'?'user':'environment'"
+            class="btn btn--ghost" style="width:52px;height:52px;border-radius:12px;flex-shrink:0"
+            title="Schimbă camera">
+            <i data-lucide="flip-horizontal-2" class="icon icon--md"></i>
+          </button>
         </div>
-        <div style="font-size:15px;font-weight:700">Monitor inactive</div>
-        <div style="font-size:11px;opacity:.4;text-align:center;padding:0 32px">
-          Press the button below to start monitoring
-        </div>
-      </div>
-    </div>
 
-    <!-- Controls -->
-    <div style="padding:16px">
-
-      <!-- Start / Stop + Flip Camera -->
-      <div x-show="!monitorActive" style="display:flex;gap:8px">
-        <button @click="startMonitor()"
-          class="btn btn--scan" style="flex:1;height:52px;font-size:15px;font-weight:700;gap:10px;border-radius:12px">
-          <i data-lucide="play-circle" class="icon icon--md"></i>
-          Start Monitoring
+        <button @click="stopMonitor()" x-show="monitorActive"
+          class="btn btn--danger" style="width:100%;height:52px;font-size:15px;font-weight:800;border-radius:12px;gap:10px;margin-bottom:12px">
+          <i data-lucide="stop-circle" class="icon icon--md"></i>
+          Oprește monitorizarea
         </button>
-        <button @click="monitorFacingMode = monitorFacingMode === 'environment' ? 'user' : 'environment'"
-          class="btn btn--ghost" style="height:52px;width:52px;border-radius:12px;flex-shrink:0"
-          :title="monitorFacingMode === 'environment' ? 'Camera spate activă' : 'Camera față activă'">
-          <i data-lucide="flip-horizontal-2" class="icon icon--md"></i>
-        </button>
+
+        <!-- Live stats (3 cards) -->
+        <div x-show="monitorActive" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+          <div style="padding:12px 8px;background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:12px;text-align:center">
+            <div style="font-size:24px;font-weight:800;color:var(--tx-primary);line-height:1" x-text="monitorPersons"></div>
+            <div style="font-size:10px;color:var(--tx-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.04em">Persoane</div>
+          </div>
+          <div style="padding:12px 8px;background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:12px;text-align:center">
+            <div style="font-size:24px;font-weight:800;line-height:1" :style="monitorTrash>0?'color:#ef4444':'color:var(--tx-primary)'" x-text="monitorTrash"></div>
+            <div style="font-size:10px;color:var(--tx-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.04em">Gunoi</div>
+          </div>
+          <div style="padding:12px 8px;background:var(--bg-surface);border:1px solid var(--bg-border);border-radius:12px;text-align:center">
+            <div style="font-size:24px;font-weight:800;color:#ef4444;line-height:1" x-text="monitorAlerts.length"></div>
+            <div style="font-size:10px;color:var(--tx-muted);margin-top:4px;text-transform:uppercase;letter-spacing:.04em">Alerte</div>
+          </div>
+        </div>
+
+        <!-- GDPR + GPS (compact) -->
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:7px;padding:8px 12px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.12);border-radius:10px">
+            <i data-lucide="shield-check" class="icon icon--xs" style="color:#6366f1;flex-shrink:0"></i>
+            <span style="font-size:11px;color:var(--tx-secondary)">Fețe <strong>anonimizate automat</strong> (GDPR Art. 25)</span>
+          </div>
+          <button @click="requestGeo()"
+            :class="geoStatus==='ok'?'gps-chip gps-chip--ok':'gps-chip'"
+            :disabled="geoStatus==='loading'" style="width:100%;justify-content:center">
+            <span x-text="geoLabel"></span>
+            <span x-show="geoStatus==='ok'" style="font-family:monospace;font-size:10px;opacity:.7"
+              x-text="`${geoLat?.toFixed(4)}, ${geoLng?.toFixed(4)}`"></span>
+          </button>
+        </div>
+
+        <!-- Advanced settings (collapsed) -->
+        <details style="border:1px solid var(--bg-border);border-radius:12px;overflow:hidden">
+          <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:11px 14px;font-size:12px;font-weight:600;color:var(--tx-secondary);user-select:none;background:var(--bg-surface)">
+            <i data-lucide="sliders-horizontal" class="icon icon--xs"></i>
+            Setări avansate
+            <i data-lucide="chevron-down" class="icon icon--xs" style="margin-left:auto;transition:transform .2s"></i>
+          </summary>
+          <div style="padding:14px;background:var(--bg-raised);display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--bg-border)">
+            <div style="padding:8px 10px;background:rgba(99,102,241,.08);border-radius:8px;font-size:11px;color:var(--tx-secondary);display:flex;gap:7px;align-items:flex-start">
+              <i data-lucide="info" class="icon icon--xs" style="color:#6366f1;flex-shrink:0;margin-top:1px"></i>
+              Valorile implicite sunt optime pentru spații exterioare. Modifică doar dacă știi ce faci.
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:7px">
+                <span>Prag detecție deșeuri</span>
+                <strong style="color:var(--eco-green-dark)" x-text="detConf.toFixed(2)"></strong>
+              </div>
+              <input type="range" min="0.35" max="0.90" step="0.05" x-model.number="detConf" class="slider"/>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:7px">
+                <span>Prag detecție persoane</span>
+                <strong style="color:var(--eco-green-dark)" x-text="monitorPersonConf.toFixed(2)"></strong>
+              </div>
+              <input type="range" min="0.20" max="0.70" step="0.05" x-model.number="monitorPersonConf" class="slider"/>
+            </div>
+          </div>
+        </details>
+
+      </div><!-- /controls -->
+    </div><!-- /grid -->
+
+    <!-- ── Alerte sesiune ─────────────────────────────────────────── -->
+    <div x-show="monitorAlerts.length>0" x-cloak style="margin-top:18px"
+      x-transition:enter="transition ease-out duration-300"
+      x-transition:enter-start="opacity-0 translate-y-3"
+      x-transition:enter-end="opacity-100 translate-y-0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:block;box-shadow:0 0 0 3px rgba(239,68,68,.2)"></span>
+          <span style="font-size:14px;font-weight:800;color:#ef4444">Incidente detectate în sesiune</span>
+          <span style="min-width:22px;height:22px;padding:0 7px;border-radius:99px;background:rgba(239,68,68,.15);color:#ef4444;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center" x-text="monitorAlerts.length"></span>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button @click="goTo('incidents')" class="btn btn--ghost" style="font-size:12px;padding:5px 11px;color:#6366f1;gap:5px">
+            <i data-lucide="external-link" class="icon icon--xs"></i> Vezi toate
+          </button>
+          <button @click="monitorAlerts=[]" class="btn btn--ghost" style="font-size:12px;padding:5px 11px;gap:5px">
+            <i data-lucide="trash-2" class="icon icon--xs"></i> Șterge
+          </button>
+        </div>
       </div>
-      <button @click="stopMonitor()" x-show="monitorActive"
-        class="btn btn--danger" style="width:100%;height:52px;font-size:15px;font-weight:700;gap:10px;border-radius:12px">
-        <i data-lucide="stop-circle" class="icon icon--md"></i>
-        Stop Monitoring
-      </button>
 
-      <!-- Live stats -->
-      <div x-show="monitorActive"
-        style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px">
-        <div style="text-align:center;padding:10px;background:var(--bg-raised);border-radius:10px">
-          <div style="font-size:20px;font-weight:800;color:var(--tx-primary)" x-text="monitorPersons"></div>
-          <div style="font-size:10px;color:var(--tx-muted);margin-top:2px">Persons</div>
-        </div>
-        <div style="text-align:center;padding:10px;background:var(--bg-raised);border-radius:10px">
-          <div style="font-size:20px;font-weight:800;color:var(--tx-primary)" x-text="monitorTrash"></div>
-          <div style="font-size:10px;color:var(--tx-muted);margin-top:2px">Trash</div>
-        </div>
-        <div style="text-align:center;padding:10px;background:var(--bg-raised);border-radius:10px">
-          <div style="font-size:20px;font-weight:800;color:#ef4444" x-text="monitorAlerts.length"></div>
-          <div style="font-size:10px;color:var(--tx-muted);margin-top:2px">Incidents</div>
-        </div>
-      </div>
-
-      <!-- Settings (collapsed, expert only) -->
-      <details style="margin-top:14px">
-        <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--tx-muted);padding:8px 0;user-select:none">
-          <i data-lucide="sliders-horizontal" class="icon icon--xs"></i>
-          Detection settings
-          <i data-lucide="chevron-down" class="icon icon--xs" style="margin-left:auto"></i>
-        </summary>
-        <div style="padding:14px;background:var(--bg-raised);border-radius:10px;margin-top:6px;display:flex;flex-direction:column;gap:12px">
-          <!-- Info banner: optimal values pre-set -->
-          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(99,102,241,.12);border-radius:8px;font-size:11px;color:var(--tx-secondary)">
-            <i data-lucide="info" class="icon icon--xs" style="color:#6366f1;flex-shrink:0"></i>
-            Valorile implicite sunt optime pentru spații exterioare. Modifică doar dacă știi ce faci.
-          </div>
-          <div>
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
-              <span>Trash confidence</span>
-              <strong style="color:var(--eco-green-dark)" x-text="detConf.toFixed(2)"></strong>
-            </div>
-            <input type="range" min="0.35" max="0.90" step="0.05" x-model.number="detConf" class="slider" />
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
-              <span>Mai sensibil (0.35)</span><span>Mai strict (0.90)</span>
-            </div>
-          </div>
-          <div>
-            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx-secondary);margin-bottom:6px">
-              <span>Person confidence</span>
-              <strong style="color:var(--eco-green-dark)" x-text="monitorPersonConf.toFixed(2)"></strong>
-            </div>
-            <input type="range" min="0.20" max="0.70" step="0.05" x-model.number="monitorPersonConf" class="slider" />
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
-              <span>De la distanță (0.20)</span><span>Sigur (0.70)</span>
-            </div>
-          </div>
-          <div>
-            <div style="font-size:12px;color:var(--tx-secondary);margin-bottom:6px">GPS location <span style="color:var(--tx-muted)">(optional)</span></div>
-            <button @click="requestGeo()"
-              :class="geoStatus === 'ok' ? 'gps-chip gps-chip--ok' : 'gps-chip'"
-              :disabled="geoStatus === 'loading'" style="width:100%;justify-content:center">
-              <span x-text="geoLabel"></span>
-              <span x-show="geoStatus === 'ok'" style="font-family:monospace;font-size:10px;opacity:.7"
-                x-text="`${geoLat?.toFixed(4)}, ${geoLng?.toFixed(4)}`"></span>
-            </button>
-          </div>
-        </div>
-      </details>
-    </div>
-  </div>
-
-  <!-- ══ Incidents detected this session ═════════════════════════════════ -->
-  <div x-show="monitorAlerts.length > 0" x-cloak style="margin-top:16px"
-    x-transition:enter="transition ease-out duration-300"
-    x-transition:enter-start="opacity-0 translate-y-4"
-    x-transition:enter-end="opacity-100 translate-y-0">
-
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 2px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <i data-lucide="alert-triangle" class="icon icon--sm" style="color:#ef4444"></i>
-        <span style="font-size:14px;font-weight:800;color:#ef4444">Incidents detected</span>
-        <span class="badge sev-high" x-text="monitorAlerts.length"></span>
-      </div>
-      <button @click="monitorAlerts = []" class="btn btn--ghost" style="font-size:11px;padding:4px 10px">Clear all</button>
-    </div>
-
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <template x-for="alert in monitorAlerts.slice().reverse()" :key="alert.event_id">
-        <div style="border:1.5px solid rgba(239,68,68,.35);border-radius:12px;overflow:hidden;background:var(--bg-card)">
-          <!-- Header -->
-          <div style="background:rgba(239,68,68,.07);padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(239,68,68,.12)">
-            <i data-lucide="alert-circle" class="icon icon--sm" style="color:#ef4444;flex-shrink:0"></i>
-            <span style="font-size:13px;font-weight:700;color:#ef4444;flex:1">Illegal dumping detected</span>
-            <span style="font-size:11px;color:var(--tx-muted)"
-              x-text="alert.detected_at ? new Date(alert.detected_at).toLocaleTimeString() : ''"></span>
-          </div>
-          <!-- Body -->
-          <div style="padding:12px;display:flex;gap:12px;align-items:flex-start">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <template x-for="alert in monitorAlerts.slice().reverse()" :key="alert.event_id">
+          <div style="display:flex;gap:12px;align-items:center;padding:12px 14px;background:var(--bg-surface);border:1.5px solid rgba(239,68,68,.25);border-radius:12px"
+            x-transition:enter="transition ease-out duration-250"
+            x-transition:enter-start="opacity-0 scale-98"
+            x-transition:enter-end="opacity-100 scale-100">
             <template x-if="alert.thumbnail_url">
-              <img :src="alert.thumbnail_url"
-                style="width:72px;height:72px;object-fit:cover;border-radius:8px;flex-shrink:0;border:1px solid var(--bg-border)" />
+              <img :src="'/littering/'+alert.thumbnail_url.split('/littering/').pop()"
+                style="width:60px;height:48px;object-fit:cover;border-radius:8px;flex-shrink:0;border:1px solid rgba(239,68,68,.2)"/>
             </template>
             <template x-if="!alert.thumbnail_url">
-              <div style="width:72px;height:72px;background:var(--bg-raised);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                <i data-lucide="image-off" class="icon icon--md" style="opacity:.3"></i>
+              <div style="width:60px;height:48px;background:var(--bg-raised);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                <i data-lucide="image-off" class="icon icon--sm" style="opacity:.3"></i>
               </div>
             </template>
             <div style="flex:1;min-width:0">
-              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
-                <span class="badge sev-high" style="font-size:10px"
-                  x-text="'Material: ' + (alert.material || 'unknown').toUpperCase()"></span>
-                <span class="badge badge--gray" style="font-size:10px"
-                  x-text="'#' + alert.event_id"></span>
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+                <span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(239,68,68,.12);color:#ef4444;text-transform:capitalize"
+                  x-text="alert.material||'unknown'"></span>
+                <span style="font-size:11px;color:var(--tx-muted)" x-text="((alert.det_score||0)*100).toFixed(0)+'% conf.'"></span>
               </div>
-              <div x-show="alert.address"
-                style="font-size:11px;color:var(--tx-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
-                x-text="'📍 ' + alert.address"></div>
-              <div style="font-size:11px;color:var(--tx-muted);margin-top:2px"
-                x-text="'Confidence: ' + ((alert.det_score || 0) * 100).toFixed(0) + '%'"></div>
+              <div style="font-size:12px;color:var(--tx-muted)"
+                x-text="alert.detected_at ? new Date((alert.detected_at).replace(' ','T')+'Z').toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) : ''"></div>
             </div>
-          </div>
-          <!-- Actions -->
-          <div style="padding:0 12px 12px;display:flex;gap:8px">
-            <button @click="goTo('admin'); setTimeout(()=>{ switchAdminSubTab('incidents') },300)"
-              class="btn btn--ghost" style="flex:1;font-size:11px;height:34px;gap:4px">
-              <i data-lucide="eye" class="icon icon--xs"></i> View in Admin
+            <button @click="goTo('incidents')" class="btn btn--ghost" style="font-size:11px;padding:5px 10px;flex-shrink:0;gap:4px;color:#6366f1">
+              <i data-lucide="arrow-right" class="icon icon--xs"></i>
             </button>
-            <a x-show="alert.thumbnail_url" :href="alert.thumbnail_url" download
-              class="btn btn--ghost"
-              style="font-size:11px;height:34px;display:flex;align-items:center;gap:4px;text-decoration:none;padding:0 12px">
-              <i data-lucide="download" class="icon icon--xs"></i> Download
-            </a>
           </div>
-        </div>
-      </template>
+        </template>
+      </div>
     </div>
-  </div>
 
-  <!-- ══ How it works (shown when inactive + no alerts) ═══════════════ -->
-  <div x-show="!monitorActive && monitorAlerts.length === 0" style="margin-top:20px">
-    <div style="font-size:12px;font-weight:700;color:var(--tx-muted);margin-bottom:10px;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.06em">
-      <i data-lucide="info" class="icon icon--xs"></i> How it works
+    <!-- ── Cum funcționează (idle, no alerts) ─────────────────────── -->
+    <div x-show="!monitorActive && monitorAlerts.length===0" style="margin-top:20px">
+      <p style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--tx-muted);margin-bottom:12px;display:flex;align-items:center;gap:6px">
+        <i data-lucide="info" class="icon icon--xs"></i> Cum funcționează
+      </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="padding:14px;border-radius:12px;border:1px solid rgba(34,197,94,.2);background:rgba(34,197,94,.04)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+            <span style="width:22px;height:22px;border-radius:99px;background:#22c55e;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span>
+            <span style="font-size:12px;font-weight:700;color:#22c55e">LIBER</span>
+          </div>
+          <p style="font-size:11px;color:var(--tx-secondary);margin:0;line-height:1.6">Camera monitorizează zona. Fără activitate.</p>
+        </div>
+        <div style="padding:14px;border-radius:12px;border:1px solid rgba(245,158,11,.2);background:rgba(245,158,11,.04)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+            <span style="width:22px;height:22px;border-radius:99px;background:#f59e0b;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</span>
+            <span style="font-size:12px;font-weight:700;color:#f59e0b">PERSOANĂ</span>
+          </div>
+          <p style="font-size:11px;color:var(--tx-secondary);margin:0;line-height:1.6">Persoană în cadru. Sistem în alertă ridicată.</p>
+        </div>
+        <div style="padding:14px;border-radius:12px;border:1px solid rgba(99,102,241,.2);background:rgba(99,102,241,.04)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+            <span style="width:22px;height:22px;border-radius:99px;background:#6366f1;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</span>
+            <span style="font-size:12px;font-weight:700;color:#6366f1">VERIFICARE</span>
+          </div>
+          <p style="font-size:11px;color:var(--tx-secondary);margin:0;line-height:1.6">Persoana a plecat. Verificare obiect nou 10s.</p>
+        </div>
+        <div style="padding:14px;border-radius:12px;border:1px solid rgba(239,68,68,.25);background:rgba(239,68,68,.04)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+            <span style="width:22px;height:22px;border-radius:99px;background:#ef4444;color:#fff;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">!</span>
+            <span style="font-size:12px;font-weight:700;color:#ef4444">ALERTĂ</span>
+          </div>
+          <p style="font-size:11px;color:var(--tx-secondary);margin:0;line-height:1.6">Gunoi confirmat. Clip salvat, față anonimizată.</p>
+        </div>
+      </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-raised);border-radius:10px">
-        <span style="width:28px;height:28px;border-radius:50%;background:#22c55e;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</span>
-        <div style="font-size:12px;line-height:1.5;color:var(--tx-secondary)">
-          <strong style="color:var(--tx-primary)">CLEAR</strong> — Camera continuously monitors the area. No activity detected.
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-raised);border-radius:10px">
-        <span style="width:28px;height:28px;border-radius:50%;background:#f59e0b;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</span>
-        <div style="font-size:12px;line-height:1.5;color:var(--tx-secondary)">
-          <strong style="color:var(--tx-primary)">PERSON DETECTED</strong> — A person has entered the frame. System switches to high alert.
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-raised);border-radius:10px">
-        <span style="width:28px;height:28px;border-radius:50%;background:#6366f1;color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</span>
-        <div style="font-size:12px;line-height:1.5;color:var(--tx-secondary)">
-          <strong style="color:var(--tx-primary)">MONITORING</strong> — Person left but something remains. System verifies for 10 seconds.
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(239,68,68,.05);border-radius:10px;border:1px solid rgba(239,68,68,.18)">
-        <span style="width:28px;height:28px;border-radius:50%;background:#ef4444;color:#fff;font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">!</span>
-        <div style="font-size:12px;line-height:1.5;color:var(--tx-secondary)">
-          <strong style="color:#ef4444">ALERT</strong> — Trash confirmed. Clip + thumbnail saved, face anonymized, admin alerted instantly.
-        </div>
-      </div>
-    </div>
-  </div>
 
-</div><!-- /scan tab -->
+  </div><!-- /camera live -->
+
+</div>

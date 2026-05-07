@@ -129,7 +129,7 @@ def evaluate_clip(
                         )
 
             # ── Stage 2: person detection
-            person_boxes = infer.detect_persons(frame, conf=max(person_conf, 0.28), imgsz=640)
+            person_boxes = infer.detect_persons(frame, conf=max(person_conf, 0.20), imgsz=1280)
 
             # Temporal smoothing (hysteresis)
             if len(person_boxes) > 0:

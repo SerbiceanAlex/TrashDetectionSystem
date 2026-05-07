@@ -8,10 +8,6 @@
 
   <span style="flex:1"></span>
 
-  <div x-show="isLoggedIn" x-cloak class="td-header__points">
-    <i data-lucide="star" class="icon icon--sm"></i><span x-text="user?.points ?? 0"></span>
-  </div>
-
   <!-- Notification bell -->
   <div x-show="isLoggedIn" x-cloak class="notif-wrapper">
     <button @click="notifOpen = !notifOpen" class="td-header__dark-btn notif-bell" title="Notifications">
@@ -27,22 +23,23 @@
       x-transition:enter-end="opacity-100 scale-100"
       class="notif-panel">
       <div class="notif-panel__header">
-        <span class="notif-panel__title">Notifications</span>
-        <button x-show="unreadNotifications > 0" @click="markAllRead()" class="notif-panel__mark-read">Mark all read</button>
+        <span class="notif-panel__title">Notificări</span>
+        <button x-show="unreadNotifications > 0" @click="markAllRead()" class="notif-panel__mark-read">Marchează citite</button>
       </div>
       <div class="notif-panel__list">
-        <template x-if="notifications.length === 0">
-          <div class="notif-panel__empty">No notifications</div>
+        <template x-if="notifications.filter(n => n.category !== 'rank_up' && n.category !== 'streak' && n.category !== 'badge').length === 0">
+          <div class="notif-panel__empty">Nicio notificare</div>
         </template>
-        <template x-for="n in notifications" :key="n.id">
-          <div @click="markRead(n)"
+        <template x-for="n in notifications.filter(n => n.category !== 'rank_up' && n.category !== 'streak' && n.category !== 'badge')" :key="n.id">
+          <div @click="markRead(n); if(n.category==='alert') goTo('incidents')"
             :class="'notif-item' + (n.is_read ? '' : ' notif-item--unread')">
             <span class="notif-item__icon">
               <i :data-lucide="({
-                rank_up:'trending-up', streak:'flame', vote:'vote', nearby:'map-pin',
-                cleaned:'circle-check', verified:'badge-check', rejected:'x-circle', motivation:'bell-ring',
-                resolved:'check-circle', badge:'award', broadcast:'megaphone'
-              })[n.category] || 'info'" class="icon icon--md"></i>
+                alert:'alert-triangle', incident:'alert-triangle',
+                forwarded:'send', resolved:'check-circle',
+                broadcast:'megaphone', motivation:'bell-ring',
+                verified:'badge-check', rejected:'x-circle',
+              })[n.category] || 'bell'" class="icon icon--md"></i>
             </span>
             <div class="notif-item__body">
               <p class="notif-item__message" x-text="n.message"></p>

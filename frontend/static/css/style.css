@@ -2663,3 +2663,23 @@ input[type="range"].slider::-webkit-slider-thumb:active {
 .icon-box--red    { background: rgba(239,68,68,.12);  color: #ef4444; }
 .icon-box--purple { background: rgba(139,92,246,.12); color: #8b5cf6; }
 
+/* ══ Monitor tab — desktop 2-column layout ══════════════════════════════ */
+@media (min-width: 900px) {
+  .monitor-grid {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 20px;
+    align-items: start;
+  }
+  .monitor-viewport {
+    aspect-ratio: 16/9;
+  }
+}
+@media (max-width: 899px) {
+  .monitor-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+

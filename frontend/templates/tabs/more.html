@@ -1,78 +1,36 @@
-<!-- ══ Mai mult Tab (Settings + About + Admin) ══════════════════════════ -->
+<!-- ══ Setări Tab (B2B) ═══════════════════════════════════════════════════ -->
 <div x-show="activeTab === 'more'" x-cloak
   x-transition:enter="transition ease-out duration-200"
   x-transition:enter-start="opacity-0 translate-y-2"
   x-transition:enter-end="opacity-100 translate-y-0">
 
-  <h1 class="section-title">Mai mult</h1>
-
-  <!-- ═══ PROFILE CARD ═══════════════════════════════════════════════ -->
-  <div class="card" style="margin-bottom:16px">
-    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
-      <!-- Avatar with upload -->
-      <div style="position:relative;flex-shrink:0">
-        <template x-if="myProfile?.avatar_url">
-          <img :src="myProfile.avatar_url" alt="Avatar"
-            style="width:60px;height:60px;border-radius:16px;object-fit:cover;border:1.5px solid rgba(5,150,105,.2)" />
-        </template>
-        <template x-if="!myProfile?.avatar_url">
-          <div style="width:60px;height:60px;background:rgba(5,150,105,.12);border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;color:var(--eco-green-dark);border:1.5px solid rgba(5,150,105,.2)"
-            x-text="user ? user.username.slice(0,2).toUpperCase() : '?'"></div>
-        </template>
-        <label style="position:absolute;bottom:-4px;right:-4px;width:24px;height:24px;border-radius:50%;background:var(--eco-green-dark);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2)"
-          title="Schimbă avatar">
-          <i data-lucide="camera" class="icon icon--xs"></i>
-          <input type="file" accept="image/*" @change="uploadAvatar($event)" style="display:none" :disabled="avatarUploading" />
-        </label>
-      </div>
+  <!-- Profil cont -->
+  <div class="card" style="margin-bottom:16px;padding:16px">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:52px;height:52px;background:linear-gradient(135deg,var(--eco-green-dark),var(--eco-green));border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:white;flex-shrink:0"
+        x-text="user ? user.username.slice(0,2).toUpperCase() : '?'"></div>
       <div style="flex:1">
-        <p style="font-weight:700;font-size:16px" x-text="user?.username ?? ''"></p>
-        <p style="font-size:11px;color:var(--tx-muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px" x-text="user?.role ?? ''"></p>
-        <p style="font-size:13px;color:var(--eco-green-dark);font-weight:700;margin-top:6px">
-          <i data-lucide="star" class="icon icon--xs"></i> <span x-text="user?.points ?? 0"></span> puncte comunitate
-        </p>
+        <p style="font-weight:700;font-size:16px;margin:0" x-text="user?.username ?? ''"></p>
+        <p style="font-size:11px;color:var(--tx-muted);text-transform:uppercase;letter-spacing:.5px;margin:2px 0 0" x-text="user?.role ?? ''"></p>
       </div>
+      <button @click="logout()" class="btn btn--ghost" style="color:#ef4444;font-size:12px">
+        <i data-lucide="log-out" class="icon icon--sm"></i> Ieșire
+      </button>
     </div>
-    <button @click="logout()" class="btn btn--danger" style="width:100%">Deconectare</button>
   </div>
 
-  <!-- ═══ ADMIN BUTTON (only for admins) ═════════════════════════════ -->
-  <template x-if="isAdmin">
-    <button @click="goTo('admin')" class="card more-link-card" style="margin-bottom:16px;width:100%;text-align:left;cursor:pointer">
-      <div style="display:flex;align-items:center;gap:14px">
-        <div class="more-icon-box more-icon-box--red"><i data-lucide="shield" class="icon icon--lg"></i></div>
-        <div style="flex:1">
-          <p style="font-weight:700;font-size:14px">Panou Admin</p>
-          <p style="font-size:12px;color:var(--tx-muted)">Gestionare utilizatori, rapoarte și statistici</p>
-        </div>
-        <span style="font-size:18px;color:var(--tx-muted)">→</span>
-      </div>
-    </button>
-  </template>
-
-  <!-- ═══ SETTINGS SECTION ═══════════════════════════════════════════ -->
+  <!-- Setări interfață -->
   <div class="card" style="margin-bottom:16px">
-    <h4 class="section-label"><i data-lucide="settings" class="icon icon--xs"></i> Setări</h4>
+    <h3 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin:0 0 14px;display:flex;align-items:center;gap:6px">
+      <i data-lucide="monitor" class="icon icon--xs"></i> Interfață
+    </h3>
 
-    <!-- Sensibilitate AI -->
-    <div style="margin-bottom:20px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <label style="font-size:14px;font-weight:600">Sensibilitate AI</label>
-        <span style="font-size:16px;font-weight:900;color:var(--eco-green-dark);min-width:36px;text-align:right" x-text="detConf.toFixed(2)"></span>
-      </div>
-      <input type="range" min="0.05" max="0.95" step="0.05" x-model.number="detConf" class="slider" />
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:6px">
-        <span>Mai sensibil</span><span>Mai strict</span>
-      </div>
-    </div>
-
-    <!-- Dark mode toggle -->
     <div class="settings-row">
       <div class="settings-row__left">
         <span class="settings-row__icon"><i data-lucide="moon" class="icon icon--md"></i></span>
         <div>
           <p class="settings-row__title">Mod întunecat</p>
-          <p class="settings-row__desc">Modifică tema interfeței</p>
+          <p class="settings-row__desc">Temă închisă — recomandată pentru monitorizare nocturnă</p>
         </div>
       </div>
       <button @click="toggleDark()" type="button"
@@ -80,137 +38,130 @@
         <span class="toggle-switch__knob" :style="darkMode ? 'left:25px' : 'left:3px'"></span>
       </button>
     </div>
+  </div>
 
-    <!-- Privacy: Anonymous reports -->
-    <div x-init="$watch('activeTab', t => { if (t === 'more') loadPrivacySettings(); })" style="margin-bottom:16px">
-      <h4 class="section-label"><i data-lucide="lock" class="icon icon--xs"></i> Confidențialitate</h4>
-      <div class="settings-row">
-        <div class="settings-row__left">
-          <span class="settings-row__icon"><i data-lucide="user" class="icon icon--md"></i></span>
-          <div>
-            <p class="settings-row__title">Rapoarte anonime</p>
-            <p class="settings-row__desc">Ascunde numele tău din rapoartele publice</p>
-          </div>
-        </div>
-        <button @click="privacyAnonymous = !privacyAnonymous; savePrivacy()" type="button"
-          :disabled="privacySaving"
-          class="toggle-switch" :class="privacyAnonymous ? 'toggle-switch--active' : ''">
-          <span class="toggle-switch__knob" :style="privacyAnonymous ? 'left:25px' : 'left:3px'"></span>
-        </button>
-      </div>
+  <!-- Setări detecție AI -->
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin:0 0 14px;display:flex;align-items:center;gap:6px">
+      <i data-lucide="cpu" class="icon icon--xs"></i> Detecție AI
+    </h3>
 
-      <!-- Privacy: Hide location -->
-      <div class="settings-row">
-        <div class="settings-row__left">
-          <span class="settings-row__icon"><i data-lucide="map-pin" class="icon icon--md"></i></span>
-          <div>
-            <p class="settings-row__title">Ascunde locația exactă</p>
-            <p class="settings-row__desc">Afișează doar zona aproximativă pe hartă</p>
-          </div>
-        </div>
-        <button @click="privacyHideLocation = !privacyHideLocation; savePrivacy()" type="button"
-          :disabled="privacySaving"
-          class="toggle-switch" :class="privacyHideLocation ? 'toggle-switch--active' : ''">
-          <span class="toggle-switch__knob" :style="privacyHideLocation ? 'left:25px' : 'left:3px'"></span>
-        </button>
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <label style="font-size:13px;font-weight:600">Prag detecție deșeuri</label>
+        <span style="font-size:15px;font-weight:700;color:var(--eco-green-dark)" x-text="detConf.toFixed(2)"></span>
       </div>
+      <input type="range" min="0.30" max="0.90" step="0.05" x-model.number="detConf" class="slider" />
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
+        <span>Sensibil (0.30)</span><span>Strict (0.90)</span>
+      </div>
+      <p style="font-size:11px;color:var(--tx-muted);margin-top:6px">
+        Valoarea implicită 0.40 e optimă pentru spații exterioare.
+      </p>
     </div>
   </div>
 
-  <!-- ═══ ABOUT SECTION ══════════════════════════════════════════════ -->
+  <!-- Panou Admin -->
+  <template x-if="isAdmin">
+    <button @click="goTo('admin')" class="card more-link-card" style="margin-bottom:16px;width:100%;text-align:left;cursor:pointer">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="more-icon-box more-icon-box--red"><i data-lucide="shield" class="icon icon--lg"></i></div>
+        <div style="flex:1">
+          <p style="font-weight:700;font-size:14px">Panou Admin</p>
+          <p style="font-size:12px;color:var(--tx-muted)">Utilizatori, rapoarte, autorități, webhook-uri</p>
+        </div>
+        <span style="font-size:18px;color:var(--tx-muted)">→</span>
+      </div>
+    </button>
+  </template>
+
+  <!-- Despre sistem -->
   <details class="card more-details" style="margin-bottom:16px">
     <summary style="cursor:pointer;display:flex;align-items:center;gap:12px;font-weight:700;font-size:14px">
-      <span style="font-size:22px"><i data-lucide="info" class="icon icon--lg"></i></span>
+      <span><i data-lucide="info" class="icon icon--lg"></i></span>
       <span style="flex:1">Despre TrashDet</span>
       <span class="more-details__chevron">›</span>
     </summary>
 
     <div style="margin-top:16px">
-      <!-- Architecture pipeline -->
-      <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:12px">Arhitectură pipeline</h4>
+      <!-- Pipeline -->
+      <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:12px">Pipeline detecție</h4>
       <div class="about-pipeline" style="margin-bottom:20px">
         <div class="pipeline-step">
           <div class="pipeline-step__icon"><i data-lucide="camera" class="icon icon--md"></i></div>
-          <div class="pipeline-step__text">Imagine</div>
+          <div class="pipeline-step__text">Cameră</div>
         </div>
         <div class="pipeline-arrow">→</div>
         <div class="pipeline-step pipeline-step--accent">
           <div class="pipeline-step__icon"><i data-lucide="crosshair" class="icon icon--md"></i></div>
-          <div class="pipeline-step__text">YOLOv8s<br><small>Detecție</small></div>
+          <div class="pipeline-step__text">YOLOv8s A4<br><small>Detecție</small></div>
         </div>
         <div class="pipeline-arrow">→</div>
         <div class="pipeline-step pipeline-step--accent">
-          <div class="pipeline-step__icon"><i data-lucide="test-tube" class="icon icon--md"></i></div>
-          <div class="pipeline-step__text">YOLOv8n-cls<br><small>Clasificare</small></div>
+          <div class="pipeline-step__icon"><i data-lucide="user" class="icon icon--md"></i></div>
+          <div class="pipeline-step__text">YOLOv8n<br><small>Persoane</small></div>
         </div>
         <div class="pipeline-arrow">→</div>
         <div class="pipeline-step">
-          <div class="pipeline-step__icon"><i data-lucide="bar-chart-3" class="icon icon--md"></i></div>
-          <div class="pipeline-step__text">5 materiale</div>
+          <div class="pipeline-step__icon"><i data-lucide="alert-triangle" class="icon icon--md"></i></div>
+          <div class="pipeline-step__text">Alertă</div>
         </div>
       </div>
 
-      <!-- Model performance -->
-      <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:8px">Performanțe model</h4>
-      
-      <p style="font-size:11px;font-weight:600;color:var(--tx-muted);margin-bottom:6px">Detector — Experiment A</p>
-      <div class="about-table-wrap" style="margin-bottom:12px">
-        <table class="about-table">
-          <thead><tr><th>Experiment</th><th>Model</th><th>mAP50</th></tr></thead>
-          <tbody>
-            <tr><td>A22 (baseline)</td><td>YOLOv8n</td><td>0.393</td></tr>
-            <tr class="about-table__best"><td>A3-final ✅</td><td><strong>YOLOv8s</strong></td><td><strong>0.443</strong></td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <p style="font-size:11px;font-weight:600;color:var(--tx-muted);margin-bottom:6px">Clasificator — B2</p>
-      <div class="about-table-wrap" style="margin-bottom:12px">
-        <table class="about-table">
-          <thead><tr><th>Model</th><th>Dataset</th><th>Acc Top-1</th></tr></thead>
-          <tbody>
-            <tr class="about-table__best"><td><strong>YOLOv8n-cls</strong></td><td>TrashNet + parks</td><td><strong>95.2%</strong></td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <p style="font-size:11px;font-weight:600;color:var(--tx-muted);margin-bottom:6px">Pipeline E2E — C2</p>
+      <!-- Metrici model -->
+      <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:8px">Performanțe model A4</h4>
       <div class="about-table-wrap" style="margin-bottom:16px">
         <table class="about-table">
-          <thead><tr><th>Detectate</th><th>Rată detecție</th><th>Total obj.</th><th>Viteză</th></tr></thead>
+          <thead><tr><th>Metric</th><th>A3 (baseline)</th><th>A4 (actual)</th></tr></thead>
           <tbody>
-            <tr class="about-table__best"><td><strong>219 / 225</strong></td><td><strong>97.3%</strong></td><td><strong>739</strong></td><td>60.7 ms/img</td></tr>
+            <tr><td>mAP50</td><td>0.443</td><td style="color:var(--eco-green-dark);font-weight:700">0.666 ↑</td></tr>
+            <tr><td>Precision</td><td>0.623</td><td style="color:var(--eco-green-dark);font-weight:700">0.857 ↑</td></tr>
+            <tr><td>Recall</td><td>0.406</td><td style="color:var(--eco-green-dark);font-weight:700">0.552 ↑</td></tr>
+            <tr><td>Dataset</td><td>1544 img</td><td style="color:var(--eco-green-dark);font-weight:700">2307 img ↑</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Evaluare littering pipeline -->
+      <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:8px">Evaluare pipeline littering</h4>
+      <div class="about-table-wrap" style="margin-bottom:16px">
+        <table class="about-table">
+          <thead><tr><th>Metric</th><th>Valoare</th></tr></thead>
+          <tbody>
+            <tr><td>Precision</td><td style="color:var(--eco-green-dark);font-weight:700">1.000</td></tr>
+            <tr><td>Recall</td><td style="color:var(--eco-green-dark);font-weight:700">0.917</td></tr>
+            <tr><td>F1</td><td style="color:var(--eco-green-dark);font-weight:700">0.957</td></tr>
+            <tr><td>Clipuri testate</td><td>12 CCTV reale</td></tr>
           </tbody>
         </table>
       </div>
 
       <!-- Tech stack -->
       <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--tx-muted);margin-bottom:10px">Stivă tehnologică</h4>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-        <div class="about-tech-item"><span class="about-tech-item__icon"><i data-lucide="cpu" class="icon icon--sm"></i></span><div><div class="about-tech-item__name">YOLOv8</div><div class="about-tech-item__desc">Detecție + clasificare</div></div></div>
-        <div class="about-tech-item"><span class="about-tech-item__icon"><i data-lucide="zap" class="icon icon--sm"></i></span><div><div class="about-tech-item__name">FastAPI</div><div class="about-tech-item__desc">Backend async</div></div></div>
-        <div class="about-tech-item"><span class="about-tech-item__icon"><i data-lucide="map" class="icon icon--sm"></i></span><div><div class="about-tech-item__name">Leaflet.js</div><div class="about-tech-item__desc">Hărți GPS</div></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+        <div class="about-tech-item"><span class="about-tech-item__icon"><i data-lucide="cpu" class="icon icon--sm"></i></span><div><div class="about-tech-item__name">YOLOv8 + ByteTrack</div><div class="about-tech-item__desc">Detecție + tracking</div></div></div>
+        <div class="about-tech-item"><span class="about-tech-item__icon"><i data-lucide="zap" class="icon icon--sm"></i></span><div><div class="about-tech-item__name">FastAPI</div><div class="about-tech-item__desc">Backend async WebSocket</div></div></div>
         <div class="about-tech-item"><span class="about-tech-item__icon"><i data-lucide="mountain" class="icon icon--sm"></i></span><div><div class="about-tech-item__name">Alpine.js</div><div class="about-tech-item__desc">Frontend reactiv</div></div></div>
-        <div class="about-tech-item"><span class="about-tech-item__icon"><i data-lucide="database" class="icon icon--sm"></i></span><div><div class="about-tech-item__name">SQLAlchemy</div><div class="about-tech-item__desc">ORM + SQLite</div></div></div>
+        <div class="about-tech-item"><span class="about-tech-item__icon"><i data-lucide="database" class="icon icon--sm"></i></span><div><div class="about-tech-item__name">SQLite + aiosqlite</div><div class="about-tech-item__desc">Persistență async</div></div></div>
+        <div class="about-tech-item"><span class="about-tech-item__icon"><i data-lucide="shield-check" class="icon icon--sm"></i></span><div><div class="about-tech-item__name">GDPR Art.25</div><div class="about-tech-item__desc">Face blur + SHA-256</div></div></div>
         <div class="about-tech-item"><span class="about-tech-item__icon"><i data-lucide="bar-chart-3" class="icon icon--sm"></i></span><div><div class="about-tech-item__name">Chart.js</div><div class="about-tech-item__desc">Vizualizări date</div></div></div>
       </div>
 
       <!-- Credits -->
-      <div style="text-align:center;padding:16px 0 4px">
-        <div style="font-size:22px;margin-bottom:8px"><i data-lucide="graduation-cap" class="icon icon--xl"></i></div>
-        <div style="font-size:14px;font-weight:700;margin-bottom:4px">Lucrare de licență · 2026</div>
-        <div style="font-size:12px;color:var(--tx-muted)">Universitatea Politehnica București</div>
-        <div style="font-size:12px;color:var(--tx-muted);margin-top:4px">Facultatea de Automatică și Calculatoare</div>
+      <div style="text-align:center;padding:14px 0 4px;border-top:1px solid var(--bg-border)">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">Lucrare de licență · UAB 2026</div>
+        <div style="font-size:12px;color:var(--tx-muted)">Universitatea „1 Decembrie 1918" Alba Iulia</div>
+        <div style="font-size:12px;color:var(--tx-muted);margin-top:2px">Facultatea de Informatică și Inginerie</div>
       </div>
     </div>
   </details>
 
-  <!-- ═══ API DOCS LINK ══════════════════════════════════════════════ -->
+  <!-- API Docs -->
   <a href="/docs" target="_blank" rel="noopener" class="card more-link-card" style="display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit;margin-bottom:32px">
     <div class="more-icon-box more-icon-box--blue"><i data-lucide="radio" class="icon icon--lg"></i></div>
     <div style="flex:1">
       <p style="font-weight:700;font-size:14px;color:var(--eco-green-dark)">API Docs — Swagger UI</p>
-      <p style="font-size:12px;color:var(--tx-muted)">Documentație interactivă API</p>
+      <p style="font-size:12px;color:var(--tx-muted)">Documentație interactivă REST API</p>
     </div>
     <span style="font-size:18px;color:var(--tx-muted)">↗</span>
   </a>

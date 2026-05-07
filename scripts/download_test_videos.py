@@ -26,9 +26,11 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Termeni de cautare — primul rezultat disponibil va fi descarcat
 SEARCH_QUERIES = [
-    ("ytsearch3:littering caught on camera CCTV 2023 short",  "littering_cctv"),
-    ("ytsearch3:person throws trash illegal dumping surveillance", "illegal_dumping"),
-    ("ytsearch2:aruncarea gunoiului camera surprins", "gunoi_ro"),
+    ("ytsearch3:littering caught on camera CCTV 2024 short",       "littering_cctv_2024"),
+    ("ytsearch3:person throws garbage street surveillance camera",  "throwing_garbage_street"),
+    ("ytsearch3:illegal dumping caught security camera short",      "illegal_dumping_cctv"),
+    ("ytsearch2:aruncarea gunoiului surprins camera strada",        "gunoi_ro_strada"),
+    ("ytsearch3:littering fine caught on camera UK",               "littering_uk"),
 ]
 
 def download_search(query: str, out_name: str, max_duration: int = 120) -> bool:
@@ -42,7 +44,6 @@ def download_search(query: str, out_name: str, max_duration: int = 120) -> bool:
         "playlistend": 3,        # incearca primele 3 rezultate
         "noplaylist": False,
         "merge_output_format": "mp4",
-        "js_runtimes": "nodejs",  # foloseste Node.js daca e disponibil
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

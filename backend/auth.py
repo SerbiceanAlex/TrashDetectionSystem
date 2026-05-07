@@ -131,6 +131,52 @@ async def send_otp_email(to_email: str, otp_code: str, username: str) -> bool:
     return True
 
 
+async def send_incident_alert(to_email: str, event_id: int, material: str, detected_at: str, address: str = "") -> bool:
+    """Trimite alertă email instant la detectarea unui incident."""
+    subject = f"[TrashDet] Incident detectat #{event_id} — {material}"
+    body = (
+        f"Incident de aruncare ilegală detectat automat.\n\n"
+        f"ID incident: #{event_id}\n"
+        f"Material: {material}\n"
+        f"Data/Ora: {detected_at}\n"
+        f"Locație: {address or 'fără adresă GPS'}\n\n"
+        f"Vizualizează și gestionează incidentul în panoul de administrare:\n"
+        f"http://127.0.0.1:8000\n\n"
+        f"— TrashDet Monitoring System"
+    )
+
+    if settings.SMTP_HOST and settings.SMTP_USER:
+        try:
+            import aiosmtplib
+            from email.mime.text import MIMEText
+            msg = MIMEText(body, "plain", "utf-8")
+            msg["Subject"] = subject
+            msg["From"] = settings.SMTP_FROM
+            msg["To"] = to_email
+            await aiosmtplib.send(
+                msg,
+                hostname=settings.SMTP_HOST,
+                port=settings.SMTP_PORT,
+                username=settings.SMTP_USER,
+                password=settings.SMTP_PASS,
+                start_tls=True,
+            )
+            logger.info(f"Alertă incident #{event_id} trimisă la {to_email}")
+            return True
+        except Exception as e:
+            logger.error(f"Eroare alertă incident: {e}")
+
+    # Dev mode: log in console
+    logger.info(
+        f"\n{'='*50}\n"
+        f"  [ALERTĂ INCIDENT] #{event_id} — {material}\n"
+        f"  Destinatar: {to_email}\n"
+        f"  Locație: {address or 'N/A'}\n"
+        f"{'='*50}"
+    )
+    return True
+
+
 # ── Rate limiting ────────────────────────────────────────────────────────────
 
 def check_rate_limit(username: str) -> tuple[bool, int]:

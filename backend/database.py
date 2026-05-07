@@ -15,7 +15,9 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    and_,
     func,
+    or_,
     select,
     text as sa_text,
 )
@@ -378,6 +380,26 @@ class LitteringEvent(Base):
 
     # ── Relationships ────────────────────────────────────────────────────────
     reviewer = relationship("User", foreign_keys=[reviewed_by])
+
+
+class MonitoredLocation(Base):
+    """
+    Locație fizică monitorizată (parcare mall, campus, etc.) cu cameră IP/RTSP.
+    """
+    __tablename__ = "monitored_locations"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    name        = Column(String(128), nullable=False)
+    address     = Column(Text, nullable=True)
+    latitude    = Column(Float, nullable=True)
+    longitude   = Column(Float, nullable=True)
+    rtsp_url    = Column(Text, nullable=True)              # rtsp://... sau gol pentru webcam
+    alert_email = Column(String(128), nullable=True)       # email staff securitate
+    is_active   = Column(Integer, default=1)               # 1 = monitor activ, 0 = pauzat
+    created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    creator = relationship("User", foreign_keys=[created_by])
 
 
 async def create_tables():

@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import database as db
 from backend import inference as infer
+from backend.auth import send_incident_alert
 
 logger = logging.getLogger(__name__)
 
@@ -163,6 +164,8 @@ def _process_video_sync(
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tracker = YOLO(str(settings.detector_path))
     tracker.to(device)
+    # Ensure person detector is loaded (lazy singleton may not be initialized in thread)
+    infer.load_models()
     detector = LitteringDetector(fps=fps_in, monitor_seconds=8.0, pre_event_seconds=4.0)
 
     # Temporal smoothing (mirrors handle_monitor_ws logic)
@@ -211,7 +214,7 @@ def _process_video_sync(
                         })
 
             # Stage 2 — person detection
-            person_boxes = infer.detect_persons(frame, conf=0.35, imgsz=640)
+            person_boxes = infer.detect_persons(frame, conf=0.20, imgsz=1280)
 
             # Temporal smoothing
             if person_boxes:
@@ -274,10 +277,16 @@ def _process_video_sync(
                 collected_events.append((event, ts_sec))
 
             # Draw annotated frame
-            annotated = _draw_littering_frame(
-                frame.copy(), smoothed_person_boxes, display_trash,
-                detector.current_state, event is not None,
-            )
+            annotated = frame.copy()
+            for pb in smoothed_person_boxes:
+                cv2.rectangle(annotated, (pb[0], pb[1]), (pb[2], pb[3]), (255, 165, 0), 2)
+            for d in display_trash:
+                b = d["box"]
+                cv2.rectangle(annotated, (b[0], b[1]), (b[2], b[3]), (0, 0, 255), 2)
+            state_color = (0, 200, 0) if detector.current_state == "CLEAR" else (0, 165, 255) if detector.current_state == "MONITORING" else (0, 0, 255)
+            cv2.putText(annotated, detector.current_state, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, state_color, 2)
+            if event is not None:
+                cv2.putText(annotated, "ALERT!", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
             if annotated.shape[1] != out_w or annotated.shape[0] != out_h:
                 annotated = cv2.resize(annotated, (out_w, out_h))
             writer.write(annotated)
@@ -288,6 +297,9 @@ def _process_video_sync(
     finally:
         cap.release()
         writer.release()
+
+    # Re-encode to H.264 for browser playback
+    out_path = _reencode_h264(out_path)
 
     duration = time.time() - t_start
     avg_fps = total_frames / max(duration, 0.001)
@@ -304,6 +316,7 @@ def _process_video_sync(
         "annotated_video_path": str(out_path),
         "littering_events": collected_events,    # list of (LitteringEvent, ts_sec)
         "littering_count": len(collected_events),
+        "fps": fps_in,
     }
 
 
@@ -378,20 +391,33 @@ async def process_uploaded_video(
                         detection_method="zone",
                     )
 
-                # Rename thumbnail to match real event id (best-effort)
+                # Save clip frames
+                clip_rel = None
+                if event.clip_frames:
+                    clip_rel = await asyncio.to_thread(
+                        _save_clip, event.clip_frames, result.get("fps", 25.0) or 25.0, db_event.id
+                    )
+
+                # Rename thumbnail + update DB with paths
+                final_thumb = thumb_rel
                 if thumb_rel:
                     old_path = LITTERING_DIR / thumb_rel
                     new_name = f"event_{db_event.id:06d}_thumb.jpg"
-                    new_path = LITTERING_DIR / new_name
                     try:
-                        old_path.rename(new_path)
-                        async with db.AsyncSessionLocal() as s:
-                            ev = await db.get_littering_event_by_id(s, db_event.id)
-                            if ev:
-                                ev.thumbnail_path = new_name
-                                await s.commit()
+                        old_path.rename(LITTERING_DIR / new_name)
+                        final_thumb = new_name
                     except Exception:
                         pass
+
+                if clip_rel or final_thumb != thumb_rel:
+                    async with db.AsyncSessionLocal() as s:
+                        ev = await db.get_littering_event_by_id(s, db_event.id)
+                        if ev:
+                            if final_thumb != thumb_rel:
+                                ev.thumbnail_path = final_thumb
+                            if clip_rel:
+                                ev.clip_path = clip_rel
+                            await s.commit()
 
                 logger.info(
                     "Littering event #%d saved from uploaded video (t=%.1fs, material=%s)",
@@ -421,10 +447,32 @@ LITTERING_DIR = APP_DIR / "littering"
 LITTERING_DIR.mkdir(exist_ok=True)
 
 
+def _reencode_h264(src: Path) -> Path:
+    """Re-encode mp4v → H.264 using imageio-ffmpeg for browser playback."""
+    try:
+        import imageio_ffmpeg
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        dst = src.with_suffix(".h264.mp4")
+        import subprocess
+        result = subprocess.run(
+            [ffmpeg_exe, "-y", "-i", str(src), "-vcodec", "libx264",
+             "-preset", "fast", "-crf", "23", "-movflags", "+faststart",
+             "-acodec", "copy", str(dst)],
+            capture_output=True, timeout=120
+        )
+        if result.returncode == 0 and dst.exists():
+            src.unlink(missing_ok=True)
+            dst.rename(src)
+        return src
+    except Exception as e:
+        logger.warning("H.264 re-encode failed (mp4v kept): %s", e)
+        return src
+
+
 def _save_clip(frames: list, fps: float, event_id: int) -> str | None:
     """
-    Encode a list of BGR numpy frames as an mp4 clip.
-    Returns the relative path (relative to APP_DIR) or None on failure.
+    Encode a list of BGR numpy frames as an mp4 clip (H.264 for browser).
+    Returns the filename or None on failure.
     """
     if not frames:
         return None
@@ -439,7 +487,8 @@ def _save_clip(frames: list, fps: float, event_id: int) -> str | None:
                 f = cv2.resize(f, (w, h))
             writer.write(f)
         writer.release()
-        return out_path.name   # just the filename, e.g. "event_000001.mp4"
+        _reencode_h264(out_path)
+        return out_path.name
     except Exception:
         logger.exception("Failed to save littering event clip")
         return None
@@ -566,6 +615,36 @@ def _shrink_box(box: tuple[int, int, int, int], factor: float) -> tuple[int, int
     return (nx1, ny1, nx2, ny2)
 
 
+async def _send_location_alert(session, event_id, material, detected_at, address, lat, lng):
+    """Găsește locația monitorizată cea mai apropiată și trimite alertă email."""
+    try:
+        ML = db.MonitoredLocation
+        locs = (await session.execute(
+            db.select(ML).where(ML.is_active == 1, ML.alert_email.isnot(None))
+        )).scalars().all()
+
+        if not locs:
+            return
+
+        # Dacă avem GPS, găsim locația cea mai apropiată
+        target_email = None
+        if lat and lng:
+            min_dist = float('inf')
+            for loc in locs:
+                if loc.latitude and loc.longitude:
+                    dist = ((loc.latitude - lat) ** 2 + (loc.longitude - lng) ** 2) ** 0.5
+                    if dist < min_dist:
+                        min_dist = dist
+                        target_email = loc.alert_email
+        if not target_email:
+            target_email = locs[0].alert_email  # fallback: primul
+
+        if target_email:
+            await send_incident_alert(target_email, event_id, material, detected_at, address)
+    except Exception as e:
+        logger.warning("Alert email failed: %s", e)
+
+
 async def handle_monitor_ws(
     websocket: WebSocket,
     det_conf: float,
@@ -667,11 +746,11 @@ async def handle_monitor_ws(
                             "material_name": "unknown",  # classify only on event
                         })
 
-            # Stage 2: person detection (slightly stricter + smaller imgsz for speed)
+            # Stage 2: person detection — imgsz=1280 + conf=0.20 to capture small/distant persons in CCTV footage
             person_boxes = infer.detect_persons(
                 frame,
-                conf=max(person_conf, 0.22),
-                imgsz=640,
+                conf=max(person_conf, 0.25),
+                imgsz=1280,
             )
 
             # Temporal smoothing: avoid ghost persons / single-frame flicker
@@ -824,6 +903,13 @@ async def handle_monitor_ws(
                     "detected_at": db_event.detected_at.isoformat(),
                     "address": resolved_address,
                 }))
+
+                # Send instant email alert to nearest location's alert_email
+                asyncio.create_task(_send_location_alert(
+                    session, event_id, event.material,
+                    db_event.detected_at.isoformat(), resolved_address,
+                    latitude, longitude
+                ))
 
             else:
                 # ── Normal status frame ───────────────────────────────────

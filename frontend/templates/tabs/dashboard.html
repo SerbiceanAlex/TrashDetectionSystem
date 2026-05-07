@@ -1,226 +1,133 @@
-<!-- ══ Profil / Dashboard Tab ═════════════════════════════════════════════ -->
+<!-- ══ Dashboard B2B ══════════════════════════════════════════════════════ -->
 <div x-show="activeTab === 'dashboard'" x-cloak
   x-transition:enter="transition ease-out duration-200"
   x-transition:enter-start="opacity-0 translate-y-2"
   x-transition:enter-end="opacity-100 translate-y-0">
 
-  <!-- ── Onboarding Overlay ────────────────────────────────────────── -->
-  <div x-show="onboardingOpen" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-    class="onboarding-overlay">
-    <div class="onboarding-card" @click.stop>
-      <!-- Step 1 -->
-      <div x-show="onboardingStep === 1">
-        <div class="onboarding-icon"><i data-lucide="hand-metal" class="icon icon--hero"></i></div>
-        <h2 class="onboarding-title">Welcome to TrashDet!</h2>
-        <p class="onboarding-desc">Community-powered waste reporting platform with AI.</p>
+  <!-- Welcome header -->
+  <div class="card profile-card" style="background:linear-gradient(135deg, var(--eco-green-dark), var(--eco-green));color:white">
+    <div style="display:flex;align-items:center;gap:16px">
+      <div style="width:56px;height:56px;border-radius:14px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center">
+        <i data-lucide="shield-check" class="icon icon--lg" style="color:white"></i>
       </div>
-      <!-- Step 2 -->
-      <div x-show="onboardingStep === 2">
-        <div class="onboarding-icon"><i data-lucide="eye" class="icon icon--hero"></i></div>
-        <h2 class="onboarding-title">AI Monitoring</h2>
-        <p class="onboarding-desc">Camera automatically detects people dumping waste. Faces are anonymized, evidence is stored securely.</p>
+      <div style="flex:1">
+        <h1 style="font-size:20px;font-weight:700;color:white;margin:0">Bună, <span x-text="user?.username ?? ''"></span></h1>
+        <p style="font-size:13px;color:rgba(255,255,255,0.85);margin:2px 0 0">Sistem activ — monitorizare automată deșeuri</p>
       </div>
-      <!-- Step 3 -->
-      <div x-show="onboardingStep === 3">
-        <div class="onboarding-icon"><i data-lucide="trophy" class="icon icon--hero"></i></div>
-        <h2 class="onboarding-title">Earn EcoScore</h2>
-        <p class="onboarding-desc">Earn points for reports, votes, and cleanups. Advance in rank and unlock features.</p>
-      </div>
-      <!-- Step 4 -->
-      <div x-show="onboardingStep === 4">
-        <div class="onboarding-icon"><i data-lucide="globe" class="icon icon--hero"></i></div>
-        <h2 class="onboarding-title">Real impact</h2>
-        <p class="onboarding-desc">Your data reaches authorities via email, webhook, or the public map. Together we make a difference!</p>
-      </div>
-      <!-- Navigation -->
-      <div class="onboarding-nav">
-        <div class="onboarding-dots">
-          <template x-for="s in [1,2,3,4]" :key="s">
-            <div :class="'onboarding-dot' + (onboardingStep === s ? ' onboarding-dot--active' : '')"></div>
-          </template>
-        </div>
-        <div class="gap-2" style="display:flex">
-          <button x-show="onboardingStep < 4" @click="onboardingStep++;refreshIcons()" class="btn btn--brand" style="padding:8px 20px">Continue →</button>
-          <button x-show="onboardingStep === 4" @click="finishOnboarding()" class="btn btn--brand" style="padding:8px 20px">
-            Let's go! <i data-lucide="rocket" class="icon icon--sm"></i>
-          </button>
-        </div>
-      </div>
+      <button @click="goTo('scan')" class="btn" style="background:white;color:var(--eco-green-dark);font-weight:700">
+        <i data-lucide="video" class="icon icon--sm"></i> Monitor
+      </button>
     </div>
   </div>
 
-  <!-- ── Profile Header with EcoScore ──────────────────────────────── -->
-  <div class="card profile-card">
-    <!-- Background gradient accent -->
-    <div class="profile-card__gradient"></div>
-
-    <div class="profile-card__row">
-      <!-- Avatar with rank ring -->
-      <div class="profile-avatar">
-        <template x-if="myProfile?.avatar_url">
-          <img :src="myProfile.avatar_url" alt="Avatar" class="profile-avatar__img"
-            :style="`box-shadow:0 4px 16px ${rankColor(myProfile?.rank || 'Novice')}44`" />
-        </template>
-        <template x-if="!myProfile?.avatar_url">
-          <div class="profile-avatar__fallback"
-            :style="`background:${rankColor(myProfile?.rank || 'Novice')};box-shadow:0 4px 16px ${rankColor(myProfile?.rank || 'Novice')}44`"
-            x-text="user ? user.username.slice(0,2).toUpperCase() : '?'"></div>
-        </template>
-        <!-- Streak badge -->
-        <div x-show="myProfile?.streak_days > 0" class="profile-avatar__streak">
-          <i data-lucide="flame" class="icon icon--xs"></i>
-          <span x-text="myProfile?.streak_days || 0"></span>
-        </div>
-      </div>
-      <div class="profile-info">
-        <div class="profile-info__name-row">
-          <h1 class="profile-info__name" x-text="user?.username ?? ''"></h1>
-          <span class="profile-info__rank-badge"
-            :style="`background:${rankColor(myProfile?.rank || 'Novice')}`"
-            x-text="myProfile?.rank || 'Novice'"></span>
-        </div>
-        <p class="profile-info__member-since">
-          Member since <span x-text="myProfile?.created_at ? new Date(myProfile.created_at).toLocaleDateString('en-US', {month:'long', year:'numeric'}) : '...'"></span>
-        </p>
-      </div>
-    </div>
-
-    <!-- EcoScore display -->
-    <div class="ecoscore-section">
-      <div class="ecoscore-header">
-        <div>
-          <span class="ecoscore-label">EcoScore</span>
-          <div class="ecoscore-value" :style="`color:${rankColor(myProfile?.rank || 'Novice')}`"
-            x-text="myProfile?.eco_score ?? 0"></div>
-        </div>
-        <div class="ecoscore-right">
-          <div class="ecoscore-streak">
-            <i data-lucide="flame" class="icon icon--sm"></i>
-            <span x-text="(myProfile?.streak_days || 0) + ' day streak'"></span>
-          </div>
-          <div class="ecoscore-multiplier" x-text="'Multiplier: ×' + (myProfile?.trust_weight || 1.0).toFixed(1)"></div>
-        </div>
-      </div>
-      <!-- Progress bar to next rank -->
-      <div class="ecoscore-progress">
-        <div class="ecoscore-progress__bar">
-          <div class="ecoscore-progress__fill"
-            :style="`width:${rankProgress(myProfile?.eco_score || 0)}%;background:${rankColor(myProfile?.rank || 'Novice')}`"></div>
-        </div>
-        <div x-show="nextRank(myProfile?.rank || 'Novice')" class="ecoscore-progress__labels">
-          <span class="ecoscore-progress__rank-current" x-text="myProfile?.rank || 'Novice'"></span>
-          <span class="ecoscore-progress__rank-next" :style="`color:${rankColor(nextRank(myProfile?.rank || 'Novice')?.name || 'Novice')}`"
-            x-text="nextRank(myProfile?.rank || 'Novice')?.name + ' (' + (nextRank(myProfile?.rank || 'Novice')?.min_score || 0) + ' pts)'"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Trust weight info -->
-    <div x-show="myProfile?.trust_weight >= 1.5" class="trust-banner">
-      <i data-lucide="zap" class="icon icon--md"></i>
-      <span>Your votes carry <span x-text="'×' + (myProfile?.trust_weight || 1).toFixed(1)"></span> weight thanks to your rank!</span>
-    </div>
-  </div>
-
-  <!-- ── Stats KPIs ────────────────────────────────────────────────── -->
+  <!-- KPI top — incidente -->
   <div class="kpi-grid mb-4">
     <div class="kpi-card">
-      <span class="kpi-card__label"><i data-lucide="camera" class="icon icon--xs"></i> Reports</span>
-      <span class="kpi-card__value text-brand" x-text="myProfile?.total_reports ?? dashMyStats?.total_sessions ?? '—'"></span>
+      <span class="kpi-card__label"><i data-lucide="alert-triangle" class="icon icon--xs"></i> Incidente azi</span>
+      <span class="kpi-card__value text-brand" x-text="dashB2B?.incidents_today ?? '—'"></span>
     </div>
     <div class="kpi-card">
-      <span class="kpi-card__label"><i data-lucide="search" class="icon icon--xs"></i> Objects</span>
-      <span class="kpi-card__value text-brand" x-text="myProfile?.total_objects ?? dashMyStats?.total_objects ?? '—'"></span>
-    </div>
-    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.04))">
-      <span class="kpi-card__label"><i data-lucide="badge-check" class="icon icon--xs"></i> Verified</span>
-      <span class="kpi-card__value" style="color:#10b981" x-text="myProfile?.verified_reports ?? 0"></span>
-    </div>
-    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.04))">
-      <span class="kpi-card__label"><i data-lucide="circle-check" class="icon icon--xs"></i> Cleaned</span>
-      <span class="kpi-card__value" style="color:#3b82f6" x-text="myProfile?.cleaned_reports ?? 0"></span>
-    </div>
-    <div class="kpi-card">
-      <span class="kpi-card__label"><i data-lucide="vote" class="icon icon--xs"></i> Votes cast</span>
-      <span class="kpi-card__value" x-text="myProfile?.total_votes ?? 0"></span>
+      <span class="kpi-card__label"><i data-lucide="calendar" class="icon icon--xs"></i> Săptămâna</span>
+      <span class="kpi-card__value text-brand" x-text="dashB2B?.incidents_week ?? '—'"></span>
     </div>
     <div class="kpi-card" style="background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(245,158,11,.04))">
-      <span class="kpi-card__label"><i data-lucide="star" class="icon icon--xs"></i> Legacy points</span>
-      <span class="kpi-card__value" style="color:#f59e0b" x-text="dashMyStats?.points ?? 0"></span>
+      <span class="kpi-card__label"><i data-lucide="clock" class="icon icon--xs"></i> În așteptare</span>
+      <span class="kpi-card__value" style="color:#f59e0b" x-text="dashB2B?.pending_review ?? 0"></span>
+    </div>
+    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.04))">
+      <span class="kpi-card__label"><i data-lucide="send" class="icon icon--xs"></i> Trimise autorit.</span>
+      <span class="kpi-card__value" style="color:#3b82f6" x-text="dashB2B?.forwarded ?? 0"></span>
+    </div>
+    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.04))">
+      <span class="kpi-card__label"><i data-lucide="map-pin" class="icon icon--xs"></i> Locații active</span>
+      <span class="kpi-card__value" style="color:#10b981" x-text="dashB2B?.active_locations ?? 0"></span>
+    </div>
+    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(168,85,247,.12),rgba(168,85,247,.04))">
+      <span class="kpi-card__label"><i data-lucide="trending-up" class="icon icon--xs"></i> Total luna</span>
+      <span class="kpi-card__value" style="color:#a855f7" x-text="dashB2B?.incidents_month ?? 0"></span>
     </div>
   </div>
 
-  <!-- ── Impact Metrics ──────────────────────────────────────────── -->
-  <template x-if="impactMetrics">
-    <div class="card impact-card">
-      <h3 class="impact-card__title"><i data-lucide="globe" class="icon icon--sm"></i> Community impact</h3>
-      <div class="impact-card__grid">
-        <div>
-          <div class="impact-card__value" style="color:#10b981" x-text="(impactMetrics.total_weight_kg || 0).toFixed(1) + ' kg'"></div>
-          <div class="impact-card__label">Estimated waste</div>
-        </div>
-        <div>
-          <div class="impact-card__value" style="color:#3b82f6" x-text="(impactMetrics.total_co2_saved_kg || 0).toFixed(1) + ' kg'"></div>
-          <div class="impact-card__label">CO₂ saved</div>
-        </div>
-        <div>
-          <div class="impact-card__value" style="color:#f59e0b" x-text="impactMetrics.total_objects || 0"></div>
-          <div class="impact-card__label">Objects detected</div>
-        </div>
+  <!-- Trend chart — incidente pe zilele ultimei luni -->
+  <div class="card mb-4">
+    <div class="flex-between mb-3">
+      <h3 class="text-sm font-bold"><i data-lucide="line-chart" class="icon icon--sm"></i> Evoluție incidente — ultimele 30 zile</h3>
+      <span class="badge badge--gray" x-text="'total: ' + (dashB2B?.incidents_month || 0)"></span>
+    </div>
+    <div style="height:180px;position:relative">
+      <canvas id="dashB2BTrendChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Ultimele incidente — recent activity -->
+  <div class="card mb-4">
+    <div class="flex-between mb-3">
+      <h3 class="text-sm font-bold"><i data-lucide="alert-triangle" class="icon icon--sm"></i> Ultimele incidente</h3>
+      <button @click="goTo('incidents')" class="btn btn--ghost btn--sm">
+        Vezi toate <i data-lucide="arrow-right" class="icon icon--xs"></i>
+      </button>
+    </div>
+    <template x-if="dashB2B?.recent_incidents?.length > 0">
+      <div class="flex-col gap-2">
+        <template x-for="ev in dashB2B.recent_incidents" :key="ev.id">
+          <div @click="goTo('incidents')"
+            style="display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;border:1px solid var(--bg-border);cursor:pointer;transition:background var(--t-fast)"
+            onmouseover="this.style.background='var(--bg-raised)'"
+            onmouseout="this.style.background='transparent'">
+            <img :src="ev.thumbnail_path ? '/littering/' + ev.thumbnail_path : ''" alt=""
+              style="width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--bg-raised)" />
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span class="badge"
+                  :style="ev.status === 'pending' ? 'background:rgba(245,158,11,.18);color:#f59e0b' : ev.status === 'forwarded' ? 'background:rgba(59,130,246,.18);color:#3b82f6' : ev.status === 'reviewed' ? 'background:rgba(16,185,129,.18);color:#10b981' : 'background:rgba(107,114,128,.18);color:#6b7280'"
+                  x-text="ev.status"></span>
+                <span style="font-size:12px;font-weight:600;text-transform:capitalize" x-text="ev.material || 'unknown'"></span>
+              </div>
+              <p style="font-size:11px;color:var(--tx-secondary);margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                x-text="ev.address || (ev.lat ? `${ev.lat.toFixed(4)}, ${ev.lng.toFixed(4)}` : 'fără locație')"></p>
+            </div>
+            <span style="font-size:10px;color:var(--tx-muted);white-space:nowrap"
+              x-text="new Date(ev.detected_at).toLocaleString('ro-RO', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})"></span>
+          </div>
+        </template>
+      </div>
+    </template>
+    <template x-if="!dashB2B?.recent_incidents || dashB2B.recent_incidents.length === 0">
+      <div class="empty-state" style="padding:24px 12px">
+        <div class="empty-state__icon"><i data-lucide="shield" class="icon icon--xl"></i></div>
+        <p class="empty-state__text">Niciun incident detectat încă.<br>Sistemul monitorizează — alertele apar aici automat.</p>
+      </div>
+    </template>
+  </div>
+
+  <!-- Distribuție material -->
+  <template x-if="dashB2B?.material_distribution?.length > 0">
+    <div class="card mb-4">
+      <h3 class="section-title" style="font-size:14px;margin-bottom:14px">Tipuri de deșeuri detectate</h3>
+      <div class="flex-col gap-3">
+        <template x-for="m in dashB2B.material_distribution" :key="m.material">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:72px;font-size:12px;font-weight:600;text-transform:capitalize;flex-shrink:0" x-text="m.material"></span>
+            <div style="flex:1;height:8px;background:var(--bg-border);border-radius:99px;overflow:hidden">
+              <div style="height:100%;background:var(--eco-green-dark);border-radius:99px;transition:width .6s ease"
+                :style="`width:${dashB2B.incidents_month > 0 ? (m.count / dashB2B.incidents_month * 100).toFixed(0) : 0}%`"></div>
+            </div>
+            <span class="text-xs text-muted" style="width:32px;text-align:right;flex-shrink:0" x-text="m.count"></span>
+          </div>
+        </template>
       </div>
     </div>
   </template>
 
   <!-- Quick actions -->
-  <div class="dash-actions">
-    <button @click="goTo('scan')" class="btn btn--brand btn--lg" style="min-width:220px">
+  <div class="dash-actions" style="margin-top:20px">
+    <button @click="goTo('scan')" class="btn btn--brand btn--lg" style="min-width:200px">
       <i data-lucide="video" class="icon icon--md"></i>
-      Start Monitoring
+      Pornește monitorizarea
     </button>
-    <button @click="goTo('community')" class="btn btn--ghost">
-      <i data-lucide="users" class="icon icon--sm"></i> Community feed
+    <button @click="goTo('reports')" class="btn btn--ghost">
+      <i data-lucide="file-text" class="icon icon--sm"></i> Export raport
     </button>
   </div>
-
-  <!-- Weekly activity chart -->
-  <template x-if="dashMyStats">
-    <div class="card mb-4">
-      <div class="flex-between mb-3">
-        <h3 class="text-sm font-bold"><i data-lucide="calendar" class="icon icon--sm"></i> Weekly activity</h3>
-        <span class="badge badge--gray" x-text="'total: ' + (dashMyStats.weekly_activity?.reduce((s,r)=>s+r.reports,0)||0) + ' reports'"></span>
-      </div>
-      <div style="height:120px;position:relative">
-        <canvas id="dashWeeklyChart"></canvas>
-      </div>
-    </div>
-  </template>
-
-  <!-- Material distribution (only if data) -->
-  <template x-if="dashStats?.material_distribution?.length > 0">
-    <div class="card">
-      <h3 class="section-title" style="font-size:14px;margin-bottom:14px">Detected material distribution</h3>
-      <div class="flex-col gap-3">
-        <template x-for="m in dashStats.material_distribution" :key="m.material">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="width:62px;font-size:12px;font-weight:600;text-transform:capitalize;flex-shrink:0" x-text="m.material"></span>
-            <div style="flex:1;height:7px;background:var(--bg-border);border-radius:99px;overflow:hidden">
-              <div style="height:100%;background:var(--eco-green-dark);border-radius:99px;transition:width .6s ease"
-                :style="`width:${dashStats.total_objects > 0 ? (m.count / dashStats.total_objects * 100).toFixed(0) : 0}%`"></div>
-            </div>
-            <span class="text-xs text-muted" style="width:28px;text-align:right;flex-shrink:0" x-text="m.count"></span>
-          </div>
-        </template>
-      </div>
-    </div>
-  </template>
-
-  <!-- Empty state when no sessions yet -->
-  <template x-if="!dashLoading && dashStats && dashStats.total_sessions === 0">
-    <div class="empty-state" style="padding:40px 20px">
-      <div class="empty-state__icon"><i data-lucide="camera" class="icon icon--2xl"></i></div>
-      <p class="empty-state__text">No reports yet.<br>Make your first scan!</p>
-      <button @click="goTo('scan')" class="btn btn--brand mt-3">Start monitoring</button>
-    </div>
-  </template>
 
 </div>

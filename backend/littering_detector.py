@@ -139,6 +139,7 @@ class LitteringEvent:
     owner_person_id:         Optional[int]   = None
     distance_at_abandonment: Optional[float] = None
     detection_method:        str  = "zone"   # "zone" | "distance"
+    proximity_score:         float = 0.5    # 0-1: how close trash was to person zone
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -177,6 +178,7 @@ class LitteringDetector:
         self.frame_idx: int                = 0
         self._frame_buffer: deque[np.ndarray] = deque(maxlen=self.pre_buffer_frames)
         self._known_trash_ids: set[int]    = set()
+        self._baseline_trash_ids: set[int] = set()  # snapshot at monitoring entry
         self._person_zones: list[PersonZone] = []
         self._monitoring_start: int        = 0
 
@@ -255,7 +257,7 @@ class LitteringDetector:
             elif self.frame_idx - self._monitoring_start > self.monitor_frames:
                 self._enter_clear()
             else:
-                new_ids = current_trash_ids - self._known_trash_ids
+                new_ids = current_trash_ids - self._baseline_trash_ids
                 if new_ids:
                     event = self._check_zone_overlap(new_ids, trash_detections, frame)
                     if event is not None:
@@ -468,11 +470,14 @@ class LitteringDetector:
     def _enter_monitoring(self) -> None:
         self.state             = DetectorState.MONITORING
         self._monitoring_start = self.frame_idx
+        # Snapshot trash at moment person leaves — only NEW objects after this count
+        self._baseline_trash_ids = set(self._known_trash_ids)
 
     def _enter_clear(self) -> None:
         self.state = DetectorState.CLEAR
         self._person_zones.clear()
-        self._known_trash_ids.clear()  # reset so next session starts fresh
+        self._known_trash_ids.clear()
+        self._baseline_trash_ids.clear()  # reset so next session starts fresh
 
     def _check_zone_overlap(
         self,
@@ -481,14 +486,27 @@ class LitteringDetector:
         frame: np.ndarray,
     ) -> Optional[LitteringEvent]:
         # Fire on the FIRST new trash object found anywhere in the frame.
-        # The person zone is used only for the evidence thumbnail, not as a
-        # spatial filter — this avoids misses when the person exits at the
-        # frame edge and the object lands in the centre.
+        # Proximity score: how close was the trash to the last person zone?
+        # Inspired by Anti-Littering-System (github.com/ananya868) — spatial
+        # relationship between person and object at moment of detection.
         best_zone = self._person_zones[0] if self._person_zones else None
         for det in trash_detections:
             if det["track_id"] not in new_trash_ids:
                 continue
             zone = best_zone or PersonZone(0, 0, frame.shape[1], frame.shape[0], self.frame_idx)
+
+            # Proximity score: 1.0 = trash centre inside person zone, 0.0 = far away
+            tx = (det["box"][0] + det["box"][2]) / 2
+            ty = (det["box"][1] + det["box"][3]) / 2
+            if best_zone:
+                zw = max(zone.x2 - zone.x1, 1)
+                zh = max(zone.y2 - zone.y1, 1)
+                px = max(0.0, 1.0 - abs(tx - (zone.x1 + zone.x2) / 2) / (zw * 1.5))
+                py = max(0.0, 1.0 - abs(ty - (zone.y1 + zone.y2) / 2) / (zh * 1.5))
+                proximity_score = round(px * py, 3)
+            else:
+                proximity_score = 0.5  # unknown
+
             thumbnail = _make_thumbnail(frame, det["box"], zone)
             return LitteringEvent(
                         detected_at_ts   = time.time(),
@@ -499,6 +517,7 @@ class LitteringDetector:
                         person_box       = (zone.x1, zone.y1, zone.x2, zone.y2),
                         thumbnail        = thumbnail,
                         detection_method = "zone",
+                        proximity_score  = proximity_score,
                     )
         return None
 

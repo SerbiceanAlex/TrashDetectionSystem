@@ -1,0 +1,161 @@
+<!-- ══ Rapoarte Tab — export PDF B2B ══════════════════════════════════════ -->
+<div x-show="activeTab === 'reports'" x-cloak
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0 translate-y-2"
+  x-transition:enter-end="opacity-100 translate-y-0"
+  x-init="if(activeTab === 'reports') loadReportStats()">
+
+  <!-- Header -->
+  <div class="card" style="margin-bottom:16px;padding:16px;background:linear-gradient(135deg, rgba(99,102,241,0.06), rgba(99,102,241,0.01));border-left:4px solid #6366f1">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="width:48px;height:48px;border-radius:12px;background:rgba(99,102,241,0.15);display:flex;align-items:center;justify-content:center">
+        <i data-lucide="file-text" class="icon icon--lg" style="color:#6366f1"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <h1 style="font-size:18px;font-weight:700;margin:0">Rapoarte și export</h1>
+        <p style="font-size:12px;color:var(--tx-secondary);margin:2px 0 0">
+          Generează rapoarte PDF/CSV pentru management, audit sau autoritate
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Selectare interval -->
+  <div class="card" style="margin-bottom:16px">
+    <h3 class="section-title" style="font-size:14px;margin-bottom:12px">
+      <i data-lucide="calendar" class="icon icon--sm"></i> Interval de raportare
+    </h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button @click="reportPeriod = 'today'; loadReportStats()" class="btn"
+        :class="reportPeriod === 'today' ? 'btn--brand' : 'btn--ghost'"
+        style="font-size:12px;padding:6px 14px">Azi</button>
+      <button @click="reportPeriod = 'week'; loadReportStats()" class="btn"
+        :class="reportPeriod === 'week' ? 'btn--brand' : 'btn--ghost'"
+        style="font-size:12px;padding:6px 14px">Săptămâna</button>
+      <button @click="reportPeriod = 'month'; loadReportStats()" class="btn"
+        :class="reportPeriod === 'month' ? 'btn--brand' : 'btn--ghost'"
+        style="font-size:12px;padding:6px 14px">Luna</button>
+      <button @click="reportPeriod = 'year'; loadReportStats()" class="btn"
+        :class="reportPeriod === 'year' ? 'btn--brand' : 'btn--ghost'"
+        style="font-size:12px;padding:6px 14px">An</button>
+      <button @click="reportPeriod = 'custom'" class="btn"
+        :class="reportPeriod === 'custom' ? 'btn--brand' : 'btn--ghost'"
+        style="font-size:12px;padding:6px 14px">Personalizat</button>
+    </div>
+
+    <!-- Custom range -->
+    <div x-show="reportPeriod === 'custom'" x-cloak style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <div>
+        <label style="font-size:11px;color:var(--tx-muted);display:block;margin-bottom:3px">De la</label>
+        <input type="date" x-model="reportFrom"
+          style="font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary)" />
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--tx-muted);display:block;margin-bottom:3px">Până la</label>
+        <input type="date" x-model="reportTo"
+          style="font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary)" />
+      </div>
+      <button @click="loadReportStats()" class="btn btn--brand" style="font-size:12px;align-self:flex-end">
+        Aplică
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats sumare -->
+  <div class="kpi-grid mb-4">
+    <div class="kpi-card">
+      <span class="kpi-card__label"><i data-lucide="alert-triangle" class="icon icon--xs"></i> Total incidente</span>
+      <span class="kpi-card__value text-brand" x-text="reportStats?.total_incidents ?? '—'"></span>
+    </div>
+    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(245,158,11,.04))">
+      <span class="kpi-card__label"><i data-lucide="clock" class="icon icon--xs"></i> În așteptare</span>
+      <span class="kpi-card__value" style="color:#f59e0b" x-text="reportStats?.pending ?? 0"></span>
+    </div>
+    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.04))">
+      <span class="kpi-card__label"><i data-lucide="send" class="icon icon--xs"></i> Trimise autorit.</span>
+      <span class="kpi-card__value" style="color:#3b82f6" x-text="reportStats?.forwarded ?? 0"></span>
+    </div>
+    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.04))">
+      <span class="kpi-card__label"><i data-lucide="map-pin" class="icon icon--xs"></i> Locații</span>
+      <span class="kpi-card__value" style="color:#10b981" x-text="reportStats?.locations_active ?? 0"></span>
+    </div>
+  </div>
+
+  <!-- Heatmap ore — distribuție pe oră -->
+  <template x-if="reportStats?.hourly_distribution">
+    <div class="card mb-4">
+      <h3 class="text-sm font-bold mb-3"><i data-lucide="clock" class="icon icon--sm"></i> Distribuție pe ore (heatmap)</h3>
+      <div style="display:grid;grid-template-columns:repeat(24, 1fr);gap:2px">
+        <template x-for="(count, h) in reportStats.hourly_distribution" :key="h">
+          <div :style="`background:rgba(16,185,129,${Math.min(0.9, 0.1 + count/10)});aspect-ratio:1;border-radius:3px;display:flex;align-items:center;justify-content:center`"
+            :title="h + ':00 — ' + count + ' incidente'">
+            <span style="font-size:9px;color:var(--tx-primary);font-weight:600" x-text="count > 0 ? count : ''"></span>
+          </div>
+        </template>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--tx-muted);margin-top:4px">
+        <span>00</span><span>06</span><span>12</span><span>18</span><span>23</span>
+      </div>
+    </div>
+  </template>
+
+  <!-- Top locații -->
+  <template x-if="reportStats?.top_locations?.length > 0">
+    <div class="card mb-4">
+      <h3 class="text-sm font-bold mb-3"><i data-lucide="trophy" class="icon icon--sm"></i> Top locații cu cele mai multe incidente</h3>
+      <div class="flex-col gap-2">
+        <template x-for="(loc, idx) in reportStats.top_locations" :key="loc.id">
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-raised);border-radius:8px">
+            <div style="width:26px;height:26px;border-radius:50%;background:var(--eco-green-dim);color:var(--eco-green-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px"
+              x-text="idx + 1"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;font-weight:600" x-text="loc.name"></div>
+              <div style="font-size:11px;color:var(--tx-muted)" x-text="loc.address"></div>
+            </div>
+            <span class="badge badge--gray" x-text="loc.count + ' incidente'"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- Distribuție material -->
+  <template x-if="reportStats?.material_distribution?.length > 0">
+    <div class="card mb-4">
+      <h3 class="text-sm font-bold mb-3"><i data-lucide="recycle" class="icon icon--sm"></i> Distribuție material</h3>
+      <div class="flex-col gap-3">
+        <template x-for="m in reportStats.material_distribution" :key="m.material">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:80px;font-size:12px;font-weight:600;text-transform:capitalize;flex-shrink:0" x-text="m.material"></span>
+            <div style="flex:1;height:8px;background:var(--bg-border);border-radius:99px;overflow:hidden">
+              <div style="height:100%;background:var(--eco-green-dark);border-radius:99px;transition:width .6s ease"
+                :style="`width:${reportStats.total_incidents > 0 ? (m.count / reportStats.total_incidents * 100).toFixed(0) : 0}%`"></div>
+            </div>
+            <span class="text-xs text-muted" style="width:50px;text-align:right;flex-shrink:0"
+              x-text="m.count + ' (' + (reportStats.total_incidents > 0 ? Math.round(m.count / reportStats.total_incidents * 100) : 0) + '%)'"></span>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- Export buttons -->
+  <div class="card" style="border:2px dashed var(--bg-border)">
+    <h3 class="text-sm font-bold mb-3"><i data-lucide="download" class="icon icon--sm"></i> Export raport</h3>
+    <p style="font-size:12px;color:var(--tx-secondary);margin-bottom:14px">
+      Generează raport oficial cu evidență completă pentru management, audit sau prezentare către autoritate.
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button @click="exportReport('pdf')" class="btn btn--brand" style="flex:1;min-width:140px">
+        <i data-lucide="file-text" class="icon icon--sm"></i> Export PDF
+      </button>
+      <button @click="exportReport('csv')" class="btn btn--ghost" style="flex:1;min-width:140px">
+        <i data-lucide="table" class="icon icon--sm"></i> Export CSV
+      </button>
+      <button @click="exportReport('zip')" class="btn btn--ghost" style="flex:1;min-width:140px">
+        <i data-lucide="archive" class="icon icon--sm"></i> ZIP cu clipuri
+      </button>
+    </div>
+  </div>
+
+</div>
