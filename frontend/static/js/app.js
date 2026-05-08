@@ -6,7 +6,6 @@ function ecoApp() {
   return {
     /* ── Spread all sub-modules ──────────────────────────────────────── */
     ...authApp(),
-    ...detectApp(),
     ...videoApp(),
     ...adminApp(),
 
@@ -18,13 +17,23 @@ function ecoApp() {
     // Toast system
     toasts: [],
 
+    // Confirm modal universal
+    confirmModal: {
+      open: false, title: '', message: '',
+      icon: 'alert-triangle', iconColor: '#ef4444',
+      confirmText: 'Confirmă', confirmColor: '#ef4444',
+      cancelText: 'Anulează', resolve: null,
+    },
+
     // Lightbox
     lightboxSrc: null,
 
     // Dashboard B2B
     dashB2B: null,
     dashB2BLoading: false,
-    dashB2BTrendChart: null,
+    get matTotal() {
+      return (this.dashB2B?.material_distribution || []).reduce((s, m) => s + m.count, 0);
+    },
 
     // Locations (B2B multi-camera)
     locations: [],
@@ -84,7 +93,6 @@ function ecoApp() {
       registerToastAlpine(this);
 
       this.initAuth();
-      this.initDetect();
       this.initVideo();
       this.initAdmin();
 
@@ -119,6 +127,7 @@ function ecoApp() {
         if (tab === 'dashboard') this.loadDashboard();
         if (tab === 'incidents') this.loadIncidents();
         if (tab === 'locations') this.loadLocations();
+        if (tab === 'scan') this.loadLocations();
         if (tab === 'reports') this.loadReportStats();
         if (tab === 'admin') this.loadAdminAll();
         if (tab !== 'scan' && this.monitorActive) this.stopMonitor();
@@ -138,6 +147,32 @@ function ecoApp() {
     /** Re-render any new Lucide <i data-lucide> tags */
     refreshIcons() {
       this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+    },
+
+    // Confirm modal — returnează Promise<boolean>
+    showConfirm(title, message, opts = {}) {
+      return new Promise(resolve => {
+        this.confirmModal = {
+          open: true,
+          title,
+          message,
+          icon:         opts.icon         ?? 'alert-triangle',
+          iconColor:    opts.iconColor     ?? '#ef4444',
+          confirmText:  opts.confirmText   ?? 'Confirmă',
+          confirmColor: opts.confirmColor  ?? '#ef4444',
+          cancelText:   opts.cancelText    ?? 'Anulează',
+          resolve,
+        };
+        this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
+      });
+    },
+    confirmModalAccept() {
+      if (this.confirmModal.resolve) this.confirmModal.resolve(true);
+      this.confirmModal.open = false;
+    },
+    confirmModalCancel() {
+      if (this.confirmModal.resolve) this.confirmModal.resolve(false);
+      this.confirmModal.open = false;
     },
 
     /* ── Notifications ────────────────────────────────────────────────── */
@@ -193,7 +228,6 @@ function ecoApp() {
       if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
       return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
     },
-    dashWeeklyChart: null,
     async loadDashboard() {
       this.dashB2BLoading = true;
       try {
@@ -201,50 +235,8 @@ function ecoApp() {
           headers: { Authorization: 'Bearer ' + this.token }
         }).then(r => r.ok ? r.json() : null);
         if (data) this.dashB2B = data;
-        await this.$nextTick();
-        setTimeout(() => this._renderB2BTrendChart(), 100);
       } catch (e) { console.error('loadDashboard B2B', e); }
       this.dashB2BLoading = false;
-    },
-
-    _renderB2BTrendChart() {
-      const canvas = document.getElementById('dashB2BTrendChart');
-      if (!canvas || !this.dashB2B?.trend_30d) return;
-      if (this.dashB2BTrendChart) { this.dashB2BTrendChart.destroy(); this.dashB2BTrendChart = null; }
-
-      const trend = this.dashB2B.trend_30d || [];
-      const labels = trend.map(p => {
-        const dt = new Date(p.day + 'T12:00:00');
-        return dt.toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' });
-      });
-      const counts = trend.map(p => p.count);
-      const dark = document.documentElement.classList.contains('dark');
-
-      this.dashB2BTrendChart = new Chart(canvas, {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [{
-            label: 'Incidente',
-            data: counts,
-            borderColor: '#10b981',
-            backgroundColor: 'rgba(16,185,129,0.12)',
-            fill: true,
-            tension: 0.35,
-            pointRadius: 3,
-            pointBackgroundColor: '#10b981',
-            borderWidth: 2.5,
-          }],
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0, color: dark ? '#9ca3af' : '#6b7280', font: { size: 11 } }, grid: { color: dark ? '#1f2937' : '#f3f4f6' } },
-            x: { ticks: { color: dark ? '#9ca3af' : '#6b7280', font: { size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } },
-          },
-        },
-      });
     },
 
     /* ── B2B Locations ────────────────────────────────────────────────── */
@@ -275,12 +267,12 @@ function ecoApp() {
           body: JSON.stringify(this.locationForm),
         });
         if (!r.ok) throw new Error(await r.text());
-        this.toast('Locație salvată', 'success');
+        showToast('Locație salvată', 'success');
         this.locationModalOpen = false;
         this.locationForm = { name: '', address: '', lat: null, lng: null, rtsp_url: '', alert_email: '', is_active: true };
         await this.loadLocations();
       } catch (e) {
-        this.toast('Eroare: ' + e.message, 'error');
+        showToast('Eroare: ' + e.message, 'error');
       }
     },
 
@@ -295,19 +287,24 @@ function ecoApp() {
           body: JSON.stringify({ is_active: !loc.is_active }),
         });
         await this.loadLocations();
-      } catch (e) { this.toast('Eroare', 'error'); }
+      } catch (e) { showToast('Eroare', 'error'); }
     },
 
     async deleteLocation(loc) {
-      if (!confirm('Ștergi locația "' + loc.name + '"?')) return;
+      const ok = await this.showConfirm(
+        'Șterge locația',
+        `"${loc.name}" va fi ștearsă permanent împreună cu toate datele asociate.`,
+        { confirmText: 'Șterge', icon: 'trash-2' }
+      );
+      if (!ok) return;
       try {
         await fetch('/api/locations/' + loc.id, {
           method: 'DELETE',
           headers: { 'Authorization': 'Bearer ' + this.token },
         });
-        this.toast('Locație ștearsă', 'success');
+        showToast('Locație ștearsă', 'success');
         await this.loadLocations();
-      } catch (e) { this.toast('Eroare', 'error'); }
+      } catch (e) { showToast('Eroare', 'error'); }
     },
 
     /* ── Reports / Export ─────────────────────────────────────────────── */
@@ -333,14 +330,14 @@ function ecoApp() {
           if (this.reportTo)   params.set('to', this.reportTo);
         }
         await this._downloadWithAuth('/api/reports/export?' + params, `raport_${this.reportPeriod}.csv`);
-      } catch (e) { this.toast('Eroare export', 'error'); }
+      } catch (e) { showToast('Eroare export', 'error'); }
     },
 
     async exportIncidentsCSV() {
       try {
         await this._downloadWithAuth('/api/reports/export?format=csv&period=month', 'incidente.csv');
-        this.toast('CSV descărcat cu succes', 'success');
-      } catch (e) { this.toast('Eroare export: ' + e.message, 'error'); }
+        showToast('CSV descărcat cu succes', 'success');
+      } catch (e) { showToast('Eroare export: ' + e.message, 'error'); }
     },
 
     async _downloadWithAuth(url, filename) {
@@ -356,6 +353,25 @@ function ecoApp() {
 
     /* ── Tab navigation ───────────────────────────────────────────────── */
     goTo(tab) { this.activeTab = tab; },
+
+    async openIncidentById(id) {
+      this.activeTab = 'incidents';
+      await this.$nextTick();
+      this.incidentStatusFilter = '';
+      this.incidentPage = 0;
+      await this.loadIncidents();
+      const found = this.incidents.find(i => i.id === id);
+      if (found) {
+        // Dispatch event — incidentModal e in x-data local al tab-ului incidents
+        window.dispatchEvent(new CustomEvent('eco:openIncident', { detail: found }));
+      } else {
+        // Incident nu e in pagina curenta — fetch direct din API
+        try {
+          const evt = await fetchAPI(`/api/littering/events/${id}`);
+          if (evt) window.dispatchEvent(new CustomEvent('eco:openIncident', { detail: evt }));
+        } catch (_) {}
+      }
+    },
 
     /* ── Admin check (admin accessible from "Mai mult" page) ────────── */
     get isAdmin() { return this.user?.role === 'admin'; },

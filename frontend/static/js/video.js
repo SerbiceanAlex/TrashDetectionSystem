@@ -407,7 +407,12 @@ function videoApp() {
     },
 
     async deleteVideoSession(id) {
-      if (!confirm(`Delete video session #${id}?`)) return;
+      const ok = await this.showConfirm(
+        'Șterge sesiune video',
+        `Sesiunea #${id} și datele asociate vor fi șterse permanent.`,
+        { confirmText: 'Șterge', icon: 'trash-2' }
+      );
+      if (!ok) return;
       const resp = await fetch(`/api/video/sessions/${id}`, { method: 'DELETE' });
       if (resp.ok) {
         this.selectedVideoSession = null;

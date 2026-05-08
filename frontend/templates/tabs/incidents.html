@@ -1,319 +1,510 @@
-<!-- ══ Incidente Tab ════════════════════════════════════════════════════ -->
+<!-- ══ INCIDENTE ══════════════════════════════════════════════════════════ -->
 <div x-show="activeTab === 'incidents'" x-cloak
   x-transition:enter="transition ease-out duration-200"
-  x-transition:enter-start="opacity-0 translate-y-2"
+  x-transition:enter-start="opacity-0 translate-y-1"
   x-transition:enter-end="opacity-100 translate-y-0"
-  x-init="if(activeTab === 'incidents') loadIncidents()"
-  x-data="{ incidentModal: null }">
+  x-init="if(activeTab==='incidents') loadIncidents()"
+  x-data="{ incidentModal: null }"
+  @eco:openincident.window="incidentModal = $event.detail"
+  class="space-y-4">
 
-  <!-- Header -->
-  <div class="card" style="margin-bottom:16px;padding:16px;background:linear-gradient(135deg,rgba(239,68,68,.06),rgba(239,68,68,.01));border-left:4px solid #ef4444">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <div style="width:48px;height:48px;border-radius:12px;background:rgba(239,68,68,.15);display:flex;align-items:center;justify-content:center">
-        <i data-lucide="alert-triangle" class="icon icon--lg" style="color:#ef4444"></i>
-      </div>
-      <div style="flex:1;min-width:0">
-        <h1 style="font-size:18px;font-weight:700;margin:0">Incidente detectate</h1>
-        <p style="font-size:12px;color:var(--tx-secondary);margin:2px 0 0">Acte de aruncare ilegală — review, forward, descarcă dovezi</p>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button @click="exportIncidentsCSV()" class="btn btn--ghost" style="font-size:12px">
-          <i data-lucide="download" class="icon icon--xs"></i> Export CSV
-        </button>
-        <button @click="loadIncidents()" class="btn btn--ghost" style="font-size:12px">
-          <i data-lucide="refresh-cw" class="icon icon--xs"></i> Reîmprospătează
-        </button>
-      </div>
+  <!-- ── Hero ──────────────────────────────────────────────────────────── -->
+  <div class="rounded-2xl p-5 flex items-center gap-4 flex-wrap"
+       style="background:linear-gradient(135deg,#7f1d1d 0%,#991b1b 55%,#b91c1c 100%);box-shadow:0 4px 24px rgba(239,68,68,.25)">
+    <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+         style="background:rgba(255,255,255,.12)">
+      <i data-lucide="alert-triangle" class="w-5 h-5" style="color:#fff"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <p class="text-base font-bold" style="color:#fff">Incidente detectate</p>
+      <p class="text-sm mt-0.5" style="color:rgba(255,255,255,.65)">Acte de aruncare ilegală · review, forward, descarcă dovezi</p>
+    </div>
+    <div class="flex gap-2">
+      <button @click="exportIncidentsCSV()"
+        class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+        style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff"
+        @mouseenter="$el.style.background='rgba(255,255,255,.22)'"
+        @mouseleave="$el.style.background='rgba(255,255,255,.12)'">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i> CSV
+      </button>
+      <button @click="loadIncidents()"
+        class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+        style="background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff"
+        @mouseenter="$el.style.background='rgba(255,255,255,.22)'"
+        @mouseleave="$el.style.background='rgba(255,255,255,.12)'">
+        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+      </button>
     </div>
   </div>
 
-  <!-- KPI row -->
-  <div class="kpi-grid mb-4">
-    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(245,158,11,.04));cursor:pointer" @click="incidentStatusFilter='pending'; loadIncidents()">
-      <span class="kpi-card__label"><i data-lucide="clock" class="icon icon--xs"></i> În așteptare</span>
-      <span class="kpi-card__value" style="color:#f59e0b" x-text="incidentPending ?? 0"></span>
+  <!-- ── KPI 4 carduri ─────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+    <div @click="incidentStatusFilter='pending'; loadIncidents()"
+      class="p-4 rounded-xl cursor-pointer transition-all duration-200"
+      :style="darkMode ? 'background:#292524;border:1px solid #57534e' : 'background:#fffbeb;border:1px solid #fde68a'"
+      @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(245,158,11,.45)';$el.style.transform='translateY(-1px)'"
+      @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
+      <p class="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1"
+         :style="darkMode ? 'color:#fbbf24' : 'color:#d97706'">
+        <i data-lucide="clock" class="w-3 h-3"></i> Așteptare
+      </p>
+      <p class="text-3xl font-extrabold leading-none"
+         :style="darkMode ? 'color:#fbbf24' : 'color:#f59e0b'"
+         x-text="incidentPending ?? 0"></p>
+      <p class="text-[10px] mt-1.5" :style="darkMode ? 'color:#fbbf24;opacity:.7' : 'color:#d97706;opacity:.7'">de revizuit</p>
     </div>
-    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(16,185,129,.12),rgba(16,185,129,.04));cursor:pointer" @click="incidentStatusFilter='reviewed'; loadIncidents()">
-      <span class="kpi-card__label"><i data-lucide="check" class="icon icon--xs"></i> Verificate</span>
-      <span class="kpi-card__value" style="color:#10b981" x-text="incidents.filter(i=>i.status==='reviewed').length"></span>
+
+    <div @click="incidentStatusFilter='reviewed'; loadIncidents()"
+      class="p-4 rounded-xl cursor-pointer transition-all duration-200"
+      :style="darkMode ? 'background:#064e3b;border:1px solid #065f46' : 'background:#ecfdf5;border:1px solid #a7f3d0'"
+      @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(16,185,129,.45)';$el.style.transform='translateY(-1px)'"
+      @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
+      <p class="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1" style="color:#059669">
+        <i data-lucide="check-circle" class="w-3 h-3"></i> Verificate
+      </p>
+      <p class="text-3xl font-extrabold leading-none"
+         :style="darkMode ? 'color:#34d399' : 'color:#059669'"
+         x-text="incidents.filter(i=>i.status==='reviewed').length"></p>
+      <p class="text-[10px] mt-1.5" :style="darkMode ? 'color:#34d399;opacity:.7' : 'color:#059669;opacity:.7'">confirmate</p>
     </div>
-    <div class="kpi-card" style="background:linear-gradient(135deg,rgba(59,130,246,.12),rgba(59,130,246,.04));cursor:pointer" @click="incidentStatusFilter='forwarded'; loadIncidents()">
-      <span class="kpi-card__label"><i data-lucide="send" class="icon icon--xs"></i> Trimise</span>
-      <span class="kpi-card__value" style="color:#3b82f6" x-text="incidents.filter(i=>i.status==='forwarded').length"></span>
+
+    <div @click="incidentStatusFilter='forwarded'; loadIncidents()"
+      class="p-4 rounded-xl cursor-pointer transition-all duration-200"
+      :style="darkMode ? 'background:#1e3a5f;border:1px solid #1d4ed8' : 'background:#eff6ff;border:1px solid #bfdbfe'"
+      @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(59,130,246,.45)';$el.style.transform='translateY(-1px)'"
+      @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
+      <p class="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1"
+         :style="darkMode ? 'color:#60a5fa' : 'color:#2563eb'">
+        <i data-lucide="send" class="w-3 h-3"></i> Trimise
+      </p>
+      <p class="text-3xl font-extrabold leading-none"
+         :style="darkMode ? 'color:#60a5fa' : 'color:#3b82f6'"
+         x-text="incidents.filter(i=>i.status==='forwarded').length"></p>
+      <p class="text-[10px] mt-1.5" :style="darkMode ? 'color:#60a5fa;opacity:.7' : 'color:#2563eb;opacity:.7'">la autoritate</p>
     </div>
-    <div class="kpi-card" style="cursor:pointer" @click="incidentStatusFilter=''; loadIncidents()">
-      <span class="kpi-card__label"><i data-lucide="archive" class="icon icon--xs"></i> Total</span>
-      <span class="kpi-card__value" x-text="incidentTotal ?? 0"></span>
+
+    <div @click="incidentStatusFilter=''; loadIncidents()"
+      class="p-4 rounded-xl cursor-pointer transition-all duration-200"
+      style="background:var(--bg-surface);border:1px solid var(--bg-border)"
+      @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(239,68,68,.35)';$el.style.transform='translateY(-1px)'"
+      @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
+      <p class="text-[10px] font-bold uppercase tracking-widest mb-2" style="color:var(--tx-muted)">Total</p>
+      <p class="text-3xl font-extrabold leading-none" style="color:var(--tx-primary)"
+         x-text="incidentTotal ?? 0"></p>
+      <p class="text-[10px] mt-1.5" style="color:var(--tx-muted)">all time</p>
     </div>
   </div>
 
-  <!-- Filtre vizuale — chips -->
-  <div class="card" style="margin-bottom:16px;padding:14px">
-    <!-- Status chips -->
-    <div style="margin-bottom:10px">
-      <span style="font-size:11px;font-weight:600;color:var(--tx-muted);display:block;margin-bottom:8px">STATUS</span>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button @click="incidentStatusFilter=''; loadIncidents()"
-          class="btn" :class="incidentStatusFilter==='' ? 'btn--brand' : 'btn--ghost'"
-          style="font-size:12px;padding:5px 12px;border-radius:20px">
-          Toate
-        </button>
-        <button @click="incidentStatusFilter='pending'; loadIncidents()"
-          class="btn" :class="incidentStatusFilter==='pending' ? 'btn--brand' : 'btn--ghost'"
-          style="font-size:12px;padding:5px 12px;border-radius:20px;color:#f59e0b"
-          :style="incidentStatusFilter==='pending' ? '' : 'border-color:rgba(245,158,11,.4);color:#f59e0b'">
-          <i data-lucide="clock" class="icon icon--xs"></i> În așteptare
-          <span x-show="incidentPending > 0" class="badge" style="background:rgba(245,158,11,.2);color:#f59e0b;margin-left:4px;font-size:10px" x-text="incidentPending"></span>
-        </button>
-        <button @click="incidentStatusFilter='reviewed'; loadIncidents()"
-          class="btn" :class="incidentStatusFilter==='reviewed' ? 'btn--brand' : 'btn--ghost'"
-          style="font-size:12px;padding:5px 12px;border-radius:20px">
-          <i data-lucide="check" class="icon icon--xs"></i> Verificate
-        </button>
-        <button @click="incidentStatusFilter='forwarded'; loadIncidents()"
-          class="btn" :class="incidentStatusFilter==='forwarded' ? 'btn--brand' : 'btn--ghost'"
-          style="font-size:12px;padding:5px 12px;border-radius:20px">
-          <i data-lucide="send" class="icon icon--xs"></i> Trimise
-        </button>
-        <button @click="incidentStatusFilter='dismissed'; loadIncidents()"
-          class="btn" :class="incidentStatusFilter==='dismissed' ? 'btn--brand' : 'btn--ghost'"
-          style="font-size:12px;padding:5px 12px;border-radius:20px">
-          <i data-lucide="x" class="icon icon--xs"></i> Respinse
-        </button>
-      </div>
-    </div>
+  <!-- ── Filtre ─────────────────────────────────────────────────────────── -->
+  <div class="rounded-2xl p-4 space-y-3" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
 
-    <!-- Material chips -->
+    <!-- Status -->
     <div>
-      <span style="font-size:11px;font-weight:600;color:var(--tx-muted);display:block;margin-bottom:8px">MATERIAL</span>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <template x-for="mat in ['', 'plastic', 'paper', 'glass', 'metal', 'other', 'unknown']" :key="mat">
-          <button @click="incidentMaterialFilter=mat; loadIncidents()"
-            class="btn" :class="incidentMaterialFilter===mat ? 'btn--brand' : 'btn--ghost'"
-            style="font-size:12px;padding:5px 12px;border-radius:20px;text-transform:capitalize"
-            x-text="mat === '' ? 'Toate' : mat === 'paper' ? 'Hârtie' : mat === 'glass' ? 'Sticlă' : mat">
+      <p class="text-[10px] font-bold uppercase tracking-widest mb-2" style="color:var(--tx-muted)">Status</p>
+      <div class="flex gap-2 flex-wrap">
+        <template x-for="f in [
+          {v:'', l:'Toate', color:''},
+          {v:'pending', l:'Așteptare', color:'#f59e0b'},
+          {v:'reviewed', l:'Verificate', color:'#10b981'},
+          {v:'forwarded', l:'Trimise', color:'#3b82f6'},
+          {v:'dismissed', l:'Respinse', color:'#6b7280'}
+        ]" :key="f.v">
+          <button @click="incidentStatusFilter=f.v; loadIncidents()"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-150"
+            :style="incidentStatusFilter===f.v
+              ? 'background:#ef4444;color:#fff;box-shadow:0 2px 8px rgba(239,68,68,.3)'
+              : 'background:var(--bg-raised);color:var(--tx-secondary);border:1px solid var(--bg-border)'"
+            x-text="f.l">
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Material -->
+    <div>
+      <p class="text-[10px] font-bold uppercase tracking-widest mb-2" style="color:var(--tx-muted)">Material</p>
+      <div class="flex gap-2 flex-wrap">
+        <template x-for="m in [
+          {v:'', l:'Toate'},
+          {v:'plastic', l:'Plastic'},
+          {v:'paper', l:'Hârtie'},
+          {v:'glass', l:'Sticlă'},
+          {v:'metal', l:'Metal'},
+          {v:'other', l:'Altele'}
+        ]" :key="m.v">
+          <button @click="incidentMaterialFilter=m.v; loadIncidents()"
+            class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-150"
+            :style="incidentMaterialFilter===m.v
+              ? 'background:#ef4444;color:#fff;box-shadow:0 2px 8px rgba(239,68,68,.3)'
+              : 'background:var(--bg-raised);color:var(--tx-secondary);border:1px solid var(--bg-border)'"
+            x-text="m.l">
           </button>
         </template>
       </div>
     </div>
   </div>
 
-  <!-- Loading -->
-  <div x-show="incidentsLoading" class="skeleton" style="height:200px;border-radius:12px"></div>
-
-  <!-- Empty state -->
-  <template x-if="!incidentsLoading && incidents.length === 0">
-    <div class="empty-state" style="padding:48px 20px">
-      <div class="empty-state__icon" style="background:rgba(34,197,94,.12);color:#22c55e">
-        <i data-lucide="shield-check" class="icon icon--2xl"></i>
-      </div>
-      <p class="empty-state__text" style="font-size:15px;font-weight:600">Niciun incident</p>
-      <p style="font-size:12px;color:var(--tx-muted);margin-top:6px">Sistemul monitorizează automat. Alertele vor apărea aici.</p>
-    </div>
-  </template>
-
-  <!-- Incidents list -->
-  <div x-show="!incidentsLoading && incidents.length > 0" style="display:flex;flex-direction:column;gap:10px">
-    <template x-for="ev in incidents" :key="ev.id">
-      <div class="card card--elevated"
-        style="padding:14px;cursor:pointer;transition:box-shadow .15s"
-        @click="incidentModal = ev"
-        @mouseenter="$el.style.boxShadow='0 4px 24px rgba(239,68,68,.12)'"
-        @mouseleave="$el.style.boxShadow=''">
-        <div style="display:flex;gap:12px;align-items:flex-start">
-
-          <!-- Thumbnail -->
-          <div style="position:relative;flex-shrink:0">
-            <template x-if="ev.thumbnail_path">
-              <img :src="'/littering/' + ev.thumbnail_path"
-                style="width:100px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--bg-border)" />
-            </template>
-            <template x-if="!ev.thumbnail_path">
-              <div style="width:100px;height:72px;background:var(--bg-raised);border-radius:10px;display:flex;align-items:center;justify-content:center;border:1px solid var(--bg-border)">
-                <i data-lucide="video-off" class="icon icon--md" style="color:var(--tx-muted)"></i>
-              </div>
-            </template>
-            <!-- Play icon overlay if clip exists -->
-            <template x-if="ev.clip_path">
-              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
-                <div style="width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center">
-                  <i data-lucide="play" class="icon icon--xs" style="color:white;margin-left:2px"></i>
-                </div>
-              </div>
-            </template>
-          </div>
-
-          <!-- Info -->
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
-              <span class="badge"
-                :style="ev.status==='pending' ? 'background:rgba(245,158,11,.18);color:#f59e0b' : ev.status==='reviewed' ? 'background:rgba(16,185,129,.18);color:#10b981' : ev.status==='forwarded' ? 'background:rgba(59,130,246,.18);color:#3b82f6' : 'background:rgba(107,114,128,.18);color:#6b7280'"
-                x-text="ev.status==='pending' ? 'În așteptare' : ev.status==='reviewed' ? 'Verificat' : ev.status==='forwarded' ? 'Trimis' : 'Respins'"></span>
-              <span class="badge badge--blue" style="text-transform:capitalize" x-text="ev.material || 'unknown'"></span>
-              <span style="font-size:11px;color:var(--tx-muted)"
-                x-text="(ev.det_score * 100).toFixed(0) + '% conf.'"></span>
-              <template x-if="ev.proximity_score !== null && ev.proximity_score !== undefined">
-                <span style="font-size:10px;padding:2px 6px;border-radius:6px"
-                  :style="ev.proximity_score > 0.5 ? 'background:rgba(16,185,129,.15);color:#10b981' : 'background:rgba(245,158,11,.15);color:#f59e0b'"
-                  :title="'Proximitate: ' + (ev.proximity_score*100).toFixed(0) + '%'"
-                  x-text="'prox.' + (ev.proximity_score*100).toFixed(0) + '%'"></span>
-              </template>
-              <span style="font-size:11px;color:var(--tx-muted);margin-left:auto;font-family:monospace" x-text="'#' + ev.id"></span>
-            </div>
-            <div style="font-size:13px;font-weight:600;color:var(--tx-primary)"
-              x-text="new Date((ev.detected_at||'').replace(' ','T')+(ev.detected_at&&!ev.detected_at.includes('+')&&!ev.detected_at.endsWith('Z')?'Z':'')).toLocaleString('ro-RO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})"></div>
-            <template x-if="ev.address">
-              <div style="font-size:12px;color:var(--tx-secondary);display:flex;align-items:center;gap:4px;margin-top:3px">
-                <i data-lucide="map-pin" class="icon icon--xs"></i>
-                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="ev.address"></span>
-              </div>
-            </template>
-          </div>
-
-          <!-- Quick action buttons (nu propagă click la modal) -->
-          <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0" @click.stop>
-            <button x-show="ev.status==='pending'" @click="markIncidentReviewed(ev.id)"
-              class="btn btn--ghost" style="font-size:11px;padding:4px 10px;color:#10b981">
-              <i data-lucide="check" class="icon icon--xs"></i>
-            </button>
-            <button x-show="ev.status!=='forwarded' && ev.status!=='dismissed'"
-              @click="forwardIncident(ev.id)"
-              class="btn btn--ghost" style="font-size:11px;padding:4px 10px;color:#3b82f6">
-              <i data-lucide="send" class="icon icon--xs"></i>
-            </button>
+  <!-- ── Loading skeleton ───────────────────────────────────────────────── -->
+  <div x-show="incidentsLoading" class="space-y-3">
+    <template x-for="i in [1,2,3]" :key="i">
+      <div class="rounded-2xl overflow-hidden animate-pulse" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
+        <div class="flex gap-3 p-4">
+          <div class="rounded-xl shrink-0" style="width:96px;height:68px;background:var(--bg-raised)"></div>
+          <div class="flex-1 space-y-2 py-1">
+            <div class="h-3 rounded" style="background:var(--bg-border);width:40%"></div>
+            <div class="h-3 rounded" style="background:var(--bg-border);width:70%"></div>
+            <div class="h-2 rounded" style="background:var(--bg-border);width:50%"></div>
           </div>
         </div>
       </div>
     </template>
   </div>
 
-  <!-- Pagination -->
-  <div x-show="incidentTotal > incidentLimit" style="display:flex;justify-content:center;gap:8px;margin-top:20px;align-items:center">
+  <!-- ── Empty state ────────────────────────────────────────────────────── -->
+  <template x-if="!incidentsLoading && incidents.length === 0">
+    <div class="rounded-2xl py-14 text-center" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
+      <div class="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+           style="background:rgba(34,197,94,.1)">
+        <i data-lucide="shield-check" class="w-8 h-8" style="color:#22c55e;opacity:.6"></i>
+      </div>
+      <p class="text-sm font-bold mb-1" style="color:var(--tx-primary)">Niciun incident</p>
+      <p class="text-xs" style="color:var(--tx-muted)">Sistemul monitorizează automat. Alertele vor apărea aici.</p>
+    </div>
+  </template>
+
+  <!-- ── Lista incidente ────────────────────────────────────────────────── -->
+  <div x-show="!incidentsLoading && incidents.length > 0" class="space-y-3">
+    <template x-for="ev in incidents" :key="ev.id">
+      <div class="rounded-2xl overflow-hidden cursor-pointer transition-all duration-200"
+        style="background:var(--bg-surface);border:1px solid var(--bg-border)"
+        @click="incidentModal = ev"
+        @mouseenter="$el.style.boxShadow='0 4px 20px rgba(239,68,68,.1)';$el.style.borderColor='rgba(239,68,68,.3)'"
+        @mouseleave="$el.style.boxShadow='';$el.style.borderColor='var(--bg-border)'">
+
+        <div class="flex gap-3 p-4 items-start">
+
+          <!-- Thumbnail -->
+          <div class="relative shrink-0 rounded-xl overflow-hidden"
+               style="width:96px;height:68px;background:var(--bg-raised);border:1px solid var(--bg-border)">
+            <template x-if="ev.thumbnail_path">
+              <img :src="'/littering/' + ev.thumbnail_path"
+                   class="w-full h-full object-cover"/>
+            </template>
+            <template x-if="!ev.thumbnail_path">
+              <div class="w-full h-full flex items-center justify-center">
+                <i data-lucide="image-off" class="w-5 h-5" style="color:var(--tx-muted);opacity:.4"></i>
+              </div>
+            </template>
+            <template x-if="ev.clip_path">
+              <div class="absolute inset-0 flex items-center justify-center" style="background:rgba(0,0,0,.25)">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center" style="background:rgba(0,0,0,.6)">
+                  <i data-lucide="play" class="w-3.5 h-3.5" style="color:#fff;margin-left:1px"></i>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Info -->
+          <div class="flex-1 min-w-0">
+            <!-- Badges row -->
+            <div class="flex items-center gap-1.5 flex-wrap mb-2">
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                :style="ev.status==='pending'
+                  ? 'background:rgba(245,158,11,.18);color:'+(darkMode?'#fbbf24':'#d97706')
+                  : ev.status==='reviewed'
+                  ? 'background:rgba(16,185,129,.18);color:'+(darkMode?'#10b981':'#047857')
+                  : ev.status==='forwarded'
+                  ? 'background:rgba(59,130,246,.18);color:'+(darkMode?'#60a5fa':'#1d4ed8')
+                  : 'background:rgba(107,114,128,.18);color:'+(darkMode?'#9ca3af':'#64748b')"
+                x-text="ev.status==='pending'?'Așteptare':ev.status==='reviewed'?'Verificat':ev.status==='forwarded'?'Trimis':'Respins'">
+              </span>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize"
+                :style="ev.material==='plastic'?('background:rgba(59,130,246,.12);color:'+(darkMode?'#60a5fa':'#2563eb'))
+                  :ev.material==='paper'?('background:rgba(245,158,11,.12);color:'+(darkMode?'#fbbf24':'#b45309'))
+                  :ev.material==='glass'?('background:rgba(6,182,212,.12);color:'+(darkMode?'#22d3ee':'#0e7490'))
+                  :ev.material==='metal'?('background:rgba(139,92,246,.12);color:'+(darkMode?'#a78bfa':'#6d28d9'))
+                  :'background:var(--bg-raised);color:var(--tx-muted)'"
+                x-text="ev.material==='paper'?'Hârtie':ev.material==='glass'?'Sticlă':ev.material==='plastic'?'Plastic':ev.material==='metal'?'Metal':ev.material==='other'?'Altele':ev.material||'Necunoscut'">
+              </span>
+              <span class="text-[10px]" style="color:var(--tx-muted)"
+                x-text="ev.det_score > 0 ? (ev.det_score*100).toFixed(0)+'% conf.' : ''"></span>
+              <span class="text-[10px] font-mono ml-auto shrink-0" style="color:var(--tx-muted)"
+                x-text="'#'+ev.id"></span>
+            </div>
+            <!-- Date/time -->
+            <p class="text-sm font-semibold mb-1" style="color:var(--tx-primary)"
+              x-text="new Date((ev.detected_at||'').replace(' ','T')+(ev.detected_at&&!ev.detected_at.endsWith('Z')?'Z':'')).toLocaleString('ro-RO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})">
+            </p>
+            <!-- Address -->
+            <template x-if="ev.address">
+              <p class="text-xs flex items-center gap-1 truncate" style="color:var(--tx-muted)">
+                <i data-lucide="map-pin" class="w-3 h-3 shrink-0"></i>
+                <span class="truncate" x-text="ev.address"></span>
+              </p>
+            </template>
+          </div>
+
+          <!-- Quick actions (no click propagation) -->
+          <div class="flex flex-col gap-2 shrink-0" @click.stop>
+            <button x-show="ev.status==='pending'" @click="markIncidentReviewed(ev.id)"
+              class="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
+              style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.2)"
+              title="Marchează verificat"
+              @mouseenter="$el.style.background='rgba(16,185,129,.2)'"
+              @mouseleave="$el.style.background='rgba(16,185,129,.1)'">
+              <i data-lucide="check" class="w-4 h-4"></i>
+            </button>
+            <button x-show="ev.status!=='forwarded' && ev.status!=='dismissed'"
+              @click="forwardIncident(ev.id)"
+              class="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
+              style="background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.2)"
+              title="Trimite autorității"
+              @mouseenter="$el.style.background='rgba(59,130,246,.2)'"
+              @mouseleave="$el.style.background='rgba(59,130,246,.1)'">
+              <i data-lucide="send" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Bottom accent bar pentru pending -->
+        <template x-if="ev.status==='pending'">
+          <div style="height:2px;background:linear-gradient(90deg,#f59e0b,transparent)"></div>
+        </template>
+      </div>
+    </template>
+  </div>
+
+  <!-- ── Paginare ───────────────────────────────────────────────────────── -->
+  <div x-show="incidentTotal > incidentLimit"
+       class="flex items-center justify-center gap-3 pt-2">
     <button @click="incidentPage=Math.max(0,incidentPage-1); loadIncidents()"
-      :disabled="incidentPage===0" class="btn btn--ghost" style="font-size:12px;padding:6px 14px">
-      <i data-lucide="chevron-left" class="icon icon--xs"></i> Anterior
+      :disabled="incidentPage===0"
+      class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+      style="background:var(--bg-surface);border:1px solid var(--bg-border);color:var(--tx-secondary)"
+      :style="incidentPage===0 ? 'opacity:.4;cursor:not-allowed' : ''"
+      @mouseenter="if(incidentPage>0){$el.style.borderColor='#ef4444';$el.style.color='#ef4444'}"
+      @mouseleave="$el.style.borderColor='var(--bg-border)';$el.style.color='var(--tx-secondary)'">
+      <i data-lucide="chevron-left" class="w-4 h-4"></i> Anterior
     </button>
-    <span style="font-size:12px;color:var(--tx-secondary)"
-      x-text="'Pagina '+(incidentPage+1)+' din '+Math.ceil(incidentTotal/incidentLimit)"></span>
+    <span class="text-sm font-semibold px-3 py-1.5 rounded-xl" style="background:var(--bg-raised);color:var(--tx-secondary)"
+      x-text="'Pagina '+(incidentPage+1)+' / '+Math.ceil(incidentTotal/incidentLimit)">
+    </span>
     <button @click="incidentPage++; loadIncidents()"
       :disabled="(incidentPage+1)*incidentLimit>=incidentTotal"
-      class="btn btn--ghost" style="font-size:12px;padding:6px 14px">
-      Următor <i data-lucide="chevron-right" class="icon icon--xs"></i>
+      class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+      style="background:var(--bg-surface);border:1px solid var(--bg-border);color:var(--tx-secondary)"
+      :style="(incidentPage+1)*incidentLimit>=incidentTotal ? 'opacity:.4;cursor:not-allowed' : ''"
+      @mouseenter="if((incidentPage+1)*incidentLimit<incidentTotal){$el.style.borderColor='#ef4444';$el.style.color='#ef4444'}"
+      @mouseleave="$el.style.borderColor='var(--bg-border)';$el.style.color='var(--tx-secondary)'">
+      Următor <i data-lucide="chevron-right" class="w-4 h-4"></i>
     </button>
   </div>
 
-  <!-- ══ MODAL DETALII INCIDENT ════════════════════════════════════════ -->
-  <div x-show="incidentModal" x-cloak @click="incidentModal=null"
-    style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:300;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(4px)"
+  <!-- ══ MODAL INCIDENT ═════════════════════════════════════════════════ -->
+  <div x-show="incidentModal" x-cloak
+    @click="incidentModal=null"
+    class="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-4 sm:p-6"
+    style="background:rgba(0,0,0,.65);backdrop-filter:blur(6px)"
     x-transition:enter="transition ease-out duration-200"
     x-transition:enter-start="opacity-0"
     x-transition:enter-end="opacity-100">
-    <div @click.stop class="card"
-      style="max-width:640px;width:100%;max-height:90vh;overflow-y:auto;padding:0;border-radius:16px">
+
+    <div @click.stop
+      class="w-full rounded-2xl overflow-hidden"
+      style="max-width:600px;max-height:92vh;overflow-y:auto;background:var(--bg-surface);border:1px solid var(--bg-border);box-shadow:0 24px 64px rgba(0,0,0,.4)"
+      x-transition:enter="transition ease-out duration-250"
+      x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+      x-transition:enter-end="opacity-100 translate-y-0 scale-100">
 
       <!-- Modal header -->
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--bg-border)">
-        <div style="display:flex;align-items:center;gap:10px">
-          <i data-lucide="alert-triangle" class="icon icon--md" style="color:#ef4444"></i>
+      <div class="flex items-center justify-between px-5 py-4"
+           style="border-bottom:1px solid var(--bg-border);background:var(--bg-raised)">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl flex items-center justify-center"
+               style="background:rgba(239,68,68,.12)">
+            <i data-lucide="alert-triangle" class="w-4 h-4" style="color:#ef4444"></i>
+          </div>
           <div>
-            <h2 style="font-size:16px;font-weight:700;margin:0" x-text="'Incident #' + (incidentModal?.id ?? '')"></h2>
-            <p style="font-size:11px;color:var(--tx-muted);margin:2px 0 0"
-              x-text="new Date(((incidentModal?.detected_at||'').replace(' ','T')+(incidentModal?.detected_at&&!incidentModal.detected_at.includes('+')&&!incidentModal.detected_at.endsWith('Z')?'Z':''))).toLocaleString('ro-RO',{dateStyle:'long',timeStyle:'short'})"></p>
+            <p class="text-sm font-bold" style="color:var(--tx-primary)"
+               x-text="'Incident #' + (incidentModal?.id ?? '')"></p>
+            <p class="text-[11px]" style="color:var(--tx-muted)"
+               x-text="new Date(((incidentModal?.detected_at||'').replace(' ','T')+(incidentModal?.detected_at&&!incidentModal.detected_at.endsWith('Z')?'Z':''))).toLocaleString('ro-RO',{dateStyle:'long',timeStyle:'short'})"></p>
           </div>
         </div>
-        <button @click="incidentModal=null" class="btn btn--ghost" style="padding:6px">
-          <i data-lucide="x" class="icon icon--md"></i>
+        <button @click="incidentModal=null"
+          class="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
+          style="background:rgba(239,68,68,.08);color:#ef4444;border:1px solid rgba(239,68,68,.2)"
+          @mouseenter="$el.style.background='rgba(239,68,68,.18)'"
+          @mouseleave="$el.style.background='rgba(239,68,68,.08)'">
+          <i data-lucide="x" class="w-4 h-4"></i>
         </button>
       </div>
 
-      <!-- Video player -->
+      <!-- Video/thumbnail -->
       <template x-if="incidentModal?.clip_path">
-        <div style="background:#000;position:relative">
+        <div style="background:#000">
           <video :src="'/littering/' + incidentModal.clip_path"
             controls preload="metadata"
-            style="width:100%;max-height:360px;display:block">
+            style="width:100%;max-height:320px;display:block">
           </video>
         </div>
       </template>
       <template x-if="!incidentModal?.clip_path && incidentModal?.thumbnail_path">
-        <div style="background:#000;display:flex;align-items:center;justify-content:center;height:200px">
+        <div class="flex items-center justify-center" style="background:#000;height:180px">
           <img :src="'/littering/' + incidentModal.thumbnail_path"
-            style="max-height:200px;max-width:100%;object-fit:contain" />
+               style="max-height:180px;max-width:100%;object-fit:contain"/>
         </div>
       </template>
 
       <!-- Modal body -->
-      <div style="padding:20px">
+      <div class="p-5 space-y-4">
 
-        <!-- Status + badges -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-          <span class="badge"
-            :style="incidentModal?.status==='pending' ? 'background:rgba(245,158,11,.18);color:#f59e0b' : incidentModal?.status==='reviewed' ? 'background:rgba(16,185,129,.18);color:#10b981' : incidentModal?.status==='forwarded' ? 'background:rgba(59,130,246,.18);color:#3b82f6' : 'background:rgba(107,114,128,.18);color:#6b7280'"
-            x-text="incidentModal?.status==='pending' ? 'În așteptare' : incidentModal?.status==='reviewed' ? 'Verificat' : incidentModal?.status==='forwarded' ? 'Trimis autorității' : 'Respins'"></span>
-          <span class="badge badge--blue" style="text-transform:capitalize" x-text="incidentModal?.material || 'unknown'"></span>
+        <!-- Status + material badges -->
+        <div class="flex gap-2 flex-wrap">
+          <span class="text-xs font-bold px-3 py-1 rounded-full"
+            :style="incidentModal?.status==='pending'
+              ? 'background:rgba(245,158,11,.18);color:'+(darkMode?'#fbbf24':'#d97706')
+              : incidentModal?.status==='reviewed'
+              ? 'background:rgba(16,185,129,.18);color:'+(darkMode?'#10b981':'#047857')
+              : incidentModal?.status==='forwarded'
+              ? 'background:rgba(59,130,246,.18);color:'+(darkMode?'#60a5fa':'#1d4ed8')
+              : 'background:rgba(107,114,128,.18);color:'+(darkMode?'#9ca3af':'#64748b')"
+            x-text="incidentModal?.status==='pending'?'În așteptare':incidentModal?.status==='reviewed'?'Verificat':incidentModal?.status==='forwarded'?'Trimis autorității':'Respins'">
+          </span>
+          <span class="text-xs font-semibold px-3 py-1 rounded-full capitalize"
+            :style="incidentModal?.material==='plastic'?('background:rgba(59,130,246,.12);color:'+(darkMode?'#60a5fa':'#2563eb'))
+              :incidentModal?.material==='paper'?('background:rgba(245,158,11,.12);color:'+(darkMode?'#fbbf24':'#b45309'))
+              :incidentModal?.material==='glass'?('background:rgba(6,182,212,.12);color:'+(darkMode?'#22d3ee':'#0e7490'))
+              :incidentModal?.material==='metal'?('background:rgba(139,92,246,.12);color:'+(darkMode?'#a78bfa':'#6d28d9'))
+              :'background:var(--bg-raised);color:var(--tx-muted)'"
+            x-text="incidentModal?.material==='paper'?'Hârtie':incidentModal?.material==='glass'?'Sticlă':incidentModal?.material==='plastic'?'Plastic':incidentModal?.material==='metal'?'Metal':incidentModal?.material==='other'?'Altele':incidentModal?.material||'Necunoscut'">
+          </span>
         </div>
 
         <!-- Metrics grid -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-          <div style="background:var(--bg-raised);padding:12px;border-radius:10px">
-            <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Confidență detecție</div>
-            <div style="font-size:22px;font-weight:700;color:var(--tx-primary)"
-              x-text="incidentModal ? (incidentModal.det_score*100).toFixed(0)+'%' : '—'"></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+            <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">Confidență detecție</p>
+            <p class="text-2xl font-extrabold" style="color:var(--tx-primary)"
+               x-text="incidentModal ? (incidentModal.det_score*100).toFixed(0)+'%' : '—'"></p>
           </div>
-          <div style="background:var(--bg-raised);padding:12px;border-radius:10px">
-            <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Proximitate persoană</div>
-            <div style="font-size:22px;font-weight:700"
-              :style="incidentModal?.proximity_score > 0.5 ? 'color:#10b981' : 'color:#f59e0b'"
-              x-text="incidentModal?.proximity_score != null ? (incidentModal.proximity_score*100).toFixed(0)+'%' : '—'"></div>
+          <div class="p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+            <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">Proximitate persoană</p>
+            <p class="text-2xl font-extrabold"
+               :style="incidentModal?.proximity_score > 0.5 ? 'color:#10b981' : 'color:#f59e0b'"
+               x-text="incidentModal?.proximity_score != null ? (incidentModal.proximity_score*100).toFixed(0)+'%' : '—'"></p>
           </div>
-          <div style="background:var(--bg-raised);padding:12px;border-radius:10px">
-            <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Metodă detecție</div>
-            <div style="font-size:13px;font-weight:600;color:var(--tx-primary)" x-text="incidentModal?.detection_method || 'zone'"></div>
+          <div class="p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+            <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">Metodă detecție</p>
+            <p class="text-sm font-semibold" style="color:var(--tx-primary)"
+               x-text="incidentModal?.detection_method || 'zone'"></p>
           </div>
-          <div style="background:var(--bg-raised);padding:12px;border-radius:10px">
-            <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Persoane prezente</div>
-            <div style="font-size:22px;font-weight:700;color:var(--tx-primary)" x-text="incidentModal?.person_count ?? '—'"></div>
+          <div class="p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+            <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">Persoane prezente</p>
+            <p class="text-2xl font-extrabold" style="color:var(--tx-primary)"
+               x-text="incidentModal?.person_count ?? '—'"></p>
           </div>
         </div>
 
         <!-- Location -->
         <template x-if="incidentModal?.address">
-          <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg-raised);border-radius:10px;margin-bottom:16px">
-            <i data-lucide="map-pin" class="icon icon--sm" style="color:var(--eco-green-dark);flex-shrink:0"></i>
-            <span style="font-size:13px;color:var(--tx-primary)" x-text="incidentModal.address"></span>
+          <div class="flex items-center gap-2 p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+            <i data-lucide="map-pin" class="w-4 h-4 shrink-0" style="color:#ef4444"></i>
+            <span class="text-sm" style="color:var(--tx-primary)" x-text="incidentModal.address"></span>
           </div>
         </template>
 
-        <!-- Hash evidență GDPR -->
+        <!-- SHA-256 -->
         <template x-if="incidentModal?.image_hash">
-          <div style="padding:10px 12px;background:var(--bg-raised);border-radius:10px;margin-bottom:16px">
-            <div style="font-size:10px;color:var(--tx-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">SHA-256 evidență (GDPR chain-of-custody)</div>
-            <div style="font-family:monospace;font-size:11px;color:var(--tx-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" x-text="incidentModal.image_hash"></div>
+          <div class="p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+            <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">SHA-256 · GDPR chain-of-custody</p>
+            <p class="text-[11px] font-mono truncate" style="color:var(--tx-secondary)"
+               x-text="incidentModal.image_hash"></p>
           </div>
         </template>
+
+        <!-- Note investigator -->
+        <div x-data="{ noteSaving: false, noteDraft: '' }"
+             x-effect="noteDraft = incidentModal?.notes || ''">
+          <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">
+            Notă investigator
+          </p>
+          <textarea
+            x-model="noteDraft"
+            placeholder="Adaugă observații, detalii suplimentare sau instrucțiuni pentru autoritate…"
+            rows="3"
+            class="w-full px-3 py-2.5 rounded-xl text-sm resize-y outline-none transition-all"
+            style="border:1px solid var(--bg-border);background:var(--bg-raised);color:var(--tx-primary);font-family:inherit"
+            @focus="$el.style.borderColor='#6366f1'"
+            @blur="$el.style.borderColor='var(--bg-border)'">
+          </textarea>
+          <div class="flex items-center justify-between mt-2">
+            <span class="text-[11px]" style="color:var(--tx-muted)"
+                  x-text="noteDraft.length + ' / 1000 caractere'"></span>
+            <button
+              @click="
+                noteSaving = true;
+                fetch('/api/littering/events/' + incidentModal.id + '/notes', {
+                  method: 'PATCH',
+                  headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+                  body: JSON.stringify({notes: noteDraft})
+                }).then(r => r.ok ? r.json() : Promise.reject(r))
+                  .then(updated => {
+                    incidentModal.notes = noteDraft;
+                    const idx = incidents.findIndex(e => e.id === incidentModal.id);
+                    if (idx !== -1) incidents[idx].notes = noteDraft;
+                    showToast('Notă salvată');
+                  })
+                  .catch(() => showToast('Eroare la salvare notă', 'error'))
+                  .finally(() => noteSaving = false)
+              "
+              :disabled="noteSaving"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              style="background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.2)"
+              :style="noteSaving ? 'opacity:.6;cursor:wait' : ''"
+              @mouseenter="if(!noteSaving)$el.style.background='rgba(99,102,241,.2)'"
+              @mouseleave="$el.style.background='rgba(99,102,241,.1)'">
+              <i data-lucide="save" class="w-3.5 h-3.5"></i>
+              <span x-text="noteSaving ? 'Se salvează…' : 'Salvează notă'"></span>
+            </button>
+          </div>
+        </div>
 
         <!-- Acțiuni -->
-        <div style="display:flex;flex-wrap:wrap;gap:8px;padding-top:16px;border-top:1px solid var(--bg-border)">
+        <div class="flex flex-wrap gap-2 pt-2" style="border-top:1px solid var(--bg-border)">
           <template x-if="incidentModal?.clip_path">
             <a :href="'/littering/' + incidentModal.clip_path"
-              class="btn btn--ghost" style="font-size:13px;padding:8px 14px" download>
-              <i data-lucide="download" class="icon icon--sm"></i> Descarcă clip
+               class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all" download
+               style="background:var(--bg-raised);color:var(--tx-primary);border:1px solid var(--bg-border)"
+               @mouseenter="$el.style.borderColor='var(--tx-muted)'"
+               @mouseleave="$el.style.borderColor='var(--bg-border)'">
+              <i data-lucide="download" class="w-4 h-4"></i> Descarcă clip
             </a>
           </template>
           <button x-show="incidentModal?.status==='pending'"
             @click="markIncidentReviewed(incidentModal.id); incidentModal.status='reviewed'"
-            class="btn btn--ghost" style="font-size:13px;padding:8px 14px;color:#10b981">
-            <i data-lucide="check" class="icon icon--sm"></i> Marchează verificat
+            class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+            style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.25)"
+            @mouseenter="$el.style.background='rgba(16,185,129,.2)'"
+            @mouseleave="$el.style.background='rgba(16,185,129,.1)'">
+            <i data-lucide="check" class="w-4 h-4"></i> Verificat
           </button>
           <button x-show="incidentModal?.status!=='forwarded' && incidentModal?.status!=='dismissed'"
             @click="forwardIncident(incidentModal.id); incidentModal.status='forwarded'"
-            class="btn btn--ghost" style="font-size:13px;padding:8px 14px;color:#3b82f6">
-            <i data-lucide="send" class="icon icon--sm"></i> Trimite autorității
+            class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+            style="background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.25)"
+            @mouseenter="$el.style.background='rgba(59,130,246,.2)'"
+            @mouseleave="$el.style.background='rgba(59,130,246,.1)'">
+            <i data-lucide="send" class="w-4 h-4"></i> Trimite autorității
           </button>
           <button x-show="incidentModal?.status!=='dismissed'"
             @click="dismissIncident(incidentModal.id); incidentModal.status='dismissed'"
-            class="btn btn--ghost" style="font-size:13px;padding:8px 14px;color:var(--tx-muted)">
-            <i data-lucide="x" class="icon icon--sm"></i> Respinge
+            class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+            style="background:var(--bg-raised);color:var(--tx-muted);border:1px solid var(--bg-border)"
+            @mouseenter="$el.style.background='var(--bg-border)'"
+            @mouseleave="$el.style.background='var(--bg-raised)'">
+            <i data-lucide="x" class="w-4 h-4"></i> Respinge
           </button>
         </div>
       </div>

@@ -576,3 +576,8 @@ class LitteringEventStatusUpdate(BaseModel):
     status: str          # "reviewed" | "forwarded" | "dismissed"
     notes: Optional[str] = None
 
+
+class LitteringEventNotesUpdate(BaseModel):
+    """Request body for PATCH /api/littering/events/{id}/notes"""
+    notes: str
+

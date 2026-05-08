@@ -177,6 +177,73 @@ async def send_incident_alert(to_email: str, event_id: int, material: str, detec
     return True
 
 
+async def send_forward_email(
+    to_email: str,
+    authority_name: str,
+    event_id: int,
+    material: str,
+    detected_at: str,
+    image_hash: str,
+    address: str = "",
+    notes: str = "",
+    admin_username: str = "admin",
+) -> bool:
+    """Trimite email de transmitere a dovezii unui incident la autoritate."""
+    subject = f"[TrashDet] Incident #{event_id} — Dovadă aruncare ilegală"
+    body = (
+        f"Stimate/Stimată reprezentant {authority_name},\n\n"
+        f"Sistemul TrashDet a detectat și documentat un act de aruncare ilegală "
+        f"a deșeurilor în spații publice. Vă transmitem dovezile pentru acțiune în consecință.\n\n"
+        f"{'─'*40}\n"
+        f"  ID incident:   #{event_id}\n"
+        f"  Material:      {material}\n"
+        f"  Data/Ora:      {detected_at}\n"
+        f"  Locație:       {address or 'coordonate GPS disponibile în sistem'}\n"
+        f"  Hash dovadă:   {image_hash or 'N/A'} (SHA-256, GDPR Art. 25)\n"
+    )
+    if notes:
+        body += f"  Note admin:    {notes}\n"
+    body += (
+        f"{'─'*40}\n\n"
+        f"Clipul video (cu fețele anonimizate conform GDPR Art. 25) și "
+        f"thumbnail-ul sunt disponibile în panoul administrativ TrashDet.\n\n"
+        f"Transmis de: {admin_username} · TrashDet Monitoring System\n"
+        f"{'─'*40}"
+    )
+
+    if settings.SMTP_HOST and settings.SMTP_USER:
+        try:
+            import aiosmtplib
+            from email.mime.text import MIMEText
+            msg = MIMEText(body, "plain", "utf-8")
+            msg["Subject"] = subject
+            msg["From"] = settings.SMTP_FROM
+            msg["To"] = to_email
+            await aiosmtplib.send(
+                msg,
+                hostname=settings.SMTP_HOST,
+                port=settings.SMTP_PORT,
+                username=settings.SMTP_USER,
+                password=settings.SMTP_PASS,
+                start_tls=True,
+            )
+            logger.info(f"Email forward incident #{event_id} → {authority_name} <{to_email}>")
+            return True
+        except Exception as e:
+            logger.error(f"Eroare trimitere email forward #{event_id}: {e}")
+
+    # Dev mode: log detaliat în consolă
+    logger.info(
+        f"\n{'='*55}\n"
+        f"  [DEV — FORWARD INCIDENT] Incident #{event_id}\n"
+        f"  Autoritate: {authority_name} <{to_email}>\n"
+        f"  Material: {material} | Locație: {address or 'N/A'}\n"
+        f"  Hash SHA-256: {image_hash or 'N/A'}\n"
+        f"{'='*55}"
+    )
+    return True
+
+
 # ── Rate limiting ────────────────────────────────────────────────────────────
 
 def check_rate_limit(username: str) -> tuple[bool, int]:

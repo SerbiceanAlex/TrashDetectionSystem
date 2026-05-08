@@ -176,14 +176,19 @@ function adminApp() {
     /* ── Resolve/unresolve a detection report ─────────────────────────── */
     async resolveSession(sessionId, currentStatus) {
       const isCurrentlyResolved = currentStatus === 1 || currentStatus === true;
-      const msg = isCurrentlyResolved
-        ? `Mark report #${sessionId} as UNRESOLVED?`
-        : `Mark report #${sessionId} as CLEANED?`;
-      if (!confirm(msg)) return;
+      const ok = await this.showConfirm(
+        isCurrentlyResolved ? 'Marchează nerezolvat' : 'Marchează rezolvat',
+        `Raportul #${sessionId} va fi actualizat.`,
+        { confirmText: isCurrentlyResolved ? 'Marchează nerezolvat' : 'Marchează rezolvat',
+          confirmColor: isCurrentlyResolved ? '#f59e0b' : '#10b981',
+          iconColor: isCurrentlyResolved ? '#f59e0b' : '#10b981',
+          icon: isCurrentlyResolved ? 'x-circle' : 'check-circle' }
+      );
+      if (!ok) return;
       try {
         const res = await fetchAPI(`/api/sessions/${sessionId}/resolve`, { method: 'POST' });
-        const action = res.is_resolved === 1 ? 'marked cleaned' : 'marked unresolved';
-        showToast(`Report ${sessionId} ${action}`);
+        const action = res.is_resolved === 1 ? 'marcat rezolvat' : 'marcat nerezolvat';
+        showToast(`Raport #${sessionId} ${action}`);
         // Refresh reports list
         this.loadAdminReports();
         this.loadAdminStats();
@@ -241,13 +246,18 @@ function adminApp() {
     },
 
     async adminDeleteReport(sessionId) {
-      if (!confirm(`Delete report #${sessionId}?`)) return;
+      const ok = await this.showConfirm(
+        'Șterge raport',
+        `Raportul #${sessionId} va fi șters permanent.`,
+        { confirmText: 'Șterge', icon: 'trash-2' }
+      );
+      if (!ok) return;
       try {
         await fetchAPI(`/api/sessions/${sessionId}`, { method: 'DELETE' });
         this.adminReports = this.adminReports.filter(r => r.id !== sessionId);
         this.adminReportsTotal--;
         this.loadAdminStats();
-        showToast(`Report #${sessionId} has been deleted.`);
+        showToast(`Raport #${sessionId} șters.`);
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -434,7 +444,7 @@ function adminApp() {
 
     async addAuthority() {
       const { name, email, area_description } = this.adminNewAuthority;
-      if (!name.trim() || !email.trim()) return showToast('Name and email are required', 'error');
+      if (!name.trim() || !email.trim()) return showToast('Numele și emailul sunt obligatorii', 'error');
       try {
         const auth = await fetchAPI('/api/admin/authorities', {
           method: 'POST',
@@ -443,7 +453,7 @@ function adminApp() {
         });
         this.adminAuthorities.push(auth);
         this.adminNewAuthority = { name: '', email: '', area_description: '' };
-        showToast('Authority added');
+        showToast('Contact autoritate adăugat');
         this._refreshAdminIcons();
       } catch (e) {
         showToast(e.message, 'error');
@@ -451,11 +461,16 @@ function adminApp() {
     },
 
     async deleteAuthority(id) {
-      if (!confirm('Delete this authority contact?')) return;
+      const ok = await this.showConfirm(
+        'Șterge contact autoritate',
+        'Contactul va fi șters permanent. Incidentele trimise anterior rămân înregistrate.',
+        { confirmText: 'Șterge', icon: 'trash-2' }
+      );
+      if (!ok) return;
       try {
         await fetchAPI(`/api/admin/authorities/${id}`, { method: 'DELETE' });
         this.adminAuthorities = this.adminAuthorities.filter(a => a.id !== id);
-        showToast('Contact deleted');
+        showToast('Contact șters');
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -488,7 +503,7 @@ function adminApp() {
 
     async addWebhook() {
       const { url, secret, events } = this.adminNewWebhook;
-      if (!url.trim()) return showToast('URL is required', 'error');
+      if (!url.trim()) return showToast('URL-ul endpoint-ului este obligatoriu', 'error');
       try {
         const wh = await fetchAPI('/api/admin/webhooks', {
           method: 'POST',
@@ -502,7 +517,7 @@ function adminApp() {
         });
         this.adminWebhooks.push(wh);
         this.adminNewWebhook = { url: '', secret: '', events: 'report.verified,report.cleaned' };
-        showToast('Webhook added');
+        showToast('Webhook adăugat');
         this._refreshAdminIcons();
       } catch (e) {
         showToast(e.message, 'error');
@@ -526,11 +541,16 @@ function adminApp() {
     },
 
     async deleteWebhook(id) {
-      if (!confirm('Delete this webhook?')) return;
+      const ok = await this.showConfirm(
+        'Șterge webhook',
+        'Webhook-ul va fi dezactivat și șters permanent.',
+        { confirmText: 'Șterge', icon: 'trash-2' }
+      );
+      if (!ok) return;
       try {
         await fetchAPI(`/api/admin/webhooks/${id}`, { method: 'DELETE' });
         this.adminWebhooks = this.adminWebhooks.filter(w => w.id !== id);
-        showToast('Webhook deleted');
+        showToast('Webhook șters');
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -587,7 +607,7 @@ function adminApp() {
           this.incidentPending = pendingData.total;
         } catch (_) {}
       } catch (e) {
-        showToast('Error loading incidents: ' + e.message, 'error');
+        showToast('Eroare la încărcarea incidentelor: ' + e.message, 'error');
       } finally {
         this.incidentsLoading = false;
       }
@@ -603,14 +623,19 @@ function adminApp() {
         const idx = this.incidents.findIndex(e => e.id === id);
         if (idx !== -1) this.incidents[idx] = updated;
         this.incidentPending = Math.max(0, this.incidentPending - 1);
-        showToast('Incident marked as reviewed.');
+        showToast('Incident marcat ca verificat');
       } catch (e) {
-        showToast('Error: ' + e.message, 'error');
+        showToast('Eroare: ' + e.message, 'error');
       }
     },
 
     async forwardIncident(id) {
-      if (!confirm('Forward this incident evidence to the authority?')) return;
+      const ok = await this.showConfirm(
+        'Trimite la autoritate',
+        'Evidența acestui incident (clip + metadata + hash SHA-256) va fi marcată ca trimisă autorității responsabile.',
+        { confirmText: 'Trimite', confirmColor: '#2563eb', iconColor: '#2563eb', icon: 'send' }
+      );
+      if (!ok) return;
       try {
         const updated = await fetchAPI(`/api/littering/events/${id}/status`, {
           method: 'PATCH',
@@ -619,14 +644,19 @@ function adminApp() {
         });
         const idx = this.incidents.findIndex(e => e.id === id);
         if (idx !== -1) this.incidents[idx] = updated;
-        showToast('Incident forwarded to authority.');
+        showToast('Incident trimis la autoritate');
       } catch (e) {
-        showToast('Error: ' + e.message, 'error');
+        showToast('Eroare: ' + e.message, 'error');
       }
     },
 
     async dismissIncident(id) {
-      if (!confirm('Mark this incident as a false positive?')) return;
+      const ok = await this.showConfirm(
+        'Respinge incident',
+        'Incidentul va fi marcat ca fals pozitiv și arhivat. Acțiunea poate fi revizuită ulterior.',
+        { confirmText: 'Respinge', confirmColor: '#6b7280', iconColor: '#6b7280', icon: 'x-circle' }
+      );
+      if (!ok) return;
       try {
         const updated = await fetchAPI(`/api/littering/events/${id}/status`, {
           method: 'PATCH',
@@ -635,9 +665,9 @@ function adminApp() {
         });
         const idx = this.incidents.findIndex(e => e.id === id);
         if (idx !== -1) this.incidents[idx] = updated;
-        showToast('Incident dismissed.');
+        showToast('Incident respins');
       } catch (e) {
-        showToast('Error: ' + e.message, 'error');
+        showToast('Eroare: ' + e.message, 'error');
       }
     },
 

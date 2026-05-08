@@ -915,6 +915,7 @@ async def get_littering_event(
 async def update_littering_event_status(
     event_id: int,
     body: schemas.LitteringEventStatusUpdate,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
@@ -934,6 +935,59 @@ async def update_littering_event_status(
     )
     if evt is None:
         raise HTTPException(status_code=404, detail="Eveniment negăsit.")
+
+    # ── Trimite email la toate autoritățile când statusul devine 'forwarded' ──
+    if body.status == "forwarded":
+        try:
+            from backend.auth import send_forward_email
+            authorities = (await session.execute(
+                db.select(db.AuthorityContact)
+            )).scalars().all()
+
+            detected_str = evt.detected_at.strftime("%d.%m.%Y %H:%M UTC") if evt.detected_at else "necunoscut"
+
+            if authorities:
+                for auth in authorities:
+                    background_tasks.add_task(
+                        send_forward_email,
+                        to_email=auth.email,
+                        authority_name=auth.name,
+                        event_id=evt.id,
+                        material=evt.material or "necunoscut",
+                        detected_at=detected_str,
+                        image_hash=evt.image_hash or "",
+                        address=evt.address or "",
+                        notes=body.notes or "",
+                        admin_username=current_user.username,
+                    )
+                logger.info(f"Forward email programat pentru {len(authorities)} autoritate(i) — incident #{evt.id}")
+            else:
+                logger.warning(f"Incident #{evt.id} marcat 'forwarded' dar nicio autoritate nu este configurată.")
+        except Exception as e:
+            logger.error(f"Eroare la programarea emailului forward: {e}")
+
+    return evt
+
+
+@app.patch(
+    "/api/littering/events/{event_id}/notes",
+    response_model=schemas.LitteringEventOut,
+    summary="[Admin] Update notes on a littering event",
+)
+async def update_littering_event_notes(
+    event_id: int,
+    body: schemas.LitteringEventNotesUpdate,
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+    evt = await db.get_littering_event_by_id(session, event_id)
+    if evt is None:
+        raise HTTPException(status_code=404, detail="Eveniment negăsit.")
+    evt.notes = body.notes
+    await session.commit()
+    await session.refresh(evt)
     return evt
 
 
@@ -1032,9 +1086,9 @@ async def get_dashboard_b2b(
             "detected_at": e.detected_at.isoformat() if e.detected_at else None,
             "material": e.material,
             "status": e.status,
-            "lat": e.latitude,
-            "lng": e.longitude,
-            "address": e.address,
+            "det_score": e.det_score or 0,
+            "thumbnail_path": e.thumbnail_path,
+            "clip_path": e.clip_path,
         }
         for e in rec
     ]
@@ -1063,6 +1117,19 @@ async def get_dashboard_b2b(
         day = (today_start - timedelta(days=29 - i)).date().isoformat()
         trend_30d.append({"day": day, "count": trend_map.get(day, 0)})
 
+    # Hourly distribution — all-time heatmap (0-23h)
+    hour_q = await session.execute(
+        db.select(db.func.strftime('%H', LE.detected_at), db.func.count())
+        .group_by(db.func.strftime('%H', LE.detected_at))
+    )
+    hour_map = {int(h): c for h, c in hour_q.all() if h is not None}
+    hourly_distribution = [hour_map.get(h, 0) for h in range(24)]
+
+    # Resolution rate (reviewed + forwarded) / total
+    resolved = await count_where(LE.status.in_(["reviewed", "forwarded", "dismissed"]))
+    total_all = await count_where()
+    resolution_rate = round(resolved / max(total_all, 1) * 100)
+
     return {
         "incidents_today": incidents_today,
         "incidents_week": incidents_week,
@@ -1073,6 +1140,9 @@ async def get_dashboard_b2b(
         "recent_incidents": recent_incidents,
         "material_distribution": material_distribution,
         "trend_30d": trend_30d,
+        "hourly_distribution": hourly_distribution,
+        "resolution_rate": resolution_rate,
+        "total_all_time": total_all,
     }
 
 
@@ -1276,7 +1346,7 @@ async def reports_export(
     session: AsyncSession = Depends(db.get_db),
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
 ):
-    """Export incidents as CSV (PDF/ZIP — TODO)."""
+    """Export incidents as CSV, PDF, or ZIP."""
     from datetime import datetime, timedelta, timezone
     import csv, io
     now = datetime.now(timezone.utc)
@@ -1301,20 +1371,202 @@ async def reports_export(
         db.select(LE).where(LE.detected_at >= start, LE.detected_at <= end).order_by(LE.detected_at.desc())
     )).scalars().all()
 
+    # ── CSV ──────────────────────────────────────────────────────────────
     if format == "csv":
         buf = io.StringIO()
         w = csv.writer(buf)
-        w.writerow(["ID", "Detected At", "Material", "Det Score", "Status", "Latitude", "Longitude", "Address", "Image Hash", "Notes"])
+        w.writerow(["ID", "Data detectare", "Material", "Confidenta", "Status",
+                    "Latitudine", "Longitudine", "Adresa", "Hash SHA-256", "Note"])
         for e in rows:
-            w.writerow([e.id, e.detected_at.isoformat() if e.detected_at else "", e.material, e.det_score,
-                        e.status, e.latitude or "", e.longitude or "", e.address or "", e.image_hash or "", e.notes or ""])
+            w.writerow([
+                e.id,
+                e.detected_at.strftime("%d.%m.%Y %H:%M:%S") if e.detected_at else "",
+                e.material or "", round((e.det_score or 0) * 100, 1),
+                e.status or "", e.latitude or "", e.longitude or "",
+                e.address or "", e.image_hash or "", e.notes or "",
+            ])
         return PlainTextResponse(
-            buf.getvalue(),
-            media_type="text/csv",
-            headers={"Content-Disposition": f'attachment; filename="incidente_{period}.csv"'},
+            buf.getvalue(), media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="raport_trashdet_{period}.csv"'},
         )
 
-    raise HTTPException(status_code=501, detail=f"Format '{format}' nu este implementat încă (doar CSV pentru moment).")
+    # ── PDF ──────────────────────────────────────────────────────────────
+    if format == "pdf":
+        try:
+            import os
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib import colors
+            from reportlab.lib.units import cm
+            from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
+                                            Paragraph, Spacer)
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+
+            # Înregistrăm Arial cu suport Unicode complet (diacritice românești)
+            _FONT_NORMAL = "Helvetica"
+            _FONT_BOLD   = "Helvetica-Bold"
+            _win_fonts = r"C:\Windows\Fonts"
+            if os.path.exists(os.path.join(_win_fonts, "arial.ttf")):
+                try:
+                    pdfmetrics.registerFont(TTFont("Arial",     os.path.join(_win_fonts, "arial.ttf")))
+                    pdfmetrics.registerFont(TTFont("Arial-Bold",os.path.join(_win_fonts, "arialbd.ttf")))
+                    _FONT_NORMAL, _FONT_BOLD = "Arial", "Arial-Bold"
+                except Exception:
+                    pass  # fallback la Helvetica cu diacritice stripped
+
+            def _txt(s: str) -> str:
+                """Strip diacritice dacă fontul nu are suport Unicode."""
+                if _FONT_NORMAL == "Arial":
+                    return str(s) if s else ""
+                # Helvetica fallback — înlocuim diacritice
+                for ro, en in [("ă","a"),("â","a"),("î","i"),("ș","s"),("ț","t"),
+                                ("Ă","A"),("Â","A"),("Î","I"),("Ș","S"),("Ț","T")]:
+                    s = str(s).replace(ro, en)
+                return s
+
+            buf = io.BytesIO()
+            doc = SimpleDocTemplate(buf, pagesize=A4,
+                                    leftMargin=2*cm, rightMargin=2*cm,
+                                    topMargin=2*cm, bottomMargin=2*cm)
+            styles = getSampleStyleSheet()
+            story = []
+
+            # Titlu
+            title_style = ParagraphStyle("title", parent=styles["Heading1"],
+                                         fontName=_FONT_BOLD, fontSize=18,
+                                         textColor=colors.HexColor("#059669"),
+                                         alignment=TA_CENTER, spaceAfter=4)
+            story.append(Paragraph(_txt("TrashDet — Raport Incidente"), title_style))
+
+            sub_style = ParagraphStyle("sub", parent=styles["Normal"],
+                                       fontName=_FONT_NORMAL,
+                                       fontSize=10, textColor=colors.HexColor("#6b7280"),
+                                       alignment=TA_CENTER, spaceAfter=6)
+            period_labels = {"today": "Astazi", "week": "Ultimele 7 zile",
+                             "month": "Ultimele 30 zile", "year": "Ultimul an", "custom": "Perioada personalizata"}
+            story.append(Paragraph(
+                _txt(f"Perioada: {period_labels.get(period, period)} · "
+                     f"Generat: {now.strftime('%d.%m.%Y %H:%M UTC')} · "
+                     f"Administrator: {current_user.username}"), sub_style))
+            story.append(Spacer(1, 0.4*cm))
+
+            # Rezumat
+            pending = sum(1 for e in rows if e.status == "pending")
+            reviewed = sum(1 for e in rows if e.status == "reviewed")
+            forwarded = sum(1 for e in rows if e.status == "forwarded")
+            dismissed = sum(1 for e in rows if e.status == "dismissed")
+
+            summary_data = [
+                [_txt(h) for h in ["Total incidente", "Asteptare", "Verificate", "Trimise", "Respinse"]],
+                [str(len(rows)), str(pending), str(reviewed), str(forwarded), str(dismissed)],
+            ]
+            summary_table = Table(summary_data, colWidths=[3.4*cm]*5)
+            summary_table.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#059669")),
+                ("TEXTCOLOR",  (0,0), (-1,0), colors.white),
+                ("FONTNAME",   (0,0), (-1,0), _FONT_BOLD),
+                ("FONTSIZE",   (0,0), (-1,0), 9),
+                ("FONTNAME",   (0,1), (-1,1), _FONT_BOLD),
+                ("FONTSIZE",   (0,1), (-1,1), 16),
+                ("ALIGN",      (0,0), (-1,-1), "CENTER"),
+                ("VALIGN",     (0,0), (-1,-1), "MIDDLE"),
+                ("ROWBACKGROUNDS", (0,1), (-1,1), [colors.HexColor("#f0fdf4")]),
+                ("GRID",       (0,0), (-1,-1), 0.5, colors.HexColor("#a7f3d0")),
+                ("TOPPADDING",  (0,0), (-1,-1), 6),
+                ("BOTTOMPADDING",(0,0), (-1,-1), 6),
+            ]))
+            story.append(summary_table)
+            story.append(Spacer(1, 0.6*cm))
+
+            # Tabel incidente
+            if rows:
+                header = [_txt(h) for h in ["#", "Data", "Material", "Conf.", "Status", "Adresa / GPS"]]
+                table_data = [header]
+                status_ro = {"pending": _txt("Asteptare"), "reviewed": _txt("Verificat"),
+                             "forwarded": _txt("Trimis"), "dismissed": _txt("Respins")}
+                for e in rows:
+                    loc = _txt(e.address) or (f"{e.latitude:.4f}, {e.longitude:.4f}"
+                                               if e.latitude else "-")
+                    table_data.append([
+                        str(e.id),
+                        e.detected_at.strftime("%d.%m.%Y\n%H:%M") if e.detected_at else "-",
+                        _txt((e.material or "-").capitalize()),
+                        f"{(e.det_score or 0)*100:.0f}%",
+                        status_ro.get(e.status or "", e.status or "-"),
+                        loc[:40] + ("..." if loc and len(loc) > 40 else ""),
+                    ])
+
+                col_w = [1.2*cm, 2.4*cm, 2.2*cm, 1.4*cm, 2.2*cm, 7.4*cm]
+                inc_table = Table(table_data, colWidths=col_w, repeatRows=1)
+                inc_table.setStyle(TableStyle([
+                    ("BACKGROUND",    (0,0), (-1,0), colors.HexColor("#065f46")),
+                    ("TEXTCOLOR",     (0,0), (-1,0), colors.white),
+                    ("FONTNAME",      (0,0), (-1,0), _FONT_BOLD),
+                    ("FONTNAME",      (0,1), (-1,-1), _FONT_NORMAL),
+                    ("FONTSIZE",      (0,0), (-1,0), 8),
+                    ("FONTSIZE",      (0,1), (-1,-1), 8),
+                    ("ALIGN",         (0,0), (-1,-1), "CENTER"),
+                    ("ALIGN",         (5,1), (5,-1), "LEFT"),
+                    ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
+                    ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.white, colors.HexColor("#f9fafb")]),
+                    ("GRID",          (0,0),(-1,-1), 0.4, colors.HexColor("#e5e7eb")),
+                    ("TOPPADDING",    (0,0),(-1,-1), 5),
+                    ("BOTTOMPADDING", (0,0),(-1,-1), 5),
+                ]))
+                story.append(inc_table)
+            else:
+                story.append(Paragraph(_txt("Niciun incident in perioada selectata."), styles["Normal"]))
+
+            story.append(Spacer(1, 0.8*cm))
+            footer_style = ParagraphStyle("footer", parent=styles["Normal"],
+                                          fontName=_FONT_NORMAL,
+                                          fontSize=8, textColor=colors.HexColor("#9ca3af"),
+                                          alignment=TA_CENTER)
+            story.append(Paragraph(
+                _txt("Document generat automat de TrashDet · Sistem de detectie ilegala a deseurilor · "
+                     "GDPR Art. 25 - fetele sunt anonimizate inainte de stocare"), footer_style))
+
+            doc.build(story)
+            buf.seek(0)
+            return Response(
+                content=buf.getvalue(), media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="raport_trashdet_{period}.pdf"'},
+            )
+        except ImportError:
+            raise HTTPException(status_code=500, detail="reportlab nu este instalat pe server.")
+
+    # ── ZIP cu clipuri ────────────────────────────────────────────────────
+    if format == "zip":
+        import zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            # metadata JSON
+            import json
+            meta = [{"id": e.id, "detected_at": e.detected_at.isoformat() if e.detected_at else None,
+                     "material": e.material, "status": e.status, "det_score": e.det_score,
+                     "image_hash": e.image_hash, "address": e.address} for e in rows]
+            zf.writestr("metadata.json", json.dumps(meta, ensure_ascii=False, indent=2))
+
+            # clipuri + thumbnail-uri
+            for e in rows:
+                if e.clip_path:
+                    fp = LITTERING_DIR / e.clip_path
+                    if fp.exists():
+                        zf.write(fp, f"clips/{fp.name}")
+                if e.thumbnail_path:
+                    tp = LITTERING_DIR / e.thumbnail_path
+                    if tp.exists():
+                        zf.write(tp, f"thumbnails/{tp.name}")
+
+        buf.seek(0)
+        return Response(
+            content=buf.getvalue(), media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="evidence_trashdet_{period}.zip"'},
+        )
+
+    raise HTTPException(status_code=400, detail=f"Format '{format}' necunoscut. Valori valide: csv, pdf, zip.")
 
 
 @app.post("/api/video/upload", response_model=schemas.VideoUploadResponse,
