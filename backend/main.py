@@ -93,6 +93,10 @@ async def _migrate_schema():
         "ALTER TABLE littering_events ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         "ALTER TABLE authority_contacts ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         "ALTER TABLE webhook_configs ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
+        # Video + detection session isolation
+        "ALTER TABLE video_sessions ADD COLUMN user_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE video_sessions ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
+        "ALTER TABLE detection_sessions ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
     ]
     async with db.engine.begin() as conn:
         for stmt in alter_statements:
@@ -115,7 +119,8 @@ async def _migrate_schema():
         await db.get_or_create_default_org(session)
     async with db.engine.begin() as conn:
         for tbl in ("users", "monitored_locations", "littering_events",
-                    "authority_contacts", "webhook_configs"):
+                    "authority_contacts", "webhook_configs",
+                    "video_sessions", "detection_sessions"):
             try:
                 await conn.execute(db.sa_text(
                     f"UPDATE {tbl} SET organization_id = 1 WHERE organization_id IS NULL"
@@ -166,6 +171,8 @@ async def no_cache_static(request: Request, call_next):
     if request.url.path.startswith("/static/js/") or request.url.path.startswith("/static/css/"):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
+    # Bypass ngrok browser warning page automatically
+    response.headers["ngrok-skip-browser-warning"] = "true"
     return response
 
 
@@ -1095,6 +1102,7 @@ async def reports_export(
 async def upload_video(
     file: UploadFile = File(...),
     det_conf: float = Query(default=0.50, ge=0.05, le=0.95),
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
     allowed = {
@@ -1127,6 +1135,9 @@ async def upload_video(
 
     vs = await db.create_video_session(session, source_type="upload", filename=fname)
     vs.video_path = str(save_path)
+    if current_user:
+        vs.user_id = current_user.id
+        vs.organization_id = current_user.organization_id or 1
     await session.commit()
 
     # Process in background — fire-and-forget with error logging
@@ -1145,9 +1156,13 @@ async def upload_video(
 async def list_video_sessions(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
-    items, total = await db.get_video_sessions_paginated(session, skip, limit)
+    # Admin sees all org sessions; regular user sees only own sessions
+    user_id_filter = None if (current_user and current_user.role == "admin") else (current_user.id if current_user else None)
+    org_id_filter = current_user.organization_id or 1 if current_user else None
+    items, total = await db.get_video_sessions_paginated(session, skip, limit, org_id=org_id_filter, user_id=user_id_filter)
     return schemas.VideoSessionsPage(total=total, skip=skip, limit=limit, items=items)
 
 
@@ -1538,11 +1553,15 @@ async def delete_video_session(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Numai administratorii pot șterge sesiuni video.")
     vs = await db.get_video_session_by_id(session, session_id)
     if vs is None:
         raise HTTPException(status_code=404, detail="Video session not found.")
+    # Admin poate șterge orice sesiune din org; userul poate șterge doar ale lui
+    is_owner = vs.user_id == current_user.id
+    is_admin = current_user.role == "admin"
+    same_org = (vs.organization_id or 1) == (current_user.organization_id or 1)
+    if not ((is_admin and same_org) or is_owner):
+        raise HTTPException(status_code=403, detail="Nu poți șterge o sesiune care nu îți aparține.")
 
     for path_str in (vs.video_path, vs.annotated_video_path):
         if path_str:

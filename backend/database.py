@@ -89,6 +89,7 @@ class DetectionSession(Base):
     is_resolved = Column(Integer, default=0)       # 0=dirty, 1=cleaned
     resolved_at = Column(DateTime, nullable=True)
 
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     reporter_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     resolver_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
@@ -142,6 +143,8 @@ class VideoSession(Base):
     status = Column(String(16), default="running")          # running / completed / failed
     frames_processed = Column(Integer, default=0)           # progress tracking
     total_frames_expected = Column(Integer, default=0)      # total frames in source video
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
 
 class Notification(Base):
@@ -497,13 +500,15 @@ async def update_littering_event_status(
     return evt
 
 
-async def get_video_sessions_paginated(db: AsyncSession, skip: int, limit: int):
-    result = await db.execute(
-        select(VideoSession)
-        .order_by(VideoSession.start_time.desc())
-        .offset(skip)
-        .limit(limit)
-    )
-    items = result.scalars().all()
-    total = (await db.execute(select(func.count()).select_from(VideoSession))).scalar_one()
+async def get_video_sessions_paginated(
+    db: AsyncSession, skip: int, limit: int,
+    org_id: int | None = None, user_id: int | None = None,
+):
+    q = select(VideoSession).order_by(VideoSession.start_time.desc())
+    if org_id is not None:
+        q = q.where(or_(VideoSession.organization_id == org_id, VideoSession.organization_id.is_(None)))
+    if user_id is not None:
+        q = q.where(VideoSession.user_id == user_id)
+    total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
+    items = (await db.execute(q.offset(skip).limit(limit))).scalars().all()
     return items, total
