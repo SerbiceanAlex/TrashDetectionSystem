@@ -33,8 +33,9 @@ function ecoApp() {
 
     // Payment modal
     payModalOpen: false,
-    payModalPlan: null,     // planul ales
+    payModalPlan: null,
     payModalStep: 'confirm', // 'confirm' | 'processing' | 'success'
+    _stripeSuccess: false,
 
     // Camera Wizard
     wizardOpen: false,
@@ -125,7 +126,8 @@ function ecoApp() {
       const _checkout = _params.get('checkout');
 
       if (_checkout === 'success') {
-        showToast('Abonament activat! Bun venit în TrashDet Pro.', 'success');
+        // Open payment success modal after org loads
+        this._stripeSuccess = true;
         history.replaceState({}, '', '/app');
       }
 
@@ -143,6 +145,13 @@ function ecoApp() {
         this._notifInterval = setInterval(() => this.loadNotifications(), 30000);
         if (_action === 'login' || _action === 'register') {
           this.$nextTick(() => showToast(`Ești deja conectat ca ${this.user?.username || 'utilizator'}`, 'info'));
+        }
+        // Stripe redirect success
+        if (this._stripeSuccess) {
+          this._stripeSuccess = false;
+          await this.loadOrg();
+          this.payModalStep = 'success';
+          this.payModalOpen = true;
         }
         // Check if user came from landing with a plan intent
         this._checkPlanIntent();

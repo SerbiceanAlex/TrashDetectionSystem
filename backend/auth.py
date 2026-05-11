@@ -141,7 +141,7 @@ async def send_incident_alert(to_email: str, event_id: int, material: str, detec
         f"Data/Ora: {detected_at}\n"
         f"Locație: {address or 'fără adresă GPS'}\n\n"
         f"Vizualizează și gestionează incidentul în panoul de administrare:\n"
-        f"http://127.0.0.1:8000\n\n"
+        f"{settings.APP_BASE_URL}/app\n\n"
         f"— TrashDet Monitoring System"
     )
 
