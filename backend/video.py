@@ -528,7 +528,7 @@ def _iou_overlap(tb, pb) -> float:
 _OVERLAP_THRESH = 0.35  # overlap over this may be body false-positive (adaptive)
 _MIN_TRASH_AREA_FRAC = 0.00015  # ignore tiny noise boxes
 _MAX_TRASH_AREA_FRAC = 0.18     # ignore huge background regions (e.g. bed/floor)
-_TRASH_TRACK_IMGSZ = 416         # better small-object recall vs 320 with moderate latency
+_TRASH_TRACK_IMGSZ = 320         # 320 for real-time webcam (was 416 — too slow on CPU)
 _PERSON_FILTER_SHRINK = 0.72     # shrink person boxes for overlap filtering only
 _HANDHELD_MAX_PERSON_RATIO = 0.12  # keep small objects overlapping a person (in hand)
 _TRASH_STABLE_SEEN = 4             # require 4 consecutive detections — reduces duplicate/ghost boxes
@@ -698,6 +698,7 @@ async def handle_monitor_ws(
     total_frames = 0
     total_ms = 0.0
     t_start = time.time()
+    _cached_person_boxes: list = []   # reuse between frames for person skip
 
     resolved_address: str | None = None
 
@@ -739,12 +740,13 @@ async def handle_monitor_ws(
                             "material_name": "unknown",  # classify only on event
                         })
 
-            # Stage 2: person detection — imgsz=1280 + conf=0.20 to capture small/distant persons in CCTV footage
-            person_boxes = infer.detect_persons(
-                frame,
-                conf=max(person_conf, 0.25),
-                imgsz=1280,
-            )
+            # Stage 2: person detection — run every 2 frames, cache result between
+            # imgsz 640 (was 1280) — 2-3x faster, sufficient for webcam/typical distances
+            if total_frames % 2 == 0:
+                _cached_person_boxes = infer.detect_persons(
+                    frame, conf=max(person_conf, 0.25), imgsz=640,
+                )
+            person_boxes = _cached_person_boxes
 
             # Temporal smoothing: avoid ghost persons / single-frame flicker
             if len(person_boxes) > 0:
