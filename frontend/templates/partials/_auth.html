@@ -79,6 +79,13 @@
         <p class="auth-card__sub">Am trimis un cod de 6 cifre la <strong x-text="otpEmailHint"></strong></p>
       </div>
 
+      <!-- Dev mode banner: shown only when SMTP is not configured -->
+      <div x-show="devOtp" x-cloak
+        style="background:#fef3c7;border:1px solid #f59e0b;border-radius:10px;padding:10px 14px;margin-bottom:14px;text-align:center">
+        <p style="font-size:11px;color:#92400e;margin:0 0 4px">Dev Mode — SMTP neconfigurat</p>
+        <strong x-text="devOtp" style="font-size:22px;letter-spacing:6px;color:#78350f;font-family:monospace"></strong>
+      </div>
+
       <form @submit.prevent="verifyOTP()" class="auth-form">
         <div class="otp-row" @paste="handleOtpPaste($event)">
           <template x-for="(digit, idx) in otpDigits" :key="idx">

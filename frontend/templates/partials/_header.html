@@ -1,3 +1,21 @@
+<!-- Trial banner — visible only when org is on trial plan -->
+<div x-show="isLoggedIn && org?.plan === 'trial'" x-cloak
+  style="background:rgba(245,158,11,.12);border-bottom:1px solid rgba(245,158,11,.25);padding:7px 16px;display:flex;align-items:center;gap:10px;font-size:12px">
+  <i data-lucide="clock" style="width:14px;height:14px;color:#f59e0b;flex-shrink:0"></i>
+  <span :style="darkMode ? 'color:#fbbf24' : 'color:#92400e'">
+    <template x-if="org?.trial_days_left > 0">
+      <span>Trial activ — mai ai <strong x-text="org.trial_days_left"></strong> zile. Upgrade pentru acces complet.</span>
+    </template>
+    <template x-if="org?.trial_days_left === 0">
+      <span style="font-weight:700">Trial expirat. Activează un plan pentru a continua.</span>
+    </template>
+  </span>
+  <button @click="activatePlan('pro')"
+    style="margin-left:auto;background:#f59e0b;color:#fff;padding:3px 12px;border-radius:20px;font-weight:700;font-size:11px;white-space:nowrap;border:none;cursor:pointer">
+    Activează acum →
+  </button>
+</div>
+
 <!-- Top header bar -->
 <header class="td-header">
   <button @click="sidebarOpen = !sidebarOpen" class="td-header__hamburger">
@@ -7,6 +25,17 @@
   <span class="td-header__title" x-text="tabs.find(t=>t.id===activeTab)?.label ?? ''"></span>
 
   <span style="flex:1"></span>
+
+  <!-- Back to site when not logged in -->
+  <a x-show="!isLoggedIn" x-cloak href="/"
+    style="font-size:12px;font-weight:600;color:var(--tx-muted);text-decoration:none;
+           padding:5px 12px;border-radius:8px;border:1px solid var(--bg-border);
+           display:flex;align-items:center;gap:5px;margin-right:8px;transition:all .15s"
+    onmouseover="this.style.color='var(--tx-primary)';this.style.borderColor='var(--tx-muted)'"
+    onmouseout="this.style.color='var(--tx-muted)';this.style.borderColor='var(--bg-border)'">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    Site
+  </a>
 
   <!-- Notification bell -->
   <div x-show="isLoggedIn" x-cloak class="notif-wrapper">

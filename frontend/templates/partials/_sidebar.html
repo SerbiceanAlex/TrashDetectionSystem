@@ -12,7 +12,7 @@
   </div>
 
   <nav class="td-sidebar__nav">
-    <template x-for="tab in tabs" :key="tab.id">
+    <template x-for="tab in visibleTabs" :key="tab.id">
       <button @click="goTo(tab.id); sidebarOpen=false"
         class="td-sidebar__item"
         :class="activeTab === tab.id ? 'td-sidebar__item--active' : ''">

@@ -78,24 +78,31 @@ async def register_user(
         raise HTTPException(status_code=400, detail="Email already registered")
 
     hashed_pw = auth.get_password_hash(user_in.password)
-    
-    # First user is admin, others are 'user'
+
+    # First user is admin and gets their own org; others join org 1 (default)
     count_res = await session.execute(select(db.User))
     first_user = count_res.first() is None
     role = "admin" if first_user else "user"
+
+    # Resolve organization
+    if first_user:
+        org = await db.create_organization(session, f"{user_in.username}'s Organization")
+    else:
+        org = await db.get_or_create_default_org(session)
 
     new_user = db.User(
         username=user_in.username,
         email=user_in.email,
         hashed_password=hashed_pw,
-        role=role
+        role=role,
+        organization_id=org.id,
     )
     session.add(new_user)
     await session.commit()
     await session.refresh(new_user)
-    
+
     print(f"[MAIL MOCK] Trimis email de confirmare la: {new_user.email}")
-    
+
     return new_user
 
 
@@ -166,11 +173,15 @@ async def login_step1(
     # Send OTP via email
     await auth.send_otp_email(user.email, otp_code, user.username)
 
-    return schemas.OTPRequired(
-        otp_required=True,
-        email_hint=_mask_email(user.email),
-        message="Cod de verificare trimis pe email"
-    )
+    response: dict = {
+        "otp_required": True,
+        "email_hint": _mask_email(user.email),
+        "message": "Cod de verificare trimis pe email",
+    }
+    # Dev mode: expose OTP in response when SMTP is not configured
+    if not settings.SMTP_HOST:
+        response["dev_otp"] = otp_code
+    return response
 
 
 @router.post("/verify-otp", response_model=schemas.Token)

@@ -245,8 +245,8 @@
             </template>
           </div>
 
-          <!-- Quick actions (no click propagation) -->
-          <div class="flex flex-col gap-2 shrink-0" @click.stop>
+          <!-- Quick actions — admin only -->
+          <div x-show="isAdmin" class="flex flex-col gap-2 shrink-0" @click.stop>
             <button x-show="ev.status==='pending'" @click="markIncidentReviewed(ev.id)"
               class="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
               style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.2)"
@@ -482,7 +482,13 @@
               <i data-lucide="download" class="w-4 h-4"></i> Descarcă clip
             </a>
           </template>
-          <button x-show="incidentModal?.status==='pending'"
+          <template x-if="!isAdmin">
+            <div class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
+              style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-muted)">
+              <i data-lucide="eye" class="w-3.5 h-3.5"></i> Acces doar vizualizare
+            </div>
+          </template>
+          <button x-show="isAdmin && incidentModal?.status==='pending'"
             @click="markIncidentReviewed(incidentModal.id); incidentModal.status='reviewed'"
             class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
             style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.25)"
@@ -490,7 +496,7 @@
             @mouseleave="$el.style.background='rgba(16,185,129,.1)'">
             <i data-lucide="check" class="w-4 h-4"></i> Verificat
           </button>
-          <button x-show="incidentModal?.status!=='forwarded' && incidentModal?.status!=='dismissed'"
+          <button x-show="isAdmin && incidentModal?.status!=='forwarded' && incidentModal?.status!=='dismissed'"
             @click="forwardIncident(incidentModal.id); incidentModal.status='forwarded'"
             class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
             style="background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.25)"
@@ -498,7 +504,7 @@
             @mouseleave="$el.style.background='rgba(59,130,246,.1)'">
             <i data-lucide="send" class="w-4 h-4"></i> Trimite autorității
           </button>
-          <button x-show="incidentModal?.status!=='dismissed'"
+          <button x-show="isAdmin && incidentModal?.status!=='dismissed'"
             @click="dismissIncident(incidentModal.id); incidentModal.status='dismissed'"
             class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
             style="background:var(--bg-raised);color:var(--tx-muted);border:1px solid var(--bg-border)"

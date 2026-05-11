@@ -17,13 +17,27 @@
       <p class="text-base font-bold" style="color:#fff">Locații monitorizate</p>
       <p class="text-sm mt-0.5" style="color:rgba(255,255,255,.65)">Camere IP (RTSP) · monitorizare automată 24/7</p>
     </div>
-    <button @click="locationModalOpen=true; locationEdit=null; locationForm={name:'',address:'',lat:null,lng:null,rtsp_url:'',alert_email:'',is_active:true}"
-      class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap"
-      style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff"
-      @mouseenter="$el.style.background='rgba(255,255,255,.25)'"
-      @mouseleave="$el.style.background='rgba(255,255,255,.15)'">
-      <i data-lucide="plus" class="w-4 h-4"></i> Adaugă locație
-    </button>
+    <!-- Camera limit badge -->
+    <span class="text-xs font-semibold px-2 py-1 rounded-lg"
+      :style="planFeatures.canAddCamera ? 'background:rgba(255,255,255,.1);color:rgba(255,255,255,.7)' : 'background:rgba(239,68,68,.2);color:#fca5a5'"
+      x-text="`${locations.length} / ${planFeatures.maxCameras >= 999999 ? '∞' : planFeatures.maxCameras} camere`">
+    </span>
+
+    <div class="flex items-center gap-2">
+      <button @click="openWizardGated()"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all"
+        :style="planFeatures.canAddCamera ? 'background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.4);color:#fff' : 'background:rgba(239,68,68,.2);border:1px solid rgba(239,68,68,.4);color:#fca5a5'">
+        <i :data-lucide="planFeatures.canAddCamera ? 'wand-2' : 'lock'" class="w-4 h-4"></i>
+        <span x-text="planFeatures.canAddCamera ? 'Wizard' : 'Upgrade'"></span>
+      </button>
+      <button @click="openLocationModal()"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all"
+        style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff"
+        @mouseenter="$el.style.background='rgba(255,255,255,.25)'"
+        @mouseleave="$el.style.background='rgba(255,255,255,.15)'">
+        <i data-lucide="plus" class="w-4 h-4"></i> Manual
+      </button>
+    </div>
   </div>
 
   <!-- ── Loading skeleton ───────────────────────────────────────────────── -->

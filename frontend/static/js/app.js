@@ -28,6 +28,24 @@ function ecoApp() {
     // Lightbox
     lightboxSrc: null,
 
+    // Organization / trial
+    org: null,
+
+    // Payment modal
+    payModalOpen: false,
+    payModalPlan: null,     // planul ales
+    payModalStep: 'confirm', // 'confirm' | 'processing' | 'success'
+
+    // Camera Wizard
+    wizardOpen: false,
+    wizardStep: 1,
+    wizardType: null,       // 'webcam' | 'ipcam' | 'video'
+    wizardForm: { name: '', address: '', rtsp_url: '' },
+    wizardRtspStatus: null, // null | 'testing' | 'ok' | 'error'
+    wizardRtspMsg: '',
+    wizardSaving: false,
+    _wizardShown: false,
+
     // Dashboard B2B
     dashB2B: null,
     dashB2BLoading: false,
@@ -71,6 +89,10 @@ function ecoApp() {
         svgPath: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
       },
       {
+        id: 'plans', label: 'Planuri', short: 'Planuri',
+        svgPath: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+      },
+      {
         id: 'more', label: 'Setări', short: 'Setări',
         svgPath: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z'
       },
@@ -96,11 +118,41 @@ function ecoApp() {
       this.initVideo();
       this.initAdmin();
 
+      // Handle URL params from landing page
+      const _params = new URLSearchParams(window.location.search);
+      const _action = _params.get('action');
+      const _plan   = _params.get('plan');
+      const _checkout = _params.get('checkout');
+
+      if (_checkout === 'success') {
+        showToast('Abonament activat! Bun venit în TrashDet Pro.', 'success');
+        history.replaceState({}, '', '/app');
+      }
+
+      // Save plan intent from landing for after registration
+      if (_plan && _plan !== 'trial') {
+        sessionStorage.setItem('_intendedPlan', _plan);
+      }
+
       if (this.isLoggedIn) {
         await this.loadDashboard();
         this._setupAdminTab();
         this.loadNotifications();
+        this.loadOrg();
+        this.loadLocations();
         this._notifInterval = setInterval(() => this.loadNotifications(), 30000);
+        if (_action === 'login' || _action === 'register') {
+          this.$nextTick(() => showToast(`Ești deja conectat ca ${this.user?.username || 'utilizator'}`, 'info'));
+        }
+        // Check if user came from landing with a plan intent
+        this._checkPlanIntent();
+        history.replaceState({}, '', '/app');
+      } else if (_action === 'register') {
+        this.$nextTick(() => this.openAuth('register'));
+        history.replaceState({}, '', '/app');
+      } else if (_action === 'login') {
+        this.$nextTick(() => this.openAuth('login'));
+        history.replaceState({}, '', '/app');
       }
 
       window.addEventListener('eco:authChanged', async () => {
@@ -108,9 +160,13 @@ function ecoApp() {
           await this.loadDashboard();
           this._setupAdminTab();
           this.loadNotifications();
+          this.loadOrg();
+          this.loadLocations();
           if (!this._notifInterval) {
             this._notifInterval = setInterval(() => this.loadNotifications(), 30000);
           }
+          // After login: check if user came with a plan intent from landing
+          setTimeout(() => this._checkPlanIntent(), 1000);
         } else {
           clearInterval(this._notifInterval);
           this._notifInterval = null;
@@ -228,6 +284,76 @@ function ecoApp() {
       if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
       return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
     },
+    openLocationModal() {
+      if (!this.planFeatures.canAddCamera) {
+        showToast(`Limita de ${this.planFeatures.maxCameras} camere atinsă — fă upgrade pentru mai multe`, 'error');
+        this.goTo('plans');
+        return;
+      }
+      this.locationEdit = null;
+      this.locationForm = { name: '', address: '', lat: null, lng: null, rtsp_url: '', alert_email: '', is_active: true };
+      this.locationModalOpen = true;
+    },
+
+    openWizardGated() {
+      if (!this.planFeatures.canAddCamera) {
+        showToast(`Limita de ${this.planFeatures.maxCameras} camere atinsă — fă upgrade pentru mai multe`, 'error');
+        this.goTo('plans');
+        return;
+      }
+      this.openWizard();
+    },
+
+    async loadOrg() {
+      try {
+        this.org = await fetchAPI('/api/me/organization');
+      } catch (_) {}
+    },
+
+    openPayModal(plan) {
+      if (!this.isAdmin) return showToast('Doar adminul organizației poate schimba planul', 'error');
+      if (this.org?.plan === plan) return showToast('Ești deja pe planul ' + plan.toUpperCase(), 'info');
+      this.payModalPlan = plan;
+      this.payModalStep = 'confirm';
+      this.payModalOpen = true;
+    },
+
+    async confirmPayment() {
+      const plan = this.payModalPlan;
+      if (!plan) return;
+      this.payModalStep = 'processing';
+      try {
+        const res = await fetchAPI('/api/billing/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan }),
+        });
+        if (res.checkout_url) {
+          // Real Stripe — redirect
+          window.location.href = res.checkout_url;
+          return;
+        }
+        if (res.dev_mode) {
+          // Simulate a brief processing delay
+          await new Promise(r => setTimeout(r, 1200));
+          await fetchAPI('/api/billing/activate-dev', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ plan }),
+          });
+          await this.loadOrg();
+          this.payModalStep = 'success';
+        }
+      } catch (e) {
+        this.payModalOpen = false;
+        showToast('Eroare la activare: ' + e.message, 'error');
+      }
+    },
+
+    async activatePlan(plan = 'pro') {
+      this.openPayModal(plan);
+    },
+
     async loadDashboard() {
       this.dashB2BLoading = true;
       try {
@@ -246,7 +372,14 @@ function ecoApp() {
         const data = await fetch('/api/locations', {
           headers: { Authorization: 'Bearer ' + this.token }
         }).then(r => r.ok ? r.json() : null);
-        if (data) this.locations = data.locations || data;
+        if (data) {
+          this.locations = data.locations || data;
+          // Auto-open wizard on first login if no cameras configured
+          if (!this._wizardShown && this.locations.length === 0) {
+            this._wizardShown = true;
+            setTimeout(() => this.openWizard(), 800);
+          }
+        }
       } catch (e) { console.error('loadLocations', e); }
       this.locationsLoading = false;
       this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
@@ -305,6 +438,72 @@ function ecoApp() {
         showToast('Locație ștearsă', 'success');
         await this.loadLocations();
       } catch (e) { showToast('Eroare', 'error'); }
+    },
+
+    /* ── Camera Wizard ────────────────────────────────────────────────── */
+    openWizard() {
+      this.wizardStep = 1;
+      this.wizardType = null;
+      this.wizardForm = { name: '', address: '', rtsp_url: '' };
+      this.wizardRtspStatus = null;
+      this.wizardRtspMsg = '';
+      this.wizardOpen = true;
+    },
+
+    wizardSelectType(type) {
+      this.wizardType = type;
+      if (type === 'video') {
+        this.wizardOpen = false;
+        this.goTo('scan');
+        return;
+      }
+      this.wizardStep = 3;
+    },
+
+    async wizardTestRtsp() {
+      if (!this.wizardForm.rtsp_url.trim()) return;
+      this.wizardRtspStatus = 'testing';
+      this.wizardRtspMsg = '';
+      try {
+        const res = await fetchAPI('/api/locations/test-rtsp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rtsp_url: this.wizardForm.rtsp_url }),
+        });
+        this.wizardRtspStatus = res.ok ? 'ok' : 'error';
+        this.wizardRtspMsg = res.message;
+      } catch (e) {
+        this.wizardRtspStatus = 'error';
+        this.wizardRtspMsg = e.message;
+      }
+    },
+
+    async wizardSave() {
+      if (!this.wizardForm.name.trim()) return showToast('Introduceți un nume pentru locație', 'error');
+      this.wizardSaving = true;
+      try {
+        await fetchAPI('/api/locations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: this.wizardForm.name.trim(),
+            address: this.wizardForm.address.trim() || null,
+            rtsp_url: this.wizardType === 'ipcam' ? this.wizardForm.rtsp_url.trim() : '',
+            is_active: true,
+          }),
+        });
+        await this.loadLocations();
+        this.wizardStep = 4;
+      } catch (e) {
+        showToast('Eroare la salvare: ' + e.message, 'error');
+      } finally {
+        this.wizardSaving = false;
+      }
+    },
+
+    wizardFinish() {
+      this.wizardOpen = false;
+      this.goTo('scan');
     },
 
     /* ── Reports / Export ─────────────────────────────────────────────── */
@@ -373,8 +572,42 @@ function ecoApp() {
       }
     },
 
+    /* ── Plan intent — deschide payment modal după login dacă vine de pe landing ── */
+    _checkPlanIntent() {
+      const plan = sessionStorage.getItem('_intendedPlan');
+      if (!plan || !this.isLoggedIn) return;
+      if (this.org && this.org.plan !== plan) {
+        sessionStorage.removeItem('_intendedPlan');
+        this.$nextTick(() => this.openPayModal(plan));
+      } else if (this.org && this.org.plan === plan) {
+        sessionStorage.removeItem('_intendedPlan');
+      }
+    },
+
+    /* ── Plan feature gates ──────────────────────────────────────────── */
+    get planFeatures() {
+      const plan = this.org?.plan || 'trial';
+      const isPro = plan === 'pro' || plan === 'enterprise';
+      return {
+        webhooks:      isPro,
+        exportPDF:     isPro,
+        exportZIP:     isPro,
+        multiCamera:   plan !== 'trial',
+        maxCameras:    this.org?.max_cameras || 1,
+        canAddCamera:  this.locations.length < (this.org?.max_cameras || 1),
+        maxAuth:       isPro ? 999 : 1,
+      };
+    },
+
     /* ── Admin check (admin accessible from "Mai mult" page) ────────── */
     get isAdmin() { return this.user?.role === 'admin'; },
+
+    /* ── Visible tabs based on role ─────────────────────────────────── */
+    get visibleTabs() {
+      // Regular users (non-admin) don't see: Monitor, Locații
+      if (this.isAdmin) return this.tabs;
+      return this.tabs.filter(t => !['scan', 'locations'].includes(t.id));
+    },
     _setupAdminTab() {
       // Admin is now accessed from the "Mai mult" page, no tab injection needed
     },

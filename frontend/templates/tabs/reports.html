@@ -268,14 +268,18 @@
     </p>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
-      <button @click="exportReport('pdf')"
-        class="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all"
-        style="background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;box-shadow:0 4px 14px rgba(79,70,229,.3)"
-        @mouseenter="$el.style.opacity='.9'"
-        @mouseleave="$el.style.opacity='1'">
-        <i data-lucide="file-text" class="w-4 h-4"></i> Export PDF
+      <!-- PDF — Pro+ only -->
+      <button @click="planFeatures.exportPDF ? window.print() : goTo('plans')"
+        class="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all relative"
+        :style="planFeatures.exportPDF
+          ? 'background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;box-shadow:0 4px 14px rgba(79,70,229,.3)'
+          : 'background:var(--bg-raised);border:1.5px solid rgba(99,102,241,.3);color:#818cf8;cursor:pointer'"
+        @mouseenter="$el.style.opacity='.9'" @mouseleave="$el.style.opacity='1'">
+        <i :data-lucide="planFeatures.exportPDF ? 'printer' : 'lock'" class="w-4 h-4"></i>
+        <span x-text="planFeatures.exportPDF ? 'Printează / PDF' : 'PDF — Plan Pro'"></span>
       </button>
 
+      <!-- CSV — toate planurile -->
       <button @click="exportReport('csv')"
         class="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all"
         style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-primary)"
@@ -284,12 +288,14 @@
         <i data-lucide="table-2" class="w-4 h-4"></i> Export CSV
       </button>
 
-      <button @click="exportReport('zip')"
+      <!-- ZIP — Pro+ only -->
+      <button @click="planFeatures.exportZIP ? showToast('ZIP disponibil în curând', 'info') : goTo('plans')"
         class="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all"
-        style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-primary)"
-        @mouseenter="$el.style.borderColor='#6366f1';$el.style.color='#818cf8'"
-        @mouseleave="$el.style.borderColor='var(--bg-border)';$el.style.color='var(--tx-primary)'">
-        <i data-lucide="archive" class="w-4 h-4"></i> ZIP clipuri
+        :style="planFeatures.exportZIP
+          ? 'background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-primary)'
+          : 'background:var(--bg-raised);border:1.5px solid rgba(99,102,241,.3);color:#818cf8;cursor:pointer'">
+        <i :data-lucide="planFeatures.exportZIP ? 'archive' : 'lock'" class="w-4 h-4"></i>
+        <span x-text="planFeatures.exportZIP ? 'ZIP clipuri' : 'ZIP — Plan Pro'"></span>
       </button>
     </div>
   </div>

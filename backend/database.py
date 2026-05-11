@@ -7,14 +7,12 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean,
     Column,
-    Date,
     DateTime,
     Float,
     ForeignKey,
     Integer,
     String,
     Text,
-    UniqueConstraint,
     and_,
     func,
     or_,
@@ -34,6 +32,24 @@ class Base(DeclarativeBase):
     pass
 
 
+class Organization(Base):
+    """Client organization / tenant."""
+
+    __tablename__ = "organizations"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    name         = Column(String(200), nullable=False)
+    plan         = Column(String(20), default="trial")  # trial/starter/pro/enterprise
+    trial_ends_at = Column(DateTime, nullable=True)
+    subscription_active = Column(Boolean, default=True)
+    stripe_customer_id   = Column(String(100), nullable=True)
+    max_cameras          = Column(Integer, default=1)
+    max_incidents_month  = Column(Integer, default=500)
+    created_at   = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    users = relationship("User", back_populates="organization")
+
+
 class User(Base):
     """Platform users."""
 
@@ -45,31 +61,13 @@ class User(Base):
     hashed_password = Column(String(200), nullable=False)
     role = Column(String(20), default="user") # 'user' or 'admin'
     points = Column(Integer, default=0)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    # Community / EcoScore fields
-    eco_score = Column(Integer, default=0)
-    rank = Column(String(32), default="Novice")
-    streak_days = Column(Integer, default=0)
-    last_active_date = Column(Date, nullable=True)
-    anonymous_reports = Column(Boolean, default=False)
-    hide_exact_location = Column(Boolean, default=False)
-    trust_weight = Column(Float, default=1.0)
-
-    # Avatar & onboarding
-    avatar_path = Column(Text, nullable=True)
-    onboarding_done = Column(Boolean, default=False)
-
-    # Authority role fields (only for role='authority')
-    authority_area_lat = Column(Float, nullable=True)
-    authority_area_lng = Column(Float, nullable=True)
-    authority_area_radius_km = Column(Float, nullable=True)
-
     # Relationships
+    organization = relationship("Organization", back_populates="users")
     reports = relationship("DetectionSession", foreign_keys="[DetectionSession.reporter_id]", back_populates="reporter")
     resolutions = relationship("DetectionSession", foreign_keys="[DetectionSession.resolver_id]", back_populates="resolver")
-    votes = relationship("CommunityVote", back_populates="user")
-    material_suggestions = relationship("MaterialSuggestion", back_populates="user")
 
 
 class DetectionSession(Base):
@@ -91,25 +89,11 @@ class DetectionSession(Base):
     is_resolved = Column(Integer, default=0)       # 0=dirty, 1=cleaned
     resolved_at = Column(DateTime, nullable=True)
 
-    # Community lifecycle fields
-    status = Column(String(20), default="pending")  # pending/verified/in_progress/cleaned/fake/expired
-    cluster_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=True)
-    claimed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    claimed_at = Column(DateTime, nullable=True)
-    cleaned_image_path = Column(Text, nullable=True)
-    cleaned_at = Column(DateTime, nullable=True)
-    expires_at = Column(DateTime, nullable=True)
-    verification_score = Column(Float, default=0.0)
-    user_note = Column(Text, nullable=True)  # user's description/context for the report
-
     reporter_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     resolver_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     reporter = relationship("User", foreign_keys=[reporter_id], back_populates="reports")
     resolver = relationship("User", foreign_keys=[resolver_id], back_populates="resolutions")
-    claimer = relationship("User", foreign_keys=[claimed_by])
-    cluster_parent = relationship("DetectionSession", remote_side="DetectionSession.id", foreign_keys=[cluster_id])
-    votes = relationship("CommunityVote", back_populates="session")
 
     records = relationship(
         "DetectionRecord", back_populates="session", cascade="all, delete-orphan"
@@ -133,59 +117,8 @@ class DetectionRecord(Base):
     estimated_weight_kg = Column(Float, default=0.0)
 
     session = relationship("DetectionSession", back_populates="records")
-    material_suggestions = relationship("MaterialSuggestion", back_populates="record")
 
 
-class CommunityVote(Base):
-    """One vote per user per detection session."""
-
-    __tablename__ = "community_votes"
-    __table_args__ = (
-        UniqueConstraint("user_id", "session_id", name="uq_vote_user_session"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=False, index=True)
-    vote_type = Column(String(10), nullable=False)  # 'confirm' or 'fake'
-    weight = Column(Float, nullable=False)           # trust_weight at vote time
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    user = relationship("User", back_populates="votes")
-    session = relationship("DetectionSession", back_populates="votes")
-
-
-class MaterialSuggestion(Base):
-    """Material correction suggestion from community."""
-
-    __tablename__ = "material_suggestions"
-    __table_args__ = (
-        UniqueConstraint("record_id", "user_id", name="uq_suggestion_record_user"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    record_id = Column(Integer, ForeignKey("detection_records.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    suggested_material = Column(String(64), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    record = relationship("DetectionRecord", back_populates="material_suggestions")
-    user = relationship("User", back_populates="material_suggestions")
-
-
-class Comment(Base):
-    """User comment on a detection session (report)."""
-
-    __tablename__ = "comments"
-
-    id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    text = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    user = relationship("User", foreign_keys=[user_id])
-    session = relationship("DetectionSession", foreign_keys=[session_id])
 
 
 class VideoSession(Base):
@@ -253,6 +186,7 @@ class AuthorityContact(Base):
     email = Column(String(200), nullable=False)
     area_description = Column(Text, nullable=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -264,65 +198,13 @@ class WebhookConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
     url = Column(Text, nullable=False)
     secret = Column(String(128), nullable=False)
-    events = Column(Text, default="verified")  # comma-separated: verified,cleaned,fake
+    events = Column(Text, default="verified")
     active = Column(Boolean, default=True)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-class Campaign(Base):
-    """Cleanup campaign / challenge with area and timeline."""
-
-    __tablename__ = "campaigns"
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(200), nullable=False)
-    description = Column(Text, nullable=True)
-    target_reports = Column(Integer, default=50)
-    start_date = Column(DateTime, nullable=False)
-    end_date = Column(DateTime, nullable=False)
-    area_lat = Column(Float, nullable=True)
-    area_lng = Column(Float, nullable=True)
-    area_radius_km = Column(Float, default=5.0)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    participants = relationship("CampaignParticipant", back_populates="campaign")
-    creator = relationship("User", foreign_keys=[created_by])
-
-
-class CampaignParticipant(Base):
-    """User participation in a campaign."""
-
-    __tablename__ = "campaign_participants"
-    __table_args__ = (
-        UniqueConstraint("campaign_id", "user_id", name="uq_campaign_user"),
-    )
-
-    id = Column(Integer, primary_key=True, index=True)
-    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    joined_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    campaign = relationship("Campaign", back_populates="participants")
-    user = relationship("User", foreign_keys=[user_id])
-
-
-class ReportPhoto(Base):
-    """Additional photo attached to a detection session (gallery)."""
-
-    __tablename__ = "report_photos"
-
-    id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    image_path = Column(Text, nullable=False)
-    caption = Column(Text, nullable=True)
-    photo_type = Column(String(20), default="additional")  # 'additional' | 'cleanup'
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-    session = relationship("DetectionSession", foreign_keys=[session_id])
-    user = relationship("User", foreign_keys=[user_id])
 
 
 class LitteringEvent(Base):
@@ -377,6 +259,7 @@ class LitteringEvent(Base):
     reviewed_at     = Column(DateTime, nullable=True)
     forwarded_at    = Column(DateTime, nullable=True)
     notes           = Column(Text, nullable=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
     # ── Relationships ────────────────────────────────────────────────────────
     reviewer = relationship("User", foreign_keys=[reviewed_by])
@@ -393,11 +276,12 @@ class MonitoredLocation(Base):
     address     = Column(Text, nullable=True)
     latitude    = Column(Float, nullable=True)
     longitude   = Column(Float, nullable=True)
-    rtsp_url    = Column(Text, nullable=True)              # rtsp://... sau gol pentru webcam
-    alert_email = Column(String(128), nullable=True)       # email staff securitate
-    is_active   = Column(Integer, default=1)               # 1 = monitor activ, 0 = pauzat
+    rtsp_url    = Column(Text, nullable=True)
+    alert_email = Column(String(128), nullable=True)
+    is_active   = Column(Integer, default=1)
     created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     created_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
     creator = relationship("User", foreign_keys=[created_by])
 
@@ -412,51 +296,44 @@ async def get_db():
         yield session
 
 
-# ── Query helpers ────────────────────────────────────────────────────────────
+# ── Organization helpers ──────────────────────────────────────────────────────
 
-async def get_sessions_paginated(db: AsyncSession, skip: int, limit: int):
-    result = await db.execute(
-        select(DetectionSession)
-        .order_by(DetectionSession.upload_time.desc())
-        .offset(skip)
-        .limit(limit)
-    )
-    return result.scalars().all()
-
-
-async def count_sessions(db: AsyncSession) -> int:
-    result = await db.execute(select(func.count()).select_from(DetectionSession))
-    return result.scalar_one()
-
-
-async def get_session_by_id(db: AsyncSession, session_id: int):
-    result = await db.execute(
-        select(DetectionSession).where(DetectionSession.id == session_id)
-    )
+async def get_org_by_id(db: AsyncSession, org_id: int) -> "Organization | None":
+    result = await db.execute(select(Organization).where(Organization.id == org_id))
     return result.scalar_one_or_none()
 
 
-async def get_material_stats(db: AsyncSession):
-    """Returns list of (material, count) ordered by count desc."""
-    result = await db.execute(
-        select(DetectionRecord.material, func.count(DetectionRecord.id).label("cnt"))
-        .group_by(DetectionRecord.material)
-        .order_by(func.count(DetectionRecord.id).desc())
-    )
-    return result.all()
-
-
-async def get_timeline_stats(db: AsyncSession, days: int = 30):
-    """Returns list of (date_str, count) for last N days."""
-    result = await db.execute(
-        select(
-            func.strftime("%Y-%m-%d", DetectionSession.upload_time).label("day"),
-            func.sum(DetectionSession.total_objects).label("total"),
+async def get_or_create_default_org(db: AsyncSession) -> "Organization":
+    """Return org id=1, creating it if it doesn't exist."""
+    org = await get_org_by_id(db, 1)
+    if org is None:
+        from datetime import timedelta
+        org = Organization(
+            id=1,
+            name="Default Organization",
+            plan="trial",
+            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14),
         )
-        .group_by(func.strftime("%Y-%m-%d", DetectionSession.upload_time))
-        .order_by(func.strftime("%Y-%m-%d", DetectionSession.upload_time))
+        db.add(org)
+        await db.commit()
+        await db.refresh(org)
+    return org
+
+
+async def create_organization(db: AsyncSession, name: str) -> "Organization":
+    from datetime import timedelta
+    org = Organization(
+        name=name,
+        plan="trial",
+        trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14),
     )
-    return result.all()
+    db.add(org)
+    await db.commit()
+    await db.refresh(org)
+    return org
+
+
+# ── Query helpers ────────────────────────────────────────────────────────────
 
 
 async def get_global_stats(db: AsyncSession):
@@ -471,85 +348,6 @@ async def get_global_stats(db: AsyncSession):
     return result.one()
 
 
-async def get_material_per_day_stats(db: AsyncSession):
-    """Returns list of (day, material, count) for stacked bar chart."""
-    result = await db.execute(
-        select(
-            func.strftime("%Y-%m-%d", DetectionSession.upload_time).label("day"),
-            DetectionRecord.material,
-            func.count(DetectionRecord.id).label("cnt"),
-        )
-        .join(DetectionSession, DetectionRecord.session_id == DetectionSession.id)
-        .group_by(
-            func.strftime("%Y-%m-%d", DetectionSession.upload_time),
-            DetectionRecord.material,
-        )
-        .order_by(func.strftime("%Y-%m-%d", DetectionSession.upload_time))
-    )
-    return result.all()
-
-
-async def search_sessions(
-    db: AsyncSession,
-    skip: int,
-    limit: int,
-    q: str | None = None,
-    material: str | None = None,
-    min_objects: int | None = None,
-):
-    """Paginated + filtered sessions query."""
-    from sqlalchemy import distinct
-
-    stmt = select(DetectionSession).order_by(DetectionSession.upload_time.desc())
-
-    if q:
-        stmt = stmt.where(DetectionSession.filename.ilike(f"%{q}%"))
-    if min_objects is not None:
-        stmt = stmt.where(DetectionSession.total_objects >= min_objects)
-    if material:
-        # sessions that contain at least one record with this material
-        sub = select(distinct(DetectionRecord.session_id)).where(
-            DetectionRecord.material.ilike(material)
-        )
-        stmt = stmt.where(DetectionSession.id.in_(sub))
-
-    count_stmt = select(func.count()).select_from(stmt.subquery())
-    total = (await db.execute(count_stmt)).scalar_one()
-
-    items = (await db.execute(stmt.offset(skip).limit(limit))).scalars().all()
-    return items, total
-
-
-# ── Map helpers ──────────────────────────────────────────────────────────
-
-async def get_geolocated_sessions(
-    db: AsyncSession,
-    limit: int = 500,
-    resolved: int | None = None,   # None=all, 0=unresolved, 1=resolved
-    material: str | None = None,   # filter to sessions containing this material
-):
-    """Return sessions that have GPS coordinates, for map display."""
-    from sqlalchemy import exists as sa_exists
-
-    q = (
-        select(DetectionSession)
-        .where(DetectionSession.latitude.isnot(None))
-        .where(DetectionSession.longitude.isnot(None))
-    )
-    if resolved is not None:
-        q = q.where(DetectionSession.is_resolved == resolved)
-    if material:
-        q = q.where(
-            sa_exists(
-                select(DetectionRecord.id)
-                .where(DetectionRecord.session_id == DetectionSession.id)
-                .where(DetectionRecord.material == material.lower())
-                .correlate(DetectionSession)
-            )
-        )
-    q = q.order_by(DetectionSession.upload_time.desc()).limit(limit)
-    result = await db.execute(q)
-    return result.scalars().all()
 
 
 # ── Video session helpers ──────────────────────────────────────────────────
@@ -657,8 +455,11 @@ async def list_littering_events(
     limit: int = 20,
     status: str | None = None,
     material: str | None = None,
+    org_id: int | None = None,
 ) -> tuple[list["LitteringEvent"], int]:
     q = select(LitteringEvent).order_by(LitteringEvent.detected_at.desc())
+    if org_id is not None:
+        q = q.where(or_(LitteringEvent.organization_id == org_id, LitteringEvent.organization_id.is_(None)))
     if status:
         q = q.where(LitteringEvent.status == status)
     if material:
@@ -706,140 +507,3 @@ async def get_video_sessions_paginated(db: AsyncSession, skip: int, limit: int):
     items = result.scalars().all()
     total = (await db.execute(select(func.count()).select_from(VideoSession))).scalar_one()
     return items, total
-
-
-# ── Zone / community helpers ──────────────────────────────────────────────
-
-async def get_zone_stats(db: AsyncSession, grid_size: float = 0.002):
-    """
-    Aggregate geolocated sessions into grid cells (~200m x ~200m).
-    Returns list of zone dicts with centroid lat/lng, total_reports,
-    total_objects, dominant_material, and severity score.
-    grid_size ≈ 0.002 degrees ≈ 200m at mid-latitudes.
-    """
-    import math
-
-    result = await db.execute(
-        select(
-            DetectionSession.latitude,
-            DetectionSession.longitude,
-            DetectionSession.total_objects,
-            DetectionSession.upload_time,
-        )
-        .where(DetectionSession.latitude.isnot(None))
-        .where(DetectionSession.longitude.isnot(None))
-    )
-    rows = result.all()
-
-    # Also load material breakdown per session
-    mat_result = await db.execute(
-        select(
-            DetectionRecord.session_id,
-            DetectionRecord.material,
-            func.count(DetectionRecord.id).label("cnt"),
-        )
-        .join(DetectionSession, DetectionSession.id == DetectionRecord.session_id)
-        .where(DetectionSession.latitude.isnot(None))
-        .group_by(DetectionRecord.session_id, DetectionRecord.material)
-    )
-    mat_rows = mat_result.all()
-
-    # Build session-id → materials map  (session_id → {material: count})
-    session_materials: dict = {}
-    for m in mat_rows:
-        session_materials.setdefault(m.session_id, {})[m.material] = m.cnt
-
-    # Load session ids alongside rows
-    id_result = await db.execute(
-        select(DetectionSession.id, DetectionSession.latitude, DetectionSession.longitude)
-        .where(DetectionSession.latitude.isnot(None))
-    )
-    id_rows = {(r.latitude, r.longitude): r.id for r in id_result.all()}
-
-    # Snap each session to a grid cell
-    cells: dict = {}
-    for row in rows:
-        lat_cell = math.floor(row.latitude / grid_size) * grid_size
-        lng_cell = math.floor(row.longitude / grid_size) * grid_size
-        key = (round(lat_cell, 6), round(lng_cell, 6))
-
-        if key not in cells:
-            cells[key] = {
-                "lat": round(lat_cell + grid_size / 2, 6),
-                "lng": round(lng_cell + grid_size / 2, 6),
-                "total_reports": 0,
-                "total_objects": 0,
-                "last_scan": None,
-                "materials": {},
-            }
-        c = cells[key]
-        c["total_reports"] += 1
-        c["total_objects"] += row.total_objects or 0
-        if c["last_scan"] is None or (row.upload_time and row.upload_time > c["last_scan"]):
-            c["last_scan"] = row.upload_time
-
-        # Aggregate materials
-        sess_id = id_rows.get((row.latitude, row.longitude))
-        if sess_id and sess_id in session_materials:
-            for mat, cnt in session_materials[sess_id].items():
-                c["materials"][mat] = c["materials"].get(mat, 0) + cnt
-
-    # Build output list with severity
-    zones = []
-    for cell in cells.values():
-        obj = cell["total_objects"]
-        # Severity: 0=clean, 1=low, 2=medium, 3=high
-        if obj == 0:
-            severity = 0
-        elif obj < 5:
-            severity = 1
-        elif obj < 15:
-            severity = 2
-        else:
-            severity = 3
-
-        dominant = max(cell["materials"], key=cell["materials"].get) if cell["materials"] else None
-        zones.append({
-            "lat": cell["lat"],
-            "lng": cell["lng"],
-            "total_reports": cell["total_reports"],
-            "total_objects": cell["total_objects"],
-            "severity": severity,
-            "dominant_material": dominant,
-            "materials": cell["materials"],
-            "last_scan": cell["last_scan"].isoformat() if cell["last_scan"] else None,
-        })
-
-    return zones
-
-
-async def get_nearby_reports(db: AsyncSession, lat: float, lng: float, radius_km: float = 1.0, limit: int = 50):
-    """
-    Return geolocated sessions within radius_km of (lat, lng).
-    Uses a simple bounding-box pre-filter then Haversine distance.
-    """
-    import math
-
-    # 1 degree lat ≈ 111 km
-    delta_lat = radius_km / 111.0
-    delta_lng = radius_km / (111.0 * math.cos(math.radians(lat)))
-
-    result = await db.execute(
-        select(DetectionSession)
-        .where(DetectionSession.latitude.isnot(None))
-        .where(DetectionSession.latitude.between(lat - delta_lat, lat + delta_lat))
-        .where(DetectionSession.longitude.between(lng - delta_lng, lng + delta_lng))
-        .order_by(DetectionSession.upload_time.desc())
-        .limit(limit * 2)  # fetch more for Haversine filtering
-    )
-    candidates = result.scalars().all()
-
-    def haversine(lat1, lng1, lat2, lng2) -> float:
-        R = 6371
-        dlat = math.radians(lat2 - lat1)
-        dlng = math.radians(lng2 - lng1)
-        a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2
-        return R * 2 * math.asin(math.sqrt(a))
-
-    nearby = [r for r in candidates if haversine(lat, lng, r.latitude, r.longitude) <= radius_km]
-    return nearby[:limit]

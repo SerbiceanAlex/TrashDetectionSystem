@@ -7,27 +7,19 @@ function adminApp() {
     adminUsersLoading: false,
     adminStats: null,
     adminStatsLoading: false,
-    leaderboard: [],
-    leaderboardLoading: false,
 
     // Confirm delete modal
     adminConfirmUser: null,
     adminConfirmOpen: false,
 
+    // Team invite (org-scoped)
+    inviteModalOpen: false,
+    inviteForm: { username: '', email: '', role: 'user' },
+    inviteSending: false,
+    inviteResult: null,
+
     // Sub-tab navigation inside admin panel
-    adminSubTab: 'overview',  // 'overview' | 'users' | 'reports' | 'activity' | 'authorities' | 'incidents' | 'webhooks'
-
-    // Reports management
-    adminReports: [],
-    adminReportsLoading: false,
-    adminReportsTotal: 0,
-    adminReportsPage: 0,
-    adminReportsFilter: 'all',     // 'all' | 'resolved' | 'unresolved'
-    adminReportsSearch: '',
-
-    // Activity feed
-    adminActivity: [],
-    adminActivityLoading: false,
+    adminSubTab: 'overview',  // 'overview' | 'users' | 'authorities' | 'incidents' | 'webhooks'
 
     // Charts
     adminCharts: null,
@@ -42,8 +34,6 @@ function adminApp() {
     adminAuthorities: [],
     adminAuthoritiesLoading: false,
     adminNewAuthority: { name: '', email: '', area_description: '' },
-    adminForwardingId: null,
-    adminForwardSending: false,
 
     // Webhooks
     adminWebhooks: [],
@@ -67,8 +57,6 @@ function adminApp() {
 
     /* ── Init ─────────────────────────────────────────────────────────── */
     initAdmin() {
-      // When a new littering event fires from Monitor tab, bump pending count
-      // and reload incidents if the user is currently viewing that sub-tab
       window.addEventListener('eco:litteringAlert', () => {
         this.incidentPending += 1;
         if (this.adminSubTab === 'incidents') {
@@ -106,19 +94,6 @@ function adminApp() {
       }
     },
 
-    /* ── Load leaderboard ─────────────────────────────────────────────── */
-    async loadLeaderboard() {
-      this.leaderboardLoading = true;
-      try {
-        this.leaderboard = await fetchAPI('/api/leaderboard?limit=10');
-      } catch (e) {
-        showToast(e.message, 'error');
-      } finally {
-        this.leaderboardLoading = false;
-        this._refreshAdminIcons();
-      }
-    },
-
     /* ── Toggle user role admin ↔ user ────────────────────────────────── */
     async adminToggleRole(userId, currentRole) {
       const newRole = currentRole === 'admin' ? 'user' : 'admin';
@@ -136,27 +111,37 @@ function adminApp() {
       }
     },
 
-    /* ── Adjust user points ───────────────────────────────────────────── */
-    async adminAdjustPoints(userId, delta) {
-      const u = this.adminUsers.find(x => x.id === userId);
-      if (!u) return;
-      const newPoints = Math.max(0, u.points + delta);
-      try {
-        await fetchAPI(`/api/admin/users/${userId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ points: newPoints }),
-        });
-        u.points = newPoints;
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
-    },
-
     /* ── Delete user (with confirm) ────────────────────────────────────── */
     adminAskDelete(user) {
       this.adminConfirmUser = user;
       this.adminConfirmOpen = true;
+    },
+
+    openInviteModal() {
+      this.inviteForm = { username: '', email: '', role: 'user' };
+      this.inviteResult = null;
+      this.inviteModalOpen = true;
+    },
+
+    async sendInvite() {
+      if (!this.inviteForm.username.trim() || !this.inviteForm.email.trim()) {
+        return showToast('Username și email obligatorii', 'error');
+      }
+      this.inviteSending = true;
+      try {
+        const res = await fetchAPI('/api/admin/users/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.inviteForm),
+        });
+        this.inviteResult = res;
+        await this.loadAdminUsers();
+        showToast(res.message || 'Invitație trimisă', 'success');
+      } catch (e) {
+        showToast('Eroare: ' + e.message, 'error');
+      } finally {
+        this.inviteSending = false;
+      }
     },
 
     async adminDeleteUser() {
@@ -170,109 +155,6 @@ function adminApp() {
       } finally {
         this.adminConfirmOpen = false;
         this.adminConfirmUser = null;
-      }
-    },
-
-    /* ── Resolve/unresolve a detection report ─────────────────────────── */
-    async resolveSession(sessionId, currentStatus) {
-      const isCurrentlyResolved = currentStatus === 1 || currentStatus === true;
-      const ok = await this.showConfirm(
-        isCurrentlyResolved ? 'Marchează nerezolvat' : 'Marchează rezolvat',
-        `Raportul #${sessionId} va fi actualizat.`,
-        { confirmText: isCurrentlyResolved ? 'Marchează nerezolvat' : 'Marchează rezolvat',
-          confirmColor: isCurrentlyResolved ? '#f59e0b' : '#10b981',
-          iconColor: isCurrentlyResolved ? '#f59e0b' : '#10b981',
-          icon: isCurrentlyResolved ? 'x-circle' : 'check-circle' }
-      );
-      if (!ok) return;
-      try {
-        const res = await fetchAPI(`/api/sessions/${sessionId}/resolve`, { method: 'POST' });
-        const action = res.is_resolved === 1 ? 'marcat rezolvat' : 'marcat nerezolvat';
-        showToast(`Raport #${sessionId} ${action}`);
-        // Refresh reports list
-        this.loadAdminReports();
-        this.loadAdminStats();
-        // Notify history tab to refresh local state
-        window.dispatchEvent(new CustomEvent('eco:resolveChanged', { detail: { sessionId, is_resolved: res.is_resolved } }));
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
-    },
-
-    /* ── Reports management ───────────────────────────────────────────── */
-    async loadAdminReports() {
-      this.adminReportsLoading = true;
-      try {
-        const params = new URLSearchParams({
-          skip: String(this.adminReportsPage * 20),
-          limit: '20',
-        });
-        if (this.adminReportsFilter !== 'all') params.set('status', this.adminReportsFilter);
-        if (this.adminReportsSearch.trim()) params.set('search', this.adminReportsSearch.trim());
-        const data = await fetchAPI(`/api/admin/reports?${params}`);
-        this.adminReports = data.items;
-        this.adminReportsTotal = data.total;
-      } catch (e) {
-        showToast(e.message, 'error');
-      } finally {
-        this.adminReportsLoading = false;
-        this._refreshAdminIcons();
-      }
-    },
-
-    adminReportsPrev() {
-      if (this.adminReportsPage > 0) {
-        this.adminReportsPage--;
-        this.loadAdminReports();
-      }
-    },
-
-    adminReportsNext() {
-      if ((this.adminReportsPage + 1) * 20 < this.adminReportsTotal) {
-        this.adminReportsPage++;
-        this.loadAdminReports();
-      }
-    },
-
-    adminFilterReports(filter) {
-      this.adminReportsFilter = filter;
-      this.adminReportsPage = 0;
-      this.loadAdminReports();
-    },
-
-    adminSearchReports() {
-      this.adminReportsPage = 0;
-      this.loadAdminReports();
-    },
-
-    async adminDeleteReport(sessionId) {
-      const ok = await this.showConfirm(
-        'Șterge raport',
-        `Raportul #${sessionId} va fi șters permanent.`,
-        { confirmText: 'Șterge', icon: 'trash-2' }
-      );
-      if (!ok) return;
-      try {
-        await fetchAPI(`/api/sessions/${sessionId}`, { method: 'DELETE' });
-        this.adminReports = this.adminReports.filter(r => r.id !== sessionId);
-        this.adminReportsTotal--;
-        this.loadAdminStats();
-        showToast(`Raport #${sessionId} șters.`);
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
-    },
-
-    /* ── Activity feed ────────────────────────────────────────────────── */
-    async loadAdminActivity() {
-      this.adminActivityLoading = true;
-      try {
-        this.adminActivity = await fetchAPI('/api/admin/activity?limit=20');
-      } catch (e) {
-        showToast(e.message, 'error');
-      } finally {
-        this.adminActivityLoading = false;
-        this._refreshAdminIcons();
       }
     },
 
@@ -294,7 +176,6 @@ function adminApp() {
     _renderAdminCharts() {
       if (!this.adminCharts) return;
 
-      // Destroy old instances
       Object.values(this._adminChartInstances).forEach(c => c.destroy());
       this._adminChartInstances = {};
 
@@ -302,7 +183,6 @@ function adminApp() {
       const gridColor = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)';
       const textColor = isDark ? '#9ca3af' : '#6b7280';
 
-      // Reports timeline (bar chart)
       const rCanvas = document.getElementById('adminChartReports');
       if (rCanvas) {
         this._adminChartInstances.reports = new Chart(rCanvas, {
@@ -327,7 +207,6 @@ function adminApp() {
         });
       }
 
-      // Users timeline (line chart)
       const uCanvas = document.getElementById('adminChartUsers');
       if (uCanvas) {
         this._adminChartInstances.users = new Chart(uCanvas, {
@@ -353,7 +232,6 @@ function adminApp() {
         });
       }
 
-      // Materials distribution (doughnut)
       const mCanvas = document.getElementById('adminChartMaterials');
       if (mCanvas) {
         const colors = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'];
@@ -376,7 +254,6 @@ function adminApp() {
         });
       }
 
-      // Resolution rate (doughnut)
       const resCanvas = document.getElementById('adminChartResolution');
       if (resCanvas) {
         const rr = this.adminCharts.resolution_rate;
@@ -473,18 +350,6 @@ function adminApp() {
         showToast('Contact șters');
       } catch (e) {
         showToast(e.message, 'error');
-      }
-    },
-
-    async forwardReport(sessionId) {
-      this.adminForwardSending = true;
-      try {
-        const res = await fetchAPI(`/api/admin/forward/${sessionId}`, { method: 'POST' });
-        showToast(res.detail || 'Report forwarded to authority');
-      } catch (e) {
-        showToast(e.message, 'error');
-      } finally {
-        this.adminForwardSending = false;
       }
     },
 
@@ -601,7 +466,6 @@ function adminApp() {
         this.incidents = data.items;
         this.incidentTotal = data.total;
 
-        // Update pending count (for tab badge) — always fetch without filter
         try {
           const pendingData = await fetchAPI('/api/littering/events?status=pending&limit=1');
           this.incidentPending = pendingData.total;
@@ -676,15 +540,10 @@ function adminApp() {
       this.adminSubTab = tab;
       if (tab === 'overview') {
         this.loadAdminStats();
-        this.loadLeaderboard();
         this.loadAdminCharts();
         this.loadStorage();
       } else if (tab === 'users') {
         this.loadAdminUsers();
-      } else if (tab === 'reports') {
-        this.loadAdminReports();
-      } else if (tab === 'activity') {
-        this.loadAdminActivity();
       } else if (tab === 'authorities') {
         this.loadAuthorities();
       } else if (tab === 'incidents') {
@@ -699,7 +558,7 @@ function adminApp() {
     async loadAdminAll() {
       this.adminSubTab = 'overview';
       try {
-        await Promise.all([this.loadAdminStats(), this.loadAdminUsers(), this.loadLeaderboard(), this.loadAdminCharts()]);
+        await Promise.all([this.loadAdminStats(), this.loadAdminCharts(), this.loadStorage()]);
       } catch (e) {
         console.error('[ADMIN] loadAdminAll error:', e);
       }

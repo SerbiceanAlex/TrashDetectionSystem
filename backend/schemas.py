@@ -17,6 +17,18 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
+class OrganizationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    plan: str
+    trial_ends_at: Optional[datetime] = None
+    subscription_active: bool = True
+    max_cameras: int = 1
+    max_incidents_month: int = 500
+    created_at: datetime
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -24,9 +36,7 @@ class UserOut(BaseModel):
     email: str
     role: str
     points: int
-    eco_score: int = 0
-    rank: str = "Novice"
-    streak_days: int = 0
+    organization_id: Optional[int] = None
     created_at: datetime
 
 class Token(BaseModel):
@@ -272,12 +282,6 @@ class AdminStats(BaseModel):
     total_objects: int
     resolved_reports: int
     avg_inference_ms: float
-    total_votes: int = 0
-    pending_reports: int = 0
-    verified_reports: int = 0
-    cleaned_reports: int = 0
-    fake_reports: int = 0
-    in_progress_reports: int = 0
 
 
 # ── Personal stats ────────────────────────────────────────────────────────────

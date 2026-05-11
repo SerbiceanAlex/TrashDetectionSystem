@@ -1,0 +1,229 @@
+<!-- ══ PLANURI ════════════════════════════════════════════════════════════ -->
+<div x-show="activeTab === 'plans'" x-cloak
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0 translate-y-1"
+  x-transition:enter-end="opacity-100 translate-y-0"
+  x-init="if(activeTab==='plans') loadOrg()"
+  class="space-y-4">
+
+  <!-- ── Hero ──────────────────────────────────────────────────────────── -->
+  <div class="rounded-2xl p-5 flex items-center gap-4 flex-wrap"
+       style="background:linear-gradient(135deg,#064e3b 0%,#065f46 55%,#047857 100%);box-shadow:0 4px 24px rgba(5,150,105,.25)">
+    <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+         style="background:rgba(255,255,255,.12)">
+      <i data-lucide="badge-check" class="w-5 h-5" style="color:#fff"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <p class="text-base font-bold" style="color:#fff">Planuri & Facturare</p>
+      <p class="text-sm mt-0.5" style="color:rgba(255,255,255,.65)">
+        Planul curent:
+        <strong x-text="(org?.plan || 'trial').toUpperCase()" style="color:#fff"></strong>
+        <template x-if="org?.plan === 'trial'">
+          <span x-text="` · ${org?.trial_days_left ?? 0} zile rămase`"></span>
+        </template>
+      </p>
+    </div>
+    <a href="/" target="_blank"
+      class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all"
+      style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff"
+      @mouseenter="$el.style.background='rgba(255,255,255,.25)'"
+      @mouseleave="$el.style.background='rgba(255,255,255,.15)'">
+      <i data-lucide="external-link" class="w-4 h-4"></i> Site public
+    </a>
+  </div>
+
+  <!-- ── Pricing grid ─────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+    <!-- TRIAL -->
+    <div class="rounded-2xl p-5 flex flex-col"
+      :style="org?.plan === 'trial'
+        ? 'background:var(--bg-surface);border:2px solid #f59e0b;box-shadow:0 4px 24px rgba(245,158,11,.15)'
+        : 'background:var(--bg-surface);border:1px solid var(--bg-border)'">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--tx-muted)">Trial</p>
+        <span x-show="org?.plan === 'trial'" class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+          style="background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)">CURENT</span>
+      </div>
+      <p class="text-3xl font-extrabold mb-1" style="color:var(--tx-primary)">Gratuit</p>
+      <p class="text-xs mb-4" style="color:var(--tx-muted)">14 zile, fără card</p>
+      <div class="flex-1 space-y-2 mb-4">
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> 1 cameră
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> 500 incidente/lună
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> Dashboard complet
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> Email suport
+        </div>
+      </div>
+      <button disabled
+        class="w-full py-2.5 rounded-xl text-xs font-semibold opacity-50 cursor-not-allowed"
+        style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-muted)">
+        Inclus automat
+      </button>
+    </div>
+
+    <!-- STARTER -->
+    <div class="rounded-2xl p-5 flex flex-col"
+      :style="org?.plan === 'starter'
+        ? 'background:var(--bg-surface);border:2px solid #3b82f6;box-shadow:0 4px 24px rgba(59,130,246,.15)'
+        : 'background:var(--bg-surface);border:1px solid var(--bg-border)'">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--tx-muted)">Starter</p>
+        <span x-show="org?.plan === 'starter'" class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+          style="background:rgba(59,130,246,.15);color:#3b82f6;border:1px solid rgba(59,130,246,.3)">CURENT</span>
+      </div>
+      <p class="text-3xl font-extrabold mb-1" style="color:var(--tx-primary)">
+        €49<span class="text-sm font-normal" style="color:var(--tx-muted)">/lună</span>
+      </p>
+      <p class="text-xs mb-4" style="color:var(--tx-muted)">Ideal pentru IMM-uri</p>
+      <div class="flex-1 space-y-2 mb-4">
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> 2 camere
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> 2.000 incidente/lună
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> Export CSV
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> Email alerts
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> Retenție 3 luni
+        </div>
+      </div>
+      <button @click="isAdmin ? activatePlan('starter') : showToast('Doar adminul org poate schimba planul', 'error')"
+        :disabled="org?.plan === 'starter' || !isAdmin"
+        class="w-full py-2.5 rounded-xl text-xs font-bold transition-all"
+        :style="org?.plan === 'starter'
+          ? 'background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:#3b82f6;cursor:default'
+          : !isAdmin
+            ? 'background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-muted);opacity:.5;cursor:not-allowed'
+            : 'background:#3b82f6;color:#fff;box-shadow:0 4px 14px rgba(59,130,246,.3)'">
+        <span x-text="org?.plan === 'starter' ? '✓ Plan activ' : 'Selectează Starter'"></span>
+      </button>
+    </div>
+
+    <!-- PRO (popular) -->
+    <div class="rounded-2xl p-5 flex flex-col relative overflow-hidden"
+      style="background:linear-gradient(135deg,#059669,#047857);box-shadow:0 8px 32px rgba(5,150,105,.3)">
+      <div class="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider"
+        style="background:rgba(255,255,255,.25);color:#fff">Popular</div>
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[10px] font-bold uppercase tracking-widest" style="color:rgba(255,255,255,.7)">Pro</p>
+        <span x-show="org?.plan === 'pro'" class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+          style="background:rgba(255,255,255,.25);color:#fff">CURENT</span>
+      </div>
+      <p class="text-3xl font-extrabold mb-1" style="color:#fff">
+        €149<span class="text-sm font-normal" style="color:rgba(255,255,255,.7)">/lună</span>
+      </p>
+      <p class="text-xs mb-4" style="color:rgba(255,255,255,.7)">Municipalități, mall-uri</p>
+      <div class="flex-1 space-y-2 mb-4">
+        <div class="flex items-center gap-2 text-xs" style="color:rgba(255,255,255,.95)">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i> 10 camere
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:rgba(255,255,255,.95)">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i> Incidente nelimitate
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:rgba(255,255,255,.95)">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i> Export PDF/CSV/ZIP
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:rgba(255,255,255,.95)">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i> Webhook-uri HMAC
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:rgba(255,255,255,.95)">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i> 5 contacte autoritate
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:rgba(255,255,255,.95)">
+          <i data-lucide="check" class="w-3.5 h-3.5"></i> Retenție 12 luni
+        </div>
+      </div>
+      <button @click="isAdmin ? activatePlan('pro') : showToast('Doar adminul org poate schimba planul', 'error')"
+        :disabled="org?.plan === 'pro' || !isAdmin"
+        class="w-full py-2.5 rounded-xl text-xs font-bold transition-all"
+        :style="org?.plan === 'pro'
+          ? 'background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;cursor:default'
+          : !isAdmin
+            ? 'background:rgba(255,255,255,.1);color:rgba(255,255,255,.6);cursor:not-allowed'
+            : 'background:#fff;color:#047857'">
+        <span x-text="org?.plan === 'pro' ? '✓ Plan activ' : 'Selectează Pro'"></span>
+      </button>
+    </div>
+
+    <!-- ENTERPRISE -->
+    <div class="rounded-2xl p-5 flex flex-col"
+      :style="org?.plan === 'enterprise'
+        ? 'background:var(--bg-surface);border:2px solid #8b5cf6;box-shadow:0 4px 24px rgba(139,92,246,.15)'
+        : 'background:var(--bg-surface);border:1px solid var(--bg-border)'">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-[10px] font-bold uppercase tracking-widest" style="color:var(--tx-muted)">Enterprise</p>
+        <span x-show="org?.plan === 'enterprise'" class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+          style="background:rgba(139,92,246,.15);color:#8b5cf6;border:1px solid rgba(139,92,246,.3)">CURENT</span>
+      </div>
+      <p class="text-3xl font-extrabold mb-1" style="color:var(--tx-primary)">Custom</p>
+      <p class="text-xs mb-4" style="color:var(--tx-muted)">Contract anual</p>
+      <div class="flex-1 space-y-2 mb-4">
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> Camere nelimitate
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> Self-hosted option
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> White-label
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> SLA 99.9%
+        </div>
+        <div class="flex items-center gap-2 text-xs" style="color:var(--tx-primary)">
+          <i data-lucide="check" class="w-3.5 h-3.5" style="color:#059669"></i> Onboarding dedicat
+        </div>
+      </div>
+      <div class="flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold"
+        :style="org?.plan === 'enterprise'
+          ? 'background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);color:#8b5cf6'
+          : 'background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-muted)'">
+        <i data-lucide="mail" class="w-3.5 h-3.5"></i>
+        <span x-text="org?.plan === 'enterprise' ? '✓ Enterprise activ' : 'contact@trashdet.io'"></span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Billing info ─────────────────────────────────────────────────── -->
+  <div class="rounded-2xl p-5" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
+    <div class="flex items-center gap-2 mb-3">
+      <i data-lucide="credit-card" class="w-4 h-4" style="color:#6366f1"></i>
+      <p class="text-sm font-bold" style="color:var(--tx-primary)">Facturare & istoric</p>
+    </div>
+    <p class="text-xs mb-3" style="color:var(--tx-muted)">
+      Plățile sunt procesate securizat prin Stripe. Anulezi oricând din panou.
+    </p>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="rounded-xl p-3" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+        <p class="text-[10px] uppercase tracking-wide" style="color:var(--tx-muted)">Plan curent</p>
+        <p class="text-sm font-bold mt-1" style="color:var(--tx-primary)" x-text="(org?.plan || 'trial').toUpperCase()"></p>
+      </div>
+      <div class="rounded-xl p-3" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+        <p class="text-[10px] uppercase tracking-wide" style="color:var(--tx-muted)">Camere folosite</p>
+        <p class="text-sm font-bold mt-1" style="color:var(--tx-primary)">
+          <span x-text="locations.length"></span>
+          /
+          <span x-text="org?.max_cameras >= 999999 ? '∞' : org?.max_cameras ?? 1"></span>
+        </p>
+      </div>
+      <div class="rounded-xl p-3" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+        <p class="text-[10px] uppercase tracking-wide" style="color:var(--tx-muted)">Status</p>
+        <p class="text-sm font-bold mt-1" :style="org?.subscription_active ? 'color:#059669' : 'color:#ef4444'"
+          x-text="org?.subscription_active ? '● Activ' : '● Suspendat'"></p>
+      </div>
+    </div>
+  </div>
+</div>

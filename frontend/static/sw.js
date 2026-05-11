@@ -1,17 +1,13 @@
 /* EcoAlert — Service Worker */
 
-const CACHE = 'ecoalert-v3';
+const CACHE = 'ecoalert-v4';
 const SHELL = [
   '/',
   '/static/css/style.css',
   '/static/js/utils.js',
-  '/static/js/detect.js',
-  '/static/js/map.js',
-  '/static/js/history.js',
   '/static/js/video.js',
   '/static/js/admin.js',
   '/static/js/auth.js',
-  '/static/js/community.js',
   '/static/js/app.js',
 ];
 

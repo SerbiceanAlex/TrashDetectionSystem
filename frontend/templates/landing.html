@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="TrashDet — Sistem B2B de detecție automată a aruncării ilegale de deșeuri prin camere IP și AI." />
+  <title>TrashDet — Detecție automată deșeuri ilegale</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { fontFamily: { sans: ['Inter','system-ui','sans-serif'] },
+        colors: { brand: { 50:'#ecfdf5',100:'#d1fae5',500:'#10b981',600:'#059669',700:'#047857',900:'#064e3b',950:'#022c22' } } } }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; margin: 0; background: #020617; color: #f1f5f9; }
+    .gradient-text { background: linear-gradient(135deg, #34d399, #059669, #0ea5e9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .card-glow { box-shadow: 0 0 0 1px rgba(5,150,105,.15), 0 8px 32px rgba(5,150,105,.08); }
+    .hero-glow { background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(5,150,105,.18) 0%, transparent 70%); }
+    @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    .float { animation: float 4s ease-in-out infinite; }
+    .pricing-popular { background: linear-gradient(135deg, #059669, #047857); }
+
+    /* ── Logo animat ── */
+    @keyframes td-scan { 0% { transform:translateY(-100%); } 50% { transform:translateY(100%); } 100% { transform:translateY(-100%); } }
+    @keyframes td-corner-pulse { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+    .td-logo { display:flex; align-items:center; gap:10px; cursor:pointer; text-decoration:none; }
+    .td-logo__frame { position:relative; background:#0f172a; border-radius:12px; overflow:hidden; display:flex; align-items:center; justify-content:center; flex-shrink:0; width:36px; height:36px; }
+    .td-logo__inner { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+    .td-logo__scan-line { position:absolute; width:100%; height:100%; background:linear-gradient(to bottom,transparent,rgba(16,185,129,.25),transparent); animation:td-scan 3s ease-in-out infinite; }
+    .td-logo__center-dot { position:relative; z-index:2; display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
+    .td-logo__leaf-icon { color:#34d399; width:42%; height:42%; filter:drop-shadow(0 0 5px rgba(52,211,153,.8)); }
+    .td-logo__c { position:absolute; width:28%; height:28%; border-color:rgba(16,185,129,.5); border-style:solid; animation:td-corner-pulse 2s ease-in-out infinite; }
+    .td-logo__c--tl { top:8%; left:8%; border-width:2px 0 0 2px; border-radius:2px 0 0 0; }
+    .td-logo__c--tr { top:8%; right:8%; border-width:2px 2px 0 0; border-radius:0 2px 0 0; animation-delay:.5s; }
+    .td-logo__c--bl { bottom:8%; left:8%; border-width:0 0 2px 2px; border-radius:0 0 0 2px; animation-delay:1s; }
+    .td-logo__c--br { bottom:8%; right:8%; border-width:0 2px 2px 0; border-radius:0 0 2px 0; animation-delay:1.5s; }
+    .td-logo__wordmark { font-weight:900; letter-spacing:-.5px; line-height:1; color:#f1f5f9; font-size:18px; }
+    .td-logo__wordmark span { color:#34d399; font-weight:300; }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ──────────────────────────────────────────────────────────────── -->
+<nav style="position:sticky;top:0;z-index:100;background:rgba(2,6,23,.85);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,.06);padding:0 24px">
+  <div style="max-width:1200px;margin:0 auto;height:64px;display:flex;align-items:center;gap:16px">
+    <!-- Logo animat -->
+    <a href="/" class="td-logo" style="flex-shrink:0">
+      <div class="td-logo__frame">
+        <div class="td-logo__inner">
+          <div class="td-logo__scan-line"></div>
+          <div class="td-logo__center-dot">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="td-logo__leaf-icon"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8h-5a7 7 0 0 1-5 10Z"/></svg>
+          </div>
+        </div>
+        <span class="td-logo__c td-logo__c--tl"></span>
+        <span class="td-logo__c td-logo__c--tr"></span>
+        <span class="td-logo__c td-logo__c--bl"></span>
+        <span class="td-logo__c td-logo__c--br"></span>
+      </div>
+      <div class="td-logo__wordmark">Trash<span>Det</span></div>
+    </a>
+
+    <!-- Nav links (desktop) -->
+    <div style="display:flex;gap:24px;margin-left:32px;flex:1" class="hidden md:flex">
+      <a href="#features" style="font-size:14px;font-weight:500;color:#94a3b8;text-decoration:none;transition:color .15s" onmouseover="this.style.color='#f1f5f9'" onmouseout="this.style.color='#94a3b8'">Funcționalități</a>
+      <a href="#how-it-works" style="font-size:14px;font-weight:500;color:#94a3b8;text-decoration:none;transition:color .15s" onmouseover="this.style.color='#f1f5f9'" onmouseout="this.style.color='#94a3b8'">Cum funcționează</a>
+      <a href="#pricing" style="font-size:14px;font-weight:500;color:#94a3b8;text-decoration:none;transition:color .15s" onmouseover="this.style.color='#f1f5f9'" onmouseout="this.style.color='#94a3b8'">Prețuri</a>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-left:auto;align-items:center">
+      <a href="/app?action=login" style="font-size:14px;font-weight:600;color:#94a3b8;text-decoration:none;padding:8px 16px;border-radius:8px;transition:all .15s"
+        onmouseover="this.style.color='#f1f5f9';this.style.background='rgba(255,255,255,.06)'"
+        onmouseout="this.style.color='#94a3b8';this.style.background='transparent'">
+        Conectare
+      </a>
+      <a href="/app?action=register" style="font-size:14px;font-weight:700;color:#fff;text-decoration:none;padding:8px 18px;border-radius:8px;
+        background:linear-gradient(135deg,#059669,#047857);transition:opacity .15s"
+        onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+        Încearcă gratuit →
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<section class="hero-glow" style="padding:96px 24px 72px;text-align:center;position:relative">
+  <div style="max-width:780px;margin:0 auto">
+    <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(5,150,105,.12);border:1px solid rgba(5,150,105,.25);border-radius:99px;padding:6px 16px;margin-bottom:28px">
+      <span style="width:6px;height:6px;border-radius:50%;background:#34d399;display:inline-block;animation:pulse 2s infinite"></span>
+      <span style="font-size:12px;font-weight:600;color:#34d399">YOLOv8 · ByteTrack · Detecție în timp real</span>
+    </div>
+    <style>@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }</style>
+
+    <h1 style="font-size:clamp(36px,6vw,64px);font-weight:900;line-height:1.1;margin:0 0 24px;letter-spacing:-1.5px">
+      Detectează aruncarea ilegală<br>
+      <span class="gradient-text">a deșeurilor. Automat.</span>
+    </h1>
+    <p style="font-size:clamp(16px,2vw,20px);color:#94a3b8;line-height:1.6;margin:0 auto 40px;max-width:560px">
+      Sistem B2B de monitorizare video cu AI pentru municipalități, malluri și administrații de proprietăți. Conectezi camere IP — noi detectăm incidentele.
+    </p>
+
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:56px">
+      <a href="/app?action=register" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;border-radius:12px;font-size:16px;font-weight:700;color:#fff;text-decoration:none;
+        background:linear-gradient(135deg,#059669,#047857);box-shadow:0 8px 32px rgba(5,150,105,.35);transition:all .2s"
+        onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 12px 40px rgba(5,150,105,.45)'"
+        onmouseout="this.style.transform='';this.style.boxShadow='0 8px 32px rgba(5,150,105,.35)'">
+        <i data-lucide="play-circle" style="width:18px;height:18px"></i> Încearcă gratuit 14 zile
+      </a>
+      <a href="#how-it-works" style="display:inline-flex;align-items:center;gap:8px;padding:14px 28px;border-radius:12px;font-size:16px;font-weight:600;
+        color:#94a3b8;text-decoration:none;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);transition:all .2s"
+        onmouseover="this.style.borderColor='rgba(255,255,255,.2)';this.style.color='#f1f5f9'"
+        onmouseout="this.style.borderColor='rgba(255,255,255,.12)';this.style.color='#94a3b8'">
+        Cum funcționează →
+      </a>
+    </div>
+
+    <!-- Dashboard mockup -->
+    <div class="float" style="border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.08);box-shadow:0 32px 80px rgba(0,0,0,.6),0 0 0 1px rgba(5,150,105,.1)">
+      <div style="background:#0f172a;padding:12px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.06)">
+        <div style="display:flex;gap:6px">
+          <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block"></span>
+        </div>
+        <span style="font-size:11px;color:#475569;flex:1;text-align:center">TrashDet — Dashboard Monitorizare</span>
+      </div>
+      <div style="background:#020617;padding:24px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+        <!-- KPI cards -->
+        <div style="background:#0f172a;border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,.06)">
+          <p style="font-size:10px;color:#475569;margin:0 0 8px;text-transform:uppercase;letter-spacing:.5px">Incidente azi</p>
+          <p style="font-size:28px;font-weight:800;color:#34d399;margin:0">7</p>
+          <p style="font-size:10px;color:#ef4444;margin:4px 0 0">▲ +3 față de ieri</p>
+        </div>
+        <div style="background:#0f172a;border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,.06)">
+          <p style="font-size:10px;color:#475569;margin:0 0 8px;text-transform:uppercase;letter-spacing:.5px">Camere active</p>
+          <p style="font-size:28px;font-weight:800;color:#60a5fa;margin:0">4</p>
+          <p style="font-size:10px;color:#22c55e;margin:4px 0 0">● Online</p>
+        </div>
+        <div style="background:#0f172a;border-radius:10px;padding:16px;border:1px solid rgba(255,255,255,.06)">
+          <p style="font-size:10px;color:#475569;margin:0 0 8px;text-transform:uppercase;letter-spacing:.5px">Trimise autoritate</p>
+          <p style="font-size:28px;font-weight:800;color:#a78bfa;margin:0">12</p>
+          <p style="font-size:10px;color:#94a3b8;margin:4px 0 0">Luna aceasta</p>
+        </div>
+        <!-- Alert row -->
+        <div style="grid-column:1/-1;background:#0f172a;border-radius:10px;padding:14px 16px;border:1px solid rgba(239,68,68,.2);display:flex;align-items:center;gap:12px">
+          <div style="width:36px;height:36px;border-radius:8px;background:rgba(239,68,68,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i data-lucide="alert-triangle" style="width:16px;height:16px;color:#ef4444"></i>
+          </div>
+          <div style="flex:1">
+            <p style="font-size:12px;font-weight:600;color:#f1f5f9;margin:0">Incident detectat — Parcare Nord</p>
+            <p style="font-size:11px;color:#64748b;margin:2px 0 0">Acum 3 minute · Plastic · Față blurată automat · SHA-256 hash</p>
+          </div>
+          <span style="font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px;background:rgba(239,68,68,.15);color:#f87171">PENDING</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Social proof ──────────────────────────────────────────────────────── -->
+<section style="padding:32px 24px;border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05)">
+  <div style="max-width:900px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:48px;flex-wrap:wrap">
+    <div style="text-align:center">
+      <p style="font-size:28px;font-weight:800;color:#f1f5f9;margin:0">91.1%</p>
+      <p style="font-size:12px;color:#64748b;margin:4px 0 0">Top-1 Accuracy</p>
+    </div>
+    <div style="width:1px;height:40px;background:rgba(255,255,255,.08)"></div>
+    <div style="text-align:center">
+      <p style="font-size:28px;font-weight:800;color:#f1f5f9;margin:0">&lt; 2s</p>
+      <p style="font-size:12px;color:#64748b;margin:4px 0 0">Latență alertă</p>
+    </div>
+    <div style="width:1px;height:40px;background:rgba(255,255,255,.08)"></div>
+    <div style="text-align:center">
+      <p style="font-size:28px;font-weight:800;color:#f1f5f9;margin:0">GDPR</p>
+      <p style="font-size:12px;color:#64748b;margin:4px 0 0">Face blur automat</p>
+    </div>
+    <div style="width:1px;height:40px;background:rgba(255,255,255,.08)"></div>
+    <div style="text-align:center">
+      <p style="font-size:28px;font-weight:800;color:#f1f5f9;margin:0">YOLOv8</p>
+      <p style="font-size:12px;color:#64748b;margin:4px 0 0">Model custom antrenat</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ──────────────────────────────────────────────────────────── -->
+<section id="features" style="padding:96px 24px">
+  <div style="max-width:1100px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:64px">
+      <h2 style="font-size:clamp(28px,4vw,42px);font-weight:800;margin:0 0 16px;letter-spacing:-.5px">
+        Tot ce ai nevoie pentru monitorizare B2B
+      </h2>
+      <p style="font-size:16px;color:#64748b;max-width:480px;margin:0 auto;line-height:1.6">
+        Proiectat pentru echipe operaționale, nu pentru ingineri.
+      </p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px">
+      <!-- Feature 1 -->
+      <div class="card-glow" style="background:#0f172a;border-radius:16px;padding:28px;border:1px solid rgba(255,255,255,.06)">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(5,150,105,.15);display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+          <i data-lucide="brain-circuit" style="width:24px;height:24px;color:#34d399"></i>
+        </div>
+        <h3 style="font-size:16px;font-weight:700;margin:0 0 8px;color:#f1f5f9">Detecție AI cu YOLOv8</h3>
+        <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0">
+          Model custom antrenat pe 5.000+ imagini de gunoi stradal. Recunoaște plastic, sticlă, metal, hârtie și alte materiale.
+        </p>
+      </div>
+
+      <!-- Feature 2 -->
+      <div class="card-glow" style="background:#0f172a;border-radius:16px;padding:28px;border:1px solid rgba(255,255,255,.06)">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(59,130,246,.15);display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+          <i data-lucide="cctv" style="width:24px;height:24px;color:#60a5fa"></i>
+        </div>
+        <h3 style="font-size:16px;font-weight:700;margin:0 0 8px;color:#f1f5f9">Camere IP / RTSP</h3>
+        <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0">
+          Conectezi orice cameră IP cu stream RTSP sau ONVIF. Fără hardware proprietary. Funcționează cu echipamentul existent.
+        </p>
+      </div>
+
+      <!-- Feature 3 -->
+      <div class="card-glow" style="background:#0f172a;border-radius:16px;padding:28px;border:1px solid rgba(255,255,255,.06)">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(239,68,68,.15);display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+          <i data-lucide="zap" style="width:24px;height:24px;color:#f87171"></i>
+        </div>
+        <h3 style="font-size:16px;font-weight:700;margin:0 0 8px;color:#f1f5f9">Alertă în &lt; 2 secunde</h3>
+        <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0">
+          Mașina de stări temporale (CLEAR → MONITORING → ALERT) reduce fals-pozitivele și generează alertă în sub 2 secunde.
+        </p>
+      </div>
+
+      <!-- Feature 4 -->
+      <div class="card-glow" style="background:#0f172a;border-radius:16px;padding:28px;border:1px solid rgba(255,255,255,.06)">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(245,158,11,.15);display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+          <i data-lucide="shield" style="width:24px;height:24px;color:#fbbf24"></i>
+        </div>
+        <h3 style="font-size:16px;font-weight:700;margin:0 0 8px;color:#f1f5f9">GDPR — Face Blur automat</h3>
+        <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0">
+          Fețele persoanelor sunt blurate automat înainte de stocare. SHA-256 hash pentru integritate dovezi. Conform GDPR Art. 25.
+        </p>
+      </div>
+
+      <!-- Feature 5 -->
+      <div class="card-glow" style="background:#0f172a;border-radius:16px;padding:28px;border:1px solid rgba(255,255,255,.06)">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(139,92,246,.15);display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+          <i data-lucide="send" style="width:24px;height:24px;color:#a78bfa"></i>
+        </div>
+        <h3 style="font-size:16px;font-weight:700;margin:0 0 8px;color:#f1f5f9">Forward la autoritate</h3>
+        <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0">
+          Un click trimite evidența (clip + thumbnail + hash + metadata) direct pe email la primărie sau poliție locală.
+        </p>
+      </div>
+
+      <!-- Feature 6 -->
+      <div class="card-glow" style="background:#0f172a;border-radius:16px;padding:28px;border:1px solid rgba(255,255,255,.06)">
+        <div style="width:48px;height:48px;border-radius:12px;background:rgba(20,184,166,.15);display:flex;align-items:center;justify-content:center;margin-bottom:16px">
+          <i data-lucide="webhook" style="width:24px;height:24px;color:#2dd4bf"></i>
+        </div>
+        <h3 style="font-size:16px;font-weight:700;margin:0 0 8px;color:#f1f5f9">Webhooks HMAC</h3>
+        <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0">
+          Integrare cu sisteme externe (ArcGIS, SCMPD, CRM) prin webhook-uri semnate HMAC-SHA256. API REST complet documentat.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── How it works ──────────────────────────────────────────────────────── -->
+<section id="how-it-works" style="padding:96px 24px;background:rgba(255,255,255,.02);border-top:1px solid rgba(255,255,255,.05);border-bottom:1px solid rgba(255,255,255,.05)">
+  <div style="max-width:860px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:64px">
+      <h2 style="font-size:clamp(28px,4vw,42px);font-weight:800;margin:0 0 16px;letter-spacing:-.5px">Cum funcționează</h2>
+      <p style="font-size:16px;color:#64748b;max-width:440px;margin:0 auto">De la cameră la raport la autoritate — în sub 5 minute setup.</p>
+    </div>
+
+    <div style="display:grid;gap:32px">
+      <!-- Step 1 -->
+      <div style="display:flex;gap:24px;align-items:flex-start">
+        <div style="flex-shrink:0;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#059669,#047857);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff">1</div>
+        <div style="padding-top:8px">
+          <h3 style="font-size:18px;font-weight:700;margin:0 0 8px;color:#f1f5f9">Conectezi camerele</h3>
+          <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0">
+            Wizard ghidat de 3 minute: introduci URL-ul RTSP al camerei IP sau alegi webcam-ul. Sistemul testează conexiunea și salvează configurația.
+          </p>
+        </div>
+      </div>
+
+      <!-- Connector -->
+      <div style="margin-left:26px;width:1px;height:32px;background:linear-gradient(to bottom,rgba(5,150,105,.5),transparent)"></div>
+
+      <!-- Step 2 -->
+      <div style="display:flex;gap:24px;align-items:flex-start">
+        <div style="flex-shrink:0;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff">2</div>
+        <div style="padding-top:8px">
+          <h3 style="font-size:18px;font-weight:700;margin:0 0 8px;color:#f1f5f9">AI detectează incidentele</h3>
+          <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0">
+            YOLOv8 + ByteTrack monitorizează continuu. Când o persoană aruncă un obiect, mașina de stări temporale confirmă evenimentul și generează automat clip + thumbnail + hash SHA-256.
+          </p>
+        </div>
+      </div>
+
+      <!-- Connector -->
+      <div style="margin-left:26px;width:1px;height:32px;background:linear-gradient(to bottom,rgba(59,130,246,.5),transparent)"></div>
+
+      <!-- Step 3 -->
+      <div style="display:flex;gap:24px;align-items:flex-start">
+        <div style="flex-shrink:0;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#6d28d9);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff">3</div>
+        <div style="padding-top:8px">
+          <h3 style="font-size:18px;font-weight:700;margin:0 0 8px;color:#f1f5f9">Trimiți dovada la autoritate</h3>
+          <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0">
+            Din panoul Admin, revizuiești incidentul și cu un click trimiți pachetul de evidență (clip + metadata + hash) direct pe email la primărie sau poliție.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Pricing ────────────────────────────────────────────────────────────── -->
+<section id="pricing" style="padding:96px 24px">
+  <div style="max-width:1100px;margin:0 auto">
+    <div style="text-align:center;margin-bottom:64px">
+      <h2 style="font-size:clamp(28px,4vw,42px);font-weight:800;margin:0 0 16px;letter-spacing:-.5px">Prețuri transparente</h2>
+      <p style="font-size:16px;color:#64748b;max-width:440px;margin:0 auto">Fără contracte. Fără taxe ascunse. Anulezi oricând.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;align-items:stretch">
+
+      <!-- Trial -->
+      <div style="background:#0f172a;border-radius:20px;padding:28px;border:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column">
+        <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin:0 0 12px">Trial</p>
+        <p style="font-size:36px;font-weight:900;margin:0 0 4px;color:#f1f5f9">Gratuit</p>
+        <p style="font-size:13px;color:#475569;margin:0 0 24px">14 zile, fără card</p>
+        <div style="flex:1;display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">1 cameră</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">500 incidente/lună</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">Dashboard complet</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">Email suport</span></div>
+        </div>
+        <a href="/app?action=register&plan=trial" style="display:block;text-align:center;padding:12px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;
+          background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#94a3b8;transition:all .15s"
+          onmouseover="this.style.background='rgba(255,255,255,.1)';this.style.color='#f1f5f9'"
+          onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.color='#94a3b8'">
+          Începe gratuit — 14 zile
+        </a>
+      </div>
+
+      <!-- Starter -->
+      <div style="background:#0f172a;border-radius:20px;padding:28px;border:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column">
+        <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin:0 0 12px">Starter</p>
+        <p style="font-size:36px;font-weight:900;margin:0 0 4px;color:#f1f5f9">€49<span style="font-size:14px;font-weight:400;color:#64748b">/lună</span></p>
+        <p style="font-size:13px;color:#475569;margin:0 0 24px">Ideal pentru IMM-uri</p>
+        <div style="flex:1;display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">2 camere</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">2.000 incidente/lună</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">Export CSV</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">Email alerts</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">1 autoritate contact</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">Retenție date 3 luni</span></div>
+        </div>
+        <a href="/app?action=register&plan=starter" style="display:block;text-align:center;padding:12px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;
+          background:rgba(5,150,105,.15);border:1px solid rgba(5,150,105,.3);color:#34d399;transition:all .15s"
+          onmouseover="this.style.background='rgba(5,150,105,.25)'" onmouseout="this.style.background='rgba(5,150,105,.15)'">
+          Alege Starter →
+        </a>
+      </div>
+
+      <!-- Pro (popular) -->
+      <div class="pricing-popular" style="border-radius:20px;padding:28px;position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(5,150,105,.3)">
+        <div style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,.2);border-radius:99px;padding:3px 12px;font-size:10px;font-weight:800;color:#fff;letter-spacing:.5px">POPULAR</div>
+        <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.7);margin:0 0 12px">Pro</p>
+        <p style="font-size:36px;font-weight:900;margin:0 0 4px;color:#fff">€149<span style="font-size:14px;font-weight:400;color:rgba(255,255,255,.7)">/lună</span></p>
+        <p style="font-size:13px;color:rgba(255,255,255,.6);margin:0 0 24px">Municipalități și mall-uri</p>
+        <div style="flex:1;display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:rgba(255,255,255,.9);flex-shrink:0"></i><span style="font-size:13px;color:rgba(255,255,255,.8)">10 camere</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:rgba(255,255,255,.9);flex-shrink:0"></i><span style="font-size:13px;color:rgba(255,255,255,.8)">Incidente nelimitate</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:rgba(255,255,255,.9);flex-shrink:0"></i><span style="font-size:13px;color:rgba(255,255,255,.8)">Export PDF/CSV/ZIP</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:rgba(255,255,255,.9);flex-shrink:0"></i><span style="font-size:13px;color:rgba(255,255,255,.8)">Webhook-uri HMAC</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:rgba(255,255,255,.9);flex-shrink:0"></i><span style="font-size:13px;color:rgba(255,255,255,.8)">5 autorități contact</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:rgba(255,255,255,.9);flex-shrink:0"></i><span style="font-size:13px;color:rgba(255,255,255,.8)">Retenție date 12 luni</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:rgba(255,255,255,.9);flex-shrink:0"></i><span style="font-size:13px;color:rgba(255,255,255,.8)">Suport prioritar</span></div>
+        </div>
+        <a href="/app?action=register&plan=pro" style="display:block;text-align:center;padding:12px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;
+          background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);transition:all .15s"
+          onmouseover="this.style.background='rgba(255,255,255,.3)'" onmouseout="this.style.background='rgba(255,255,255,.2)'">
+          Alege Pro →
+        </a>
+      </div>
+
+      <!-- Enterprise -->
+      <div style="background:#0f172a;border-radius:20px;padding:28px;border:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column">
+        <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin:0 0 12px">Enterprise</p>
+        <p style="font-size:36px;font-weight:900;margin:0 0 4px;color:#f1f5f9">Personalizat</p>
+        <p style="font-size:13px;color:#475569;margin:0 0 24px">Contract anual negociat</p>
+        <div style="flex:1;display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">Camere nelimitate</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">Self-hosted option</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">White-label</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">SLA 99.9%</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">Onboarding dedicat</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><i data-lucide="check" style="width:14px;height:14px;color:#34d399;flex-shrink:0"></i><span style="font-size:13px;color:#94a3b8">API dedicat</span></div>
+        </div>
+        <a href="mailto:contact@trashdet.io" style="display:block;text-align:center;padding:12px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;
+          background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:#94a3b8;transition:all .15s"
+          onmouseover="this.style.background='rgba(255,255,255,.1)';this.style.color='#f1f5f9'"
+          onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.color='#94a3b8'">
+          Contactează-ne
+        </a>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA Banner ─────────────────────────────────────────────────────────── -->
+<section style="padding:96px 24px;background:linear-gradient(135deg,rgba(5,150,105,.08) 0%,rgba(4,120,87,.04) 100%);border-top:1px solid rgba(5,150,105,.15);border-bottom:1px solid rgba(5,150,105,.15)">
+  <div style="max-width:600px;margin:0 auto;text-align:center">
+    <h2 style="font-size:clamp(28px,4vw,40px);font-weight:800;margin:0 0 16px;letter-spacing:-.5px">
+      Gata să protejezi<br>spațiile tale?
+    </h2>
+    <p style="font-size:16px;color:#64748b;margin:0 0 36px;line-height:1.6">
+      14 zile gratuit. Fără card bancar. Setup în sub 5 minute.
+    </p>
+    <a href="/app?action=register" style="display:inline-flex;align-items:center;gap:10px;padding:16px 36px;border-radius:12px;font-size:17px;font-weight:700;color:#fff;text-decoration:none;
+      background:linear-gradient(135deg,#059669,#047857);box-shadow:0 8px 32px rgba(5,150,105,.4);transition:all .2s"
+      onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 12px 48px rgba(5,150,105,.5)'"
+      onmouseout="this.style.transform='';this.style.boxShadow='0 8px 32px rgba(5,150,105,.4)'">
+      <i data-lucide="rocket" style="width:20px;height:20px"></i>
+      Începe gratuit acum →
+    </a>
+  </div>
+</section>
+
+<!-- ── Footer ─────────────────────────────────────────────────────────────── -->
+<footer style="padding:48px 24px;border-top:1px solid rgba(255,255,255,.06)">
+  <div style="max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:24px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#059669,#047857);display:flex;align-items:center;justify-content:center">
+        <i data-lucide="scan-line" style="width:14px;height:14px;color:#fff"></i>
+      </div>
+      <span style="font-size:16px;font-weight:800;color:#f1f5f9">Trash<span style="color:#34d399">Det</span></span>
+    </div>
+    <p style="font-size:13px;color:#334155;margin:0">
+      © 2026 TrashDet · Proiect de licență UAB Alba Iulia · Facultatea de Informatică și Inginerie
+    </p>
+    <div style="display:flex;gap:20px">
+      <a href="/app?action=register" style="font-size:13px;color:#475569;text-decoration:none;transition:color .15s" onmouseover="this.style.color='#94a3b8'" onmouseout="this.style.color='#475569'">Aplicație</a>
+      <a href="#pricing" style="font-size:13px;color:#475569;text-decoration:none;transition:color .15s" onmouseover="this.style.color='#94a3b8'" onmouseout="this.style.color='#475569'">Prețuri</a>
+      <a href="#features" style="font-size:13px;color:#475569;text-decoration:none;transition:color .15s" onmouseover="this.style.color='#94a3b8'" onmouseout="this.style.color='#475569'">Funcționalități</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Initialize Lucide icons
+  if (window.lucide) lucide.createIcons();
+</script>
+</body>
+</html>

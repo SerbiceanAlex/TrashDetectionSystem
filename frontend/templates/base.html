@@ -7,6 +7,7 @@
 <body>
 
 {% include 'partials/_overlays.html' %}
+{% include 'partials/_camera_wizard.html' %}
 
 <!-- Auth screen (login / OTP / register) -->
 {% include 'partials/_auth.html' %}
@@ -25,13 +26,14 @@
       {% include 'tabs/incidents.html' %}
       {% include 'tabs/locations.html' %}
       {% include 'tabs/reports.html' %}
+      {% include 'tabs/plans.html' %}
       {% include 'tabs/admin.html' %}
       {% include 'tabs/more.html' %}
       {# history.html, map.html, community.html removed — B2B pivot #}
     </main>
 
     <nav class="td-bottom-nav">
-      <template x-for="tab in tabs" :key="tab.id">
+      <template x-for="tab in visibleTabs" :key="tab.id">
         <button @click="goTo(tab.id)" class="td-bottom-btn" :class="activeTab === tab.id ? 'td-bottom-btn--active' : ''">
           <svg class="td-bottom-btn__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path :d="tab.svgPath"></path>

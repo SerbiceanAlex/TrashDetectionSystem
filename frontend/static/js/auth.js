@@ -23,6 +23,7 @@ function authApp() {
     otpCountdown: 0,
     otpResendAvailable: false,
     _otpInterval: null,
+    devOtp: '',
 
     // Password strength
     passwordRules: {
@@ -81,6 +82,7 @@ function authApp() {
           // Switch to OTP entry mode
           this.otpUsername = this.loginData.username;
           this.otpEmailHint = data.email_hint;
+          this.devOtp = data.dev_otp || '';
           this.otpDigits = ['', '', '', '', '', ''];
           this.authMode = 'otp';
           this.startOtpCountdown();
@@ -236,6 +238,7 @@ function authApp() {
       this.otpEmailHint = '';
       this.otpCountdown = 0;
       this.otpResendAvailable = false;
+      this.devOtp = '';
     },
 
     /* ── Register ─────────────────────────────────────────────────────── */
@@ -271,6 +274,7 @@ function authApp() {
       try {
         this.user = await fetchAPI('/api/auth/me');
         this.isLoggedIn = true;
+        window.dispatchEvent(new CustomEvent('eco:authChanged'));
       } catch (e) {
         this.logout();
       }
