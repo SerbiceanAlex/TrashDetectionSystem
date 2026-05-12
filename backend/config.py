@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # ── Paths ────────────────────────────────────────────────────────────────
     REPO_ROOT: Path = Path(__file__).parent.parent
-    DETECTOR_WEIGHTS: str = "runs/detect/parks-trash-A4/weights/best.pt"
+    DETECTOR_WEIGHTS: str = "runs/detect/parks-trash-A4-ext/weights/best.pt"
     CLASSIFIER_WEIGHTS: str = "runs/classify/parks-cls-B2/weights/best.pt"
 
     # ── JWT / Auth ───────────────────────────────────────────────────────────

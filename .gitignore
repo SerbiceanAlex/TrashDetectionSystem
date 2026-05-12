@@ -36,11 +36,10 @@ runs/
 *.csv
 !results/**/*.csv
 
-# Ignore JSON except static app files, results/ and evaluation annotations
+# Ignore JSON except static app files and results/
 *.json
 !frontend/static/manifest.json
 !results/**/*.json
-!scripts/littering_annotations.json
 
 # datasets / big files
 datasets/
@@ -69,6 +68,19 @@ datasets/test_videos/
 
 # Claude internal
 .claude/scheduled_tasks.lock
+
+# Personal notes / reminders (nu fac parte din cod)
+REMINDER_*.md
+
+# Fisiere text temporare generate la antrenare
+*.txt
+!README.md
+
+# Cache YOLO datasets
+datasets/**/*.cache
+
+# Nested git repos in datasets
+datasets/**/.git/
 
 # Temporary files
 tmp/

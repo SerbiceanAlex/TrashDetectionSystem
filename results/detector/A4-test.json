@@ -12,15 +12,23 @@
   "imgsz": 640,
   "batch": 8,
   "results": {
-    "precision": 0.8572,
-    "recall": 0.5519,
-    "mAP50": 0.6662,
-    "mAP50_95": 0.5226
+    "precision": 0.7959,
+    "recall": 0.5697,
+    "f1": 0.664,
+    "mAP50": 0.6607,
+    "mAP50_95": 0.5079
   },
   "vs_A3": {
-    "mAP50_delta": "+22.3pp",
-    "precision_delta": "+23.4pp",
-    "recall_delta": "+14.6pp"
+    "mAP50_delta": "+21.8pp",
+    "note": "A3-final mAP50=0.443 pe val set"
   },
-  "weights": "runs/detect/parks-trash-A4/weights/best.pt"
+  "weights": "runs/detect/parks-trash-A4/weights/best.pt",
+  "eval_config": {
+    "conf": "default (0.001 - standard COCO mAP)",
+    "iou": 0.6,
+    "split": "test",
+    "n_images": 426,
+    "speed_ms_per_img": 9.3,
+    "fps": 107.8
+  }
 }

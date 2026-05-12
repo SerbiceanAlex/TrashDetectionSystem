@@ -1,0 +1,10 @@
+{
+  "experiment": "B25",
+  "base": "yolov8n-cls",
+  "dataset": "trashnet_cls",
+  "split": "test",
+  "n_images": 257,
+  "top1_accuracy": 0.9222,
+  "top5_accuracy": 1.0,
+  "speed_ms": 0.5
+}
