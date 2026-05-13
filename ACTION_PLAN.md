@@ -17,6 +17,7 @@
 | Figuri teză | ✅ Generate | `outputs/thesis_figures/F1-F8` |
 | Upload video fix | ✅ Fix 13 mai | Auth optional → funcționează fără login |
 | HTTPS / iPhone | ✅ Adăugat | `start_https.py` → certificat auto-generat |
+| Structură proiect | ✅ Curățată | Commit `245c664`, modele finale în `models/`, fără OTP/mail-code |
 
 ---
 
@@ -173,20 +174,20 @@ python scripts/demos/demo_littering.py --camera 0 --save
 
 ---
 
-## ETAPA 3 — Commit și curățare finală (15 mai)
+## ETAPA 3 — Curățare finală proiect (gata pe 13 mai)
 
-**Fișiere de commit:**
+**Status:** structura proiectului a fost reorganizată și salvată în commit-ul:
+
 ```bash
-git add backend/config.py
-git add backend/main.py
-git add frontend/templates/
-git add frontend/static/js/app.js
-git add scripts/demos/demo_littering.py
-git add notebooks/
-git add results/
-git add README.md ACTION_PLAN.md
-git commit -m "feat(demo+ui): monitor live direct, site minimalist, demo littering script"
+245c664 Reorganize project structure
 ```
+
+**Decizii aplicate:**
+- Codul ML reutilizabil este în `backend/ml/`, nu în `src/`.
+- Scripturile sunt separate pe scop: `data/`, `training/`, `evaluation/`, `demos/`, `maintenance/`, `smoke/`.
+- Modelele finale folosite de aplicație sunt copiate în `models/`, iar `runs/` rămâne doar zonă de experimente.
+- Autentificarea nu folosește cod trimis pe email; SMTP rămâne opțional pentru alerte/incidente.
+- Aplicația web este tratată ca demonstrație practică, nu ca focus principal al lucrării.
 
 ---
 
@@ -305,7 +306,7 @@ Slide 8: Concluzii + contribuții originale
 13 mai (azi)   → Testare Monitor Live + demo script
 14 mai (mâine) → Prezentare progres profesor Arpad (ora 10, H1.5)
 14-15 mai      → Rulare notebook-uri evaluare complete
-15 mai         → Commit final stare stabilă
+15 mai         → Verificare finală notebook-uri + rezultate
 16-22 mai      → Redactare teză (cap. 1-5)
 22-23 mai      → Revizii + finalizare
 24 mai         → PREDARE
@@ -317,8 +318,8 @@ Slide 8: Concluzii + contribuții originale
 
 ```python
 # backend/config.py
-DETECTOR_WEIGHTS  = "runs/detect/parks-trash-A4-8010/weights/best.pt"
-CLASSIFIER_WEIGHTS = "runs/classify/parks-cls-B2/weights/best.pt"
+DETECTOR_WEIGHTS = "models/detector/A4-8010/best.pt"
+CLASSIFIER_WEIGHTS = "models/classify/B2/best.pt"
 
 # backend/video.py (constantele littering detector)
 DET_CONF = 0.30          # confidence trash

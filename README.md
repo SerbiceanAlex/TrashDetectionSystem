@@ -55,7 +55,7 @@ TrashDetectionSystem/
 │       └── css/                # stiluri
 ├── models/
 │   ├── detector/A4-8010/       # model detector folosit in aplicatie
-│   └── classify/B2/          # model clasificator folosit in aplicatie
+│   └── classify/B2/            # model clasificator folosit in aplicatie
 ├── notebooks/
 │   ├── training/               # experimente si antrenari
 │   └── evaluation/             # evaluari, comparatii, figuri pentru licenta
