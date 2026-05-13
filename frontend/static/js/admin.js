@@ -481,6 +481,7 @@ function adminApp() {
         showToast('Eroare la încărcarea incidentelor: ' + e.message, 'error');
       } finally {
         this.incidentsLoading = false;
+        this._refreshAdminIcons();
       }
     },
 
@@ -496,6 +497,7 @@ function adminApp() {
         this.incidentPending = Math.max(0, this.incidentPending - 1);
         this.incidentReviewed += 1;
         showToast('Incident marcat ca verificat');
+        this._refreshAdminIcons();
       } catch (e) {
         showToast('Eroare: ' + e.message, 'error');
       }
@@ -523,6 +525,7 @@ function adminApp() {
           this.incidentForwarded += 1;
         }
         showToast('Incident trimis la autoritate');
+        this._refreshAdminIcons();
       } catch (e) {
         showToast('Eroare: ' + e.message, 'error');
       }
@@ -544,6 +547,7 @@ function adminApp() {
         const idx = this.incidents.findIndex(e => e.id === id);
         if (idx !== -1) this.incidents[idx] = updated;
         showToast('Incident respins');
+        this._refreshAdminIcons();
       } catch (e) {
         showToast('Eroare: ' + e.message, 'error');
       }
