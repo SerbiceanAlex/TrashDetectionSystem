@@ -1,4 +1,4 @@
-"""
+﻿"""
 Centralized configuration — loaded once from environment variables / .env file.
 
 Usage:
@@ -19,15 +19,15 @@ class Settings(BaseSettings):
 
     # ── Paths ────────────────────────────────────────────────────────────────
     REPO_ROOT: Path = Path(__file__).parent.parent
-    DETECTOR_WEIGHTS: str = "runs/detect/parks-trash-A4-8010/weights/best.pt"
-    CLASSIFIER_WEIGHTS: str = "runs/classify/parks-cls-B2/weights/best.pt"
+    DETECTOR_WEIGHTS: str = "models/detector/A4-8010/best.pt"
+    CLASSIFIER_WEIGHTS: str = "models/classify/B2/best.pt"
 
     # ── JWT / Auth ───────────────────────────────────────────────────────────
     SECRET_KEY: str = "CHANGE-ME-generate-with-python-c-import-secrets-secrets.token_hex(32)"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
-    # ── SMTP (optional: incident alerts, authority forwarding, invites) ──────
+    # ── SMTP (optional: incident alerts and authority forwarding) ────────────
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USER: str = ""

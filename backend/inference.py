@@ -1,6 +1,6 @@
 """
 Inference wrapper — loads YOLO models once at startup and exposes run_pipeline().
-Uses src.detect_two_stage for the actual detection + classification logic.
+Uses backend.ml.two_stage for the actual detection + classification logic.
 
 Models loaded:
   _detector    — custom YOLOv8s trash detector (single class: trash)
@@ -99,9 +99,7 @@ def run_pipeline(
         annotated   — JPEG bytes of the annotated image
         elapsed_ms  — inference time in milliseconds
     """
-    import sys
-    sys.path.insert(0, str(settings.REPO_ROOT))
-    from src.detect_two_stage import detect_and_classify, draw_detections
+    from backend.ml.two_stage import detect_and_classify, draw_detections
 
     # Decode bytes → numpy BGR frame
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -142,9 +140,7 @@ def run_pipeline_frame(
         annotated   — numpy BGR annotated frame
         elapsed_ms  — inference time in milliseconds
     """
-    import sys
-    sys.path.insert(0, str(settings.REPO_ROOT))
-    from src.detect_two_stage import detect_and_classify, draw_detections
+    from backend.ml.two_stage import detect_and_classify, draw_detections
 
     frame = _resize_if_needed(frame)
 
@@ -186,9 +182,7 @@ def run_pipeline_track(
     video/WebSocket session should use a fresh YOLO instance (see
     video.py:handle_monitor_ws) to avoid state bleed between sessions.
     """
-    import sys as _sys
-    _sys.path.insert(0, str(settings.REPO_ROOT))
-    from src.detect_two_stage import draw_detections, clamp_box, classify_crop
+    from backend.ml.two_stage import draw_detections, clamp_box, classify_crop
 
     frame = _resize_if_needed(frame)
     h, w = frame.shape[:2]

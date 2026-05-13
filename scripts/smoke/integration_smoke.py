@@ -1,4 +1,4 @@
-"""
+﻿"""
 Integration test — rulează cu serverul pornit pe port 8000.
 
 Testează:
@@ -8,7 +8,7 @@ Testează:
   4. Simulare WebSocket monitor cu frame real
 
 Rulare:
-    .venv\\Scripts\\python.exe scripts\\test_integration.py
+    .venv\\Scripts\\python.exe scripts\\smoke\\integration_smoke.py
 """
 
 import asyncio
@@ -118,7 +118,7 @@ def test_create_littering_event(token: str) -> int | None:
     sep("TEST 2 — Creare LitteringEvent în DB (direct Python)")
     try:
         import asyncio
-        sys.path.insert(0, str(Path(__file__).parent.parent))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
         from backend import database as db
 
         async def _create():

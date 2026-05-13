@@ -1,10 +1,10 @@
-"""
+﻿"""
 Standalone smoke test for the littering-detection stack.
 
 This file is intentionally safe to import, so pytest collection does not execute
 YOLO model loading. Run it directly when you want an end-to-end local check:
 
-    .venv\\Scripts\\python.exe scripts\\test_littering_system.py
+    .venv\\Scripts\\python.exe scripts\\smoke\\littering_system_smoke.py
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import numpy as np
 
 __test__ = False
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
 PASS = "[  OK  ]"
@@ -66,8 +66,8 @@ def main() -> int:
     errors: list[str] = []
 
     model_files = {
-        "Trash detector": REPO_ROOT / "runs/detect/parks-trash-A4-8010/weights/best.pt",
-        "Material classifier": REPO_ROOT / "runs/classify/parks-cls-B2/weights/best.pt",
+        "Trash detector": REPO_ROOT / "models/detector/A4-8010/best.pt",
+        "Material classifier": REPO_ROOT / "models/classify/B2/best.pt",
         "Person detector": REPO_ROOT / "yolov8n.pt",
     }
 

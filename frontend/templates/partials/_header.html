@@ -56,10 +56,10 @@
         <button x-show="unreadNotifications > 0" @click="markAllRead()" class="notif-panel__mark-read">Marchează citite</button>
       </div>
       <div class="notif-panel__list">
-        <template x-if="notifications.filter(n => n.category !== 'rank_up' && n.category !== 'streak' && n.category !== 'badge').length === 0">
+        <template x-if="notifications.length === 0">
           <div class="notif-panel__empty">Nicio notificare</div>
         </template>
-        <template x-for="n in notifications.filter(n => n.category !== 'rank_up' && n.category !== 'streak' && n.category !== 'badge')" :key="n.id">
+        <template x-for="n in notifications" :key="n.id">
           <div @click="markRead(n); if(n.category==='alert') goTo('incidents')"
             :class="'notif-item' + (n.is_read ? '' : ' notif-item--unread')">
             <span class="notif-item__icon">

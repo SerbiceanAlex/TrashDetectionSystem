@@ -1,111 +1,113 @@
-# TrashDetectionSystem — Sistem Inteligent de Monitorizare a Deșeurilor
+﻿# TrashDetectionSystem
 
-Sistem two-stage bazat pe **YOLOv8** pentru detecția și clasificarea deșeurilor în spații verzi urbane, cu o componentă activă de **Behavioral Engine** capabilă să identifice abandonul ilegal de deșeuri (littering) în timp real din fluxuri video.
+Sistem inteligent pentru detectarea actului de aruncare ilegala a deseurilor in spatii publice prin analiza video in timp real.
 
-**Lucrare de licență — Universitatea 1 Decembrie 1918 Alba Iulia, 2026.**
-**Autor:** Serbicean Alexandru
+Lucrarea este orientata pe partea de ML: detectorul de deseuri, clasificatorul de material si algoritmul temporal care decide daca un obiect aparut in scena reprezinta un incident de littering. Aplicatia web ramane demonstratia practica a pipeline-ului.
 
----
+## Directia proiectului
 
-## Scopul Proiectului
+Proiectul a pornit de la ideea simpla de detectie a deseurilor in imagini si a evoluat catre o problema mai puternica pentru licenta: identificarea momentului in care o persoana arunca ilegal un obiect. Sistemul coreleaza temporal trei elemente:
 
-Platforma a evoluat de la o aplicație de tip "gamification/reporting" la un **Sistem Administrativ de Monitorizare** cu următoarele capabilități principale:
-1. **Monitorizare Live (Behavioral Engine):** Analizează fluxul camerei (laptop sau telefon) pentru a detecta momentul exact când o persoană abandonează gunoi.
-2. **Offline Video Processing:** Permite încărcarea clipurilor CCTV (MP4) și procesarea lor asincronă pentru identificarea actelor de littering.
-3. **GDPR by Design:** Toate dovezile video/foto salvate au fețele anonimizate (blurate) automat prin algoritmi de detecție facială, respectând Art. 25 GDPR.
-4. **Mobile-First & HTTPS:** Optimizat pentru a rula pe telefoane mobile (iPhone) pentru calitatea superioară a camerei, utilizând un flux securizat HTTPS.
+1. prezenta unei persoane in cadru;
+2. disparitia sau indepartarea persoanei din zona;
+3. aparitia/stabilizarea unui obiect de tip deseu in zona monitorizata.
 
----
+Rezultatul este salvat ca dovada: metadata, thumbnail, clip scurt si scoruri de incredere.
 
-## Arhitectură Modele AI (Two-Stage)
+## Modele ML
 
-Sistemul folosește o arhitectură în doi pași pentru precizie maximă și reducerea alarmelor false (FP):
+Pipeline-ul folosit de aplicatie este two-stage:
 
-```
-Imagine/Video → [Stage 1: Detector YOLO] → bounding boxes (clasa: trash)
-                                                    ↓
-                                    [Stage 2: Clasificator YOLO]
-                                                    ↓
-                            material: glass / metal / paper / plastic / other
+```text
+Frame video
+  -> Detector YOLOv8 A4-8010: localizeaza obiectele trash
+  -> Clasificator YOLOv8 B2: estimeaza materialul
+  -> Behavioral Engine: decide daca exista act de aruncare
 ```
 
-### Modele în producție:
-- **Detector A4-8010:** YOLOv8s, imgsz=640. Antrenat pe un dataset combinat (Parks + TACO), cu split 80/10/10. Are un **False Positive Rate de 0%** pe videoclipurile reale din parcuri și o performanță de **mAP50=0.687** pe setul de test.
-  - Locație: `runs/detect/parks-trash-A4-8010/weights/best.pt`
-- **Clasificator B2:** YOLOv8n-cls, imgsz=224. Antrenat pe TrashNet și secțiuni extrase din datasetul Parks. Acuratețe Top-1 de **91.1%** pe test set.
-  - Locație: `runs/classify/parks-cls-B2/weights/best.pt`
+Greutatile finale folosite de aplicatie stau in `models/`:
 
----
-
-## Aplicația Web (FastAPI + Alpine.js)
-
-Interfața web este minimalistă, centrată strict pe funcționalitățile de detecție, renunțând la modulele inutile (SaaS, gamificare) pentru stabilitate maximă:
-
-1. **Dashboard:** O privire de ansamblu (Placeholder vizual minimalist).
-2. **Monitor:** 
-   - Mod **Live Camera**: Monitorizare fullscreen, cu indicatori de stare (LIBER, PERSOANĂ, VERIFICARE, INCIDENT).
-   - Mod **Upload Video**: Permite analiza clipurilor înregistrate, rulează într-un thread de fundal, generând incidente la finalizarea analizei.
-3. **Incidente:** Galerie cu toate dovezile de aruncare ilegală a gunoiului (clipuri scurte extrase automat, plus metadata despre material și scorul de încredere).
-
----
-
-## Setup & Pornire
-
-### Cerințe:
-- Python 3.11+
-- Mediu virtual (`.venv`)
-- Pachetul `cryptography` pentru certificate HTTPS
-
-### Instalare:
-```bash
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-pip install cryptography
+```text
+models/
+├── detector/A4-8010/best.pt
+└── classify/B2/best.pt
 ```
 
-### Pornire Server (Mod HTTPS pentru iPhone/Mobil):
-Pentru a accesa camera de înaltă calitate a telefonului, serverul trebuie să ruleze pe HTTPS (restricție impusă de browsere pe mobile):
+`runs/` ramane zona de experimente si antrenari YOLO. Cand alegi un model final, copiezi checkpoint-ul castigator in `models/`.
 
-```bash
-python start_https.py
-```
-*Scriptul va genera automat un certificat SSL self-signed și va porni serverul pe `0.0.0.0:8443`.*
-
-**Conectare de pe telefon:**
-1. Conectează telefonul la același Wi-Fi ca PC-ul.
-2. Deschide Safari și accesează adresa afișată în consolă (ex: `https://192.168.1.X:8443`).
-3. La avertismentul de securitate, selectează `Avansat -> Vizitează site-ul`.
-4. Mergi în tab-ul **Monitor** și pornește feed-ul. Interfața va intra automat în modul *Fullscreen Monitor*.
-
----
-
-## Structura Proiectului (Actualizată)
+## Structura proiectului
 
 ```text
 TrashDetectionSystem/
-├── src/                         # Scripturi utilitare și pipeline-uri standalone
 ├── backend/
-│   ├── main.py                  # API Endpoints (FastAPI) & rute statice
-│   ├── inference.py             # Logica core YOLO, tracking (DeepSORT) și Face Blurring
-│   ├── video.py                 # Handlere WebSocket pentru Live Monitor și Uploads
-│   ├── database.py              # ORM SQLAlchemy
-│   ├── config.py                # Configurație (variabile de mediu)
-│   └── uploads/, videos/, littering/ # Directoare generate automat pentru dovezi
+│   ├── main.py                 # API FastAPI si rute HTTP
+│   ├── video.py                # WebSocket live monitor si procesare video upload
+│   ├── inference.py            # incarcare modele, inferenta, tracking, blur GDPR
+│   ├── littering_detector.py   # algoritmul temporal de detectie a actului de aruncare
+│   ├── database.py             # modele SQLAlchemy si helpers DB
+│   ├── schemas.py              # scheme Pydantic pentru API
+│   └── ml/
+│       └── two_stage.py        # pipeline YOLO detector + clasificator
 ├── frontend/
-│   ├── static/js/video.js       # Logica de client Alpine.js (WebSocket, canvas, poll)
-│   └── templates/tabs/          # Structura HTML (dashboard, scan, incidents)
+│   ├── templates/              # pagini Alpine/Jinja
+│   └── static/
+│       ├── js/                 # logica UI, auth, monitor, admin
+│       └── css/                # stiluri
+├── models/
+│   ├── detector/A4-8010/       # model detector folosit in aplicatie
+│   └── classify/B2/          # model clasificator folosit in aplicatie
+├── notebooks/
+│   ├── training/               # experimente si antrenari
+│   └── evaluation/             # evaluari, comparatii, figuri pentru licenta
 ├── scripts/
-│   └── demo_littering.py        # Script standalone pentru testarea detecției pe fișiere video
-├── start_https.py               # Launcher pentru mediu HTTPS local
-├── ACTION_PLAN.md               # Documentul viu cu pașii de dezvoltare și testare
-└── README.md                    # Prezentarea generală a proiectului
+│   ├── data/                   # pregatire dataseturi, split, validare, export cropuri
+│   ├── training/               # scripturi de antrenare
+│   ├── evaluation/             # evaluari standalone
+│   ├── demos/                  # demo vizual pentru profesor/prezentare
+│   ├── maintenance/            # reset DB, creare admin/demo user
+│   └── smoke/                  # teste manuale rapide pe server pornit
+├── tests/                      # teste automate pytest
+├── results/                    # rezultate si metrici folosite in lucrare
+├── start_https.py              # pornire locala HTTPS pentru camera telefonului
+├── requirements.txt
+└── ACTION_PLAN.md
 ```
 
----
+Directoarele `datasets/`, `runs/`, `outputs/`, `backend/uploads/`, `backend/videos/` si fisierele `.pt` sunt artefacte locale si nu sunt versionate.
 
-## Următorii Pași (Vezi `ACTION_PLAN.md`)
-Sistemul este stabil și pregătit pentru testarea finală. Următoarea etapă constă în generarea datelor reale de test prin:
-1. Plasarea telefonului ca sursă live (CCTV).
-2. Simulare de aruncare ilegală în cadru.
-3. Confirmarea înregistrării clipului în tab-ul "Incidente" cu fețele anonimizate corect.
+## Pornire rapida
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+py start_https.py
+```
+
+Pentru camera telefonului, ruleaza serverul HTTPS si deschide adresa afisata in consola de pe acelasi Wi-Fi.
+
+## Comenzi utile
+
+```powershell
+# Demo vizual pe clip
+.\.venv\Scripts\python.exe scripts\demos\demo_littering.py --video datasets\test_videos\clip.mp4
+
+# Demo live camera
+.\.venv\Scripts\python.exe scripts\demos\demo_littering.py --camera 0
+
+# Creare user admin/demo local
+.\.venv\Scripts\python.exe scripts\maintenance\create_admin.py
+
+# Reset date generate local
+.\.venv\Scripts\python.exe -m scripts.maintenance.reset_data
+```
+
+## Focus pentru lucrare
+
+In redactare, aplicatia web trebuie tratata ca suport practic. Partea principala merita sa fie:
+
+1. pregatirea dataseturilor si antrenarea modelelor;
+2. evaluarea detectorului A4-8010 si a clasificatorului B2;
+3. logica Behavioral Engine si criteriile temporale;
+4. experimentele pe clipuri reale si analiza erorilor;
+5. limite, GDPR si directii viitoare.

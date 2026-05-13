@@ -56,14 +56,6 @@ async def _migrate_schema():
     so it's a no-op if the column already exists.
     """
     alter_statements = [
-        # User table — new community fields
-        "ALTER TABLE users ADD COLUMN eco_score INTEGER DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN rank VARCHAR(32) DEFAULT 'Novice'",
-        "ALTER TABLE users ADD COLUMN streak_days INTEGER DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN last_active_date DATE",
-        "ALTER TABLE users ADD COLUMN anonymous_reports BOOLEAN DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN hide_exact_location BOOLEAN DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN trust_weight REAL DEFAULT 1.0",
         # DetectionSession table — lifecycle fields
         "ALTER TABLE detection_sessions ADD COLUMN status VARCHAR(20) DEFAULT 'pending'",
         "ALTER TABLE detection_sessions ADD COLUMN cluster_id INTEGER REFERENCES detection_sessions(id)",
@@ -74,12 +66,6 @@ async def _migrate_schema():
         "ALTER TABLE detection_sessions ADD COLUMN expires_at DATETIME",
         "ALTER TABLE detection_sessions ADD COLUMN verification_score REAL DEFAULT 0.0",
         "ALTER TABLE detection_sessions ADD COLUMN user_note TEXT",
-        # User table — Phase A/C fields
-        "ALTER TABLE users ADD COLUMN avatar_path TEXT",
-        "ALTER TABLE users ADD COLUMN onboarding_done BOOLEAN DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN authority_area_lat REAL",
-        "ALTER TABLE users ADD COLUMN authority_area_lng REAL",
-        "ALTER TABLE users ADD COLUMN authority_area_radius_km REAL DEFAULT 10.0",
         # DetectionRecord — impact metrics
         "ALTER TABLE detection_records ADD COLUMN estimated_weight_kg REAL DEFAULT 0.0",
         # LitteringEvent — distance-based evidence fields (v2 state machine)
@@ -230,7 +216,7 @@ async def detect(
     Upload a JPEG/PNG image, run the two-stage pipeline, store results in DB,
     and return the annotated image URL + detection JSON.
     """
-    # Optional User Auth for points
+    # Optional auth links detections to the current user/organization.
     current_user = None
     if token:
         try:
@@ -1895,5 +1881,3 @@ async def update_organization(
     await session.commit()
     await session.refresh(org)
     return {"id": org.id, "name": org.name, "plan": org.plan}
-
-

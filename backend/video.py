@@ -833,7 +833,7 @@ async def handle_monitor_ws(
                     tx1, ty1, tx2, ty2 = event.trash_box
                     crop = frame[ty1:ty2, tx1:tx2]
                     if crop.size > 0:
-                        from src.detect_two_stage import classify_crop
+                        from backend.ml.two_stage import classify_crop
                         from backend.inference import _classifier, _cls_names
                         mat_name, mat_score = classify_crop(
                             _classifier, crop, 224, _cls_names

@@ -1,8 +1,8 @@
-"""
+﻿"""
 Utility script — creare utilizatori în baza de date.
 
 Utilizare:
-    .venv\Scripts\python.exe create_admin.py
+    .venv\\Scripts\\python.exe scripts/maintenance/create_admin.py
 
 Creează:
   - admin  /  admin@trash.local  /  Admin1234!   (rol: admin)
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 # Asigurăm că importă modulele din proiect
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from backend import database as db
 from backend.auth import get_password_hash

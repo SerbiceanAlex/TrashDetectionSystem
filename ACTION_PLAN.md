@@ -1,4 +1,4 @@
-# Plan de Acțiuni — TrashDetectionSystem
+﻿# Plan de Acțiuni — TrashDetectionSystem
 **Lucrare de licență UAB Alba Iulia 2026 — Serbicean Alexandru**
 **Ultima actualizare: 13 mai 2026**
 
@@ -12,7 +12,7 @@
 | Clasificator B2 | ✅ Antrenat | YOLOv8n-cls, 91.1% Top-1, macro-F1=0.881, 257 test |
 | Site minimalist | ✅ Gata | 3 tabs: Dashboard + Monitor + Incidente |
 | Monitor live | ✅ Gata | Webcam direct, fără configurare locații |
-| Demo standalone | ✅ Gata | `scripts/demo_littering.py` |
+| Demo standalone | ✅ Gata | `scripts/demos/demo_littering.py` |
 | Notebooks evaluare | ✅ Gata | 5 notebooks adaptate la A4-8010 |
 | Figuri teză | ✅ Generate | `outputs/thesis_figures/F1-F8` |
 | Upload video fix | ✅ Fix 13 mai | Auth optional → funcționează fără login |
@@ -103,16 +103,16 @@ Upload video funcționează **fără login** după fix-ul din 13 mai.
 
 ### 1.3 Testare Demo Script pe clipuri reale
 
-**Fișier:** `scripts/demo_littering.py`
+**Fișier:** `scripts/demos/demo_littering.py`
 **Acțiune:**
 ```bash
 # Testează pe clipurile disponibile (alege cel mai clar)
-python scripts/demo_littering.py --video datasets/test_videos/littering_cctv_2024.mp4
-python scripts/demo_littering.py --video datasets/test_videos/dumping_neighbor_00001.mp4
-python scripts/demo_littering.py --video datasets/test_videos/illegal_dumping_cctv.mp4
+python scripts/demos/demo_littering.py --video datasets/test_videos/littering_cctv_2024.mp4
+python scripts/demos/demo_littering.py --video datasets/test_videos/dumping_neighbor_00001.mp4
+python scripts/demos/demo_littering.py --video datasets/test_videos/illegal_dumping_cctv.mp4
 
 # Salvează demo cu output video
-python scripts/demo_littering.py --video datasets/test_videos/littering_cctv_2024.mp4 --save
+python scripts/demos/demo_littering.py --video datasets/test_videos/littering_cctv_2024.mp4 --save
 ```
 
 **Ce urmărești:**
@@ -129,7 +129,7 @@ python scripts/demo_littering.py --video datasets/test_videos/littering_cctv_202
 
 **Acțiune:**
 ```bash
-python scripts/demo_littering.py --camera 0 --save
+python scripts/demos/demo_littering.py --camera 0 --save
 ```
 
 **Scenariul recomandat:**
@@ -181,7 +181,7 @@ git add backend/config.py
 git add backend/main.py
 git add frontend/templates/
 git add frontend/static/js/app.js
-git add scripts/demo_littering.py
+git add scripts/demos/demo_littering.py
 git add notebooks/
 git add results/
 git add README.md ACTION_PLAN.md
@@ -293,7 +293,7 @@ Slide 8: Concluzii + contribuții originale
 | `backend/config.py:22` | Model de producție | Dacă antrenezi un model mai bun |
 | `backend/littering_detector.py` | State machine | Dacă ajustezi parametri detecție |
 | `backend/video.py` | WebSocket procesare | Dacă ajustezi confidența |
-| `scripts/demo_littering.py` | Demo standalone | Testare și demo profesor |
+| `scripts/demos/demo_littering.py` | Demo standalone | Testare și demo profesor |
 | `notebooks/evaluation/01_evaluate_detector.ipynb` | Metrici oficiale | După orice antrenare nouă |
 | `outputs/thesis_figures/` | Figuri teză | Regenerezi după fiecare evaluare |
 

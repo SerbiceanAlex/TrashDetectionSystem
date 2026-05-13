@@ -1,4 +1,4 @@
-"""
+﻿"""
 Standalone visual demo for illegal littering detection.
 
 Runs on a video file or on a live camera and shows:
@@ -8,9 +8,9 @@ Runs on a video file or on a live camera and shows:
   - alert flash when LitteringDetector emits an event
 
 Examples:
-    .venv\\Scripts\\python.exe scripts\\demo_littering.py --video datasets\\test_videos\\clip.mp4
-    .venv\\Scripts\\python.exe scripts\\demo_littering.py --camera 0
-    .venv\\Scripts\\python.exe scripts\\demo_littering.py --camera http://192.168.x.x:4747/video
+    .venv\\Scripts\\python.exe scripts\\demos\\demo_littering.py --video datasets\\test_videos\\clip.mp4
+    .venv\\Scripts\\python.exe scripts\\demos\\demo_littering.py --camera 0
+    .venv\\Scripts\\python.exe scripts\\demos\\demo_littering.py --camera http://192.168.x.x:4747/video
 """
 
 from __future__ import annotations
@@ -24,13 +24,13 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 from backend.littering_detector import DetectorState, LitteringDetector
 
 
-DEFAULT_DETECTOR = REPO / "runs" / "detect" / "parks-trash-A4-8010" / "weights" / "best.pt"
+DEFAULT_DETECTOR = REPO / "models" / "detector" / "A4-8010" / "best.pt"
 DEFAULT_PERSON = REPO / "yolov8n.pt"
 
 COL_TRASH = (0, 60, 255)

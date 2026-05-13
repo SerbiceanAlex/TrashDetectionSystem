@@ -1,4 +1,4 @@
-"""
+﻿"""
 test_batch_and_monitor.py
 =========================
 Testează automat:
@@ -7,7 +7,7 @@ Testează automat:
                (fără cameră: folosește imaginile de park din dataset)
 
 Rulare:
-    .venv/Scripts/python.exe scripts/test_batch_and_monitor.py
+    .venv/Scripts/python.exe scripts/smoke/batch_monitor_smoke.py
 """
 
 import asyncio
@@ -21,7 +21,7 @@ import requests
 
 __test__ = False
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 API = "http://localhost:8000"

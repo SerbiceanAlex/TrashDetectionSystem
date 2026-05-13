@@ -1,5 +1,5 @@
 /* ── TrashDet — Core app shell ────────────────────────────────────────────
-   Community trash reporting platform powered by YOLOv8 AI.
+   Illegal littering monitoring platform powered by YOLOv8 AI.
    ─────────────────────────────────────────────────────────────────────── */
 
 function ecoApp() {
@@ -36,35 +36,12 @@ function ecoApp() {
     payModalPlan: null,
     payModalStep: 'confirm', // 'confirm' | 'processing' | 'success'
 
-    // Camera Wizard
-    wizardOpen: false,
-    wizardStep: 1,
-    wizardType: null,       // 'webcam' | 'ipcam' | 'video'
-    wizardForm: { name: '', address: '', rtsp_url: '' },
-    wizardRtspStatus: null, // null | 'testing' | 'ok' | 'error'
-    wizardRtspMsg: '',
-    wizardSaving: false,
-    _wizardShown: false,
-
     // Dashboard B2B
     dashB2B: null,
     dashB2BLoading: false,
     get matTotal() {
       return (this.dashB2B?.material_distribution || []).reduce((s, m) => s + m.count, 0);
     },
-
-    // Locations (B2B multi-camera)
-    locations: [],
-    locationsLoading: false,
-    locationModalOpen: false,
-    locationEdit: null,
-    locationForm: { name: '', address: '', lat: null, lng: null, rtsp_url: '', alert_email: '', is_active: true },
-
-    // Reports
-    reportStats: null,
-    reportPeriod: 'week',  // 'today' | 'week' | 'month' | 'year' | 'custom'
-    reportFrom: '',
-    reportTo: '',
 
     /* ── Nav tabs — minimal demo (Dashboard + Monitor + Incidente) ──── */
     tabs: [

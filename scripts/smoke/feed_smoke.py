@@ -1,4 +1,4 @@
-"""
+﻿"""
 Manual smoke test for the incident feed endpoint.
 
 Requires a running local server and an admin account. Safe to import during

@@ -1,4 +1,4 @@
-"""Merge multiple classification datasets into one combined dataset.
+﻿"""Merge multiple classification datasets into one combined dataset.
 
 Expects each source dataset to have the structure:
   <dataset>/
@@ -9,7 +9,7 @@ Expects each source dataset to have the structure:
 All sources must share the same class names.
 
 Usage:
-  python scripts/merge_classification_datasets.py \\
+  python scripts/data/merge_classification_datasets.py \\
       --datasets datasets/trashnet_cls datasets/parks_cls \\
       --out-dir datasets/mixed_cls
 """
@@ -115,7 +115,7 @@ def main():
     print(f"  {'TOTAL':<12} {grand['train']:>6} {grand['val']:>6} {grand['test']:>6} {t:>7}")
 
     print("\nNext step — Train classifier on mixed data (Experiment B3):")
-    print(f"  .venv\\Scripts\\python.exe scripts\\train_classifier.py --data {out_dir} --epochs 80 --batch 32 --workers 0 --name mixed-cls-b3")
+    print(f"  .venv\\Scripts\\python.exe scripts\\training\\train_classifier.py --data {out_dir} --epochs 80 --batch 32 --workers 0 --name mixed-cls-b3")
 
 
 if __name__ == "__main__":

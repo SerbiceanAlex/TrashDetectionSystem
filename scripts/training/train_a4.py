@@ -1,9 +1,9 @@
-"""Train Experiment A4 — parks + TACO dataset on YOLOv8s."""
+﻿"""Train Experiment A4 — parks + TACO dataset on YOLOv8s."""
 from ultralytics import YOLO
 from pathlib import Path
 import sys
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 
 model = YOLO(str(REPO / "notebooks/training/yolov8s.pt"))
 results = model.train(

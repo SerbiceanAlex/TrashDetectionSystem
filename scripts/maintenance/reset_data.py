@@ -1,17 +1,16 @@
-"""
-Reset all detection data — clear uploads, annotated, cleaned, videos directories
-and delete all session/record/vote/comment rows from the database.
+﻿"""
+Reset generated detection data and clear runtime database rows.
 Keeps user accounts intact.
 
 Usage:
-    python -m scripts.reset_data
+    python -m scripts.maintenance.reset_data
 """
 
 import asyncio
 import shutil
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 DIRS_TO_CLEAN = [
     ROOT / "backend" / "uploads",
     ROOT / "backend" / "annotated",
@@ -26,17 +25,12 @@ async def reset_database():
     from backend.database import engine, sa_text
 
     tables = [
-        "comments",
-        "material_suggestions",
-        "community_votes",
-        "campaign_participants",
-        "report_photos",
         "detection_records",
         "video_sessions",
         "detection_sessions",
         "webhook_configs",
         "authority_contacts",
-        "campaigns",
+        "littering_events",
     ]
     async with engine.begin() as conn:
         for table in tables:

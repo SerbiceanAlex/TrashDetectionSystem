@@ -1,4 +1,4 @@
-"""
+﻿"""
 resplit_a4_dataset.py
 =====================
 Re-imparte dataset-ul parks_detect_A4 la 80/10/10 (train/val/test).
@@ -12,14 +12,14 @@ Rezultat:
     Test  :  231 imagini  (10.0%)
 
 Rulare:
-    python scripts/resplit_a4_dataset.py
+    python scripts/data/resplit_a4_dataset.py
 """
 
 import random
 import shutil
 from pathlib import Path
 
-REPO_ROOT  = Path(__file__).resolve().parents[1]
+REPO_ROOT  = Path(__file__).resolve().parents[2]
 A4_DIR     = REPO_ROOT / "datasets" / "parks_detect_A4"
 SEED       = 42
 TRAIN_FRAC = 0.80

@@ -155,7 +155,7 @@ class Notification(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     message = Column(Text, nullable=False)
-    category = Column(String(32), default="info")   # 'resolved' | 'info' | 'badge'
+    category = Column(String(32), default="info")   # 'incident' | 'review' | 'info'
     session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=True)
     is_read = Column(Integer, default=0)             # 0=unread, 1=read
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import os
 import time
 from collections import Counter
@@ -16,12 +16,12 @@ def parse_args():
     parser.add_argument("--source", required=True, help="0 for webcam, or path to an image or video file")
     parser.add_argument(
         "--detector",
-        default="runs/detect/parks-trash-yolov8/weights/best.pt",
+        default="models/detector/A4-8010/best.pt",
         help="YOLO detector checkpoint for the single-class trash detector",
     )
     parser.add_argument(
         "--classifier",
-        default="runs/classify/parks-trash-material-cls/weights/best.pt",
+        default="models/classify/B2/best.pt",
         help="YOLO classification checkpoint for material classification",
     )
     parser.add_argument("--det-conf", type=float, default=0.25, help="Detector confidence threshold")

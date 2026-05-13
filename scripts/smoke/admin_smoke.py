@@ -1,10 +1,10 @@
-"""
+﻿"""
 Manual smoke test for the current admin/B2B API.
 
 This script expects the FastAPI server to be running locally:
 
     .venv\\Scripts\\python.exe -m uvicorn backend.main:app --reload --port 8000
-    .venv\\Scripts\\python.exe scripts\\test_admin.py
+    .venv\\Scripts\\python.exe scripts\\smoke\\admin_smoke.py
 
 It is safe to import; pytest collection will not execute requests.
 """

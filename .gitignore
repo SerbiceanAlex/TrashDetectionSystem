@@ -46,7 +46,7 @@ datasets/
 TACO/
 UAVVaste/
 
-# Model weights
+# Model weights (kept locally under models/ and runs/)
 *.pt
 
 # Web app runtime artifacts

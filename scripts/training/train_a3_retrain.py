@@ -1,4 +1,4 @@
-"""
+﻿"""
 Retrain Experiment A3-final — parks_detect_full, YOLOv8s, 150 epochs.
 
 Reproduces the original A3-final training for weight availability
@@ -11,12 +11,12 @@ Original config confirmed from results/detector/A3-final-test.json:
   mAP50:  0.443  Precision: 0.623  Recall: 0.406
 
 Run:
-    .venv/Scripts/python.exe scripts/train_a3_retrain.py
+    .venv/Scripts/python.exe scripts/training/train_a3_retrain.py
 """
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 
 from ultralytics import YOLO
 

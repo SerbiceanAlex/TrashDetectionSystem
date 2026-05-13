@@ -1,4 +1,4 @@
-import argparse
+﻿import argparse
 import csv
 import json
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
 from ultralytics import YOLO
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CLASSES = ["glass", "metal", "other", "paper", "plastic"]
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "runs" / "classify_eval"

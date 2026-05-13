@@ -1,10 +1,10 @@
-import argparse
+﻿import argparse
 from pathlib import Path
 
 from ultralytics import YOLO
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATASET = REPO_ROOT / "datasets" / "parks_cls"
 DEFAULT_PROJECT_DIR = REPO_ROOT / "runs" / "classify"
 
