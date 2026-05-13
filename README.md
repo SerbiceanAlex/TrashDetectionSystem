@@ -30,7 +30,7 @@ Imagine/Video → [Stage 1: Detector YOLO] → bounding boxes (clasa: trash)
 ```
 
 ### Modele în producție:
-- **Detector A4-8010:** YOLOv8s, imgsz=640. Antrenat pe un dataset combinat (Parks + TACO). Are un **False Positive Rate de 0%** pe videoclipurile reale din parcuri și o performanță de **mAP50=0.666**. 
+- **Detector A4-8010:** YOLOv8s, imgsz=640. Antrenat pe un dataset combinat (Parks + TACO), cu split 80/10/10. Are un **False Positive Rate de 0%** pe videoclipurile reale din parcuri și o performanță de **mAP50=0.687** pe setul de test.
   - Locație: `runs/detect/parks-trash-A4-8010/weights/best.pt`
 - **Clasificator B2:** YOLOv8n-cls, imgsz=224. Antrenat pe TrashNet și secțiuni extrase din datasetul Parks. Acuratețe Top-1 de **91.1%** pe test set.
   - Locație: `runs/classify/parks-cls-B2/weights/best.pt`

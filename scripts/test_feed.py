@@ -1,17 +1,45 @@
-import requests, sqlite3
+"""
+Manual smoke test for the incident feed endpoint.
 
-# Login with OTP
-requests.post('http://localhost:8000/api/auth/login', data={'username':'sandu123','password':'Admin123!'})
-conn = sqlite3.connect('backend/trash_detection.db')
-otp = conn.execute("SELECT code FROM otp_codes WHERE user_id=(SELECT id FROM users WHERE username='sandu123') AND is_used=0 ORDER BY id DESC LIMIT 1").fetchone()[0]
-conn.close()
-r2 = requests.post('http://localhost:8000/api/auth/verify-otp', json={'username':'sandu123','code':otp})
-tok = r2.json()['access_token']
-h = {'Authorization': f'Bearer {tok}'}
+Requires a running local server and an admin account. Safe to import during
+pytest collection.
+"""
 
-cf = requests.get('http://localhost:8000/api/community/feed?limit=2', headers=h).json()
-print("TYPE:", type(cf))
-if cf:
-    print("KEYS:", list(cf[0].keys()))
-    import json
-    print("ITEM:", json.dumps(cf[0], indent=2, default=str))
+from __future__ import annotations
+
+import json
+import sys
+
+import requests
+
+__test__ = False
+
+
+BASE = "http://localhost:8000"
+
+
+def main() -> int:
+    for creds in [
+        {"username": "admin", "password": "Admin123!"},
+        {"username": "admin_test", "password": "TestPass1!"},
+    ]:
+        resp = requests.post(f"{BASE}/api/auth/login", data=creds, timeout=5)
+        if resp.status_code == 200 and "access_token" in resp.json():
+            token = resp.json()["access_token"]
+            break
+    else:
+        print("Nu am putut obtine token admin.")
+        return 1
+
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(f"{BASE}/api/littering/events?limit=2", headers=headers, timeout=5)
+    print("STATUS:", resp.status_code)
+    data = resp.json()
+    print("TYPE:", type(data))
+    print("KEYS:", list(data.keys()) if isinstance(data, dict) else None)
+    print("BODY:", json.dumps(data, indent=2, default=str)[:2000])
+    return 0 if resp.status_code == 200 else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

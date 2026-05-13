@@ -8,8 +8,8 @@
 
 | Component | Status | Detalii |
 |-----------|--------|---------|
-| Model detector A4-8010 | ✅ Antrenat | YOLOv8s, mAP50=0.690, split 80/10/10, 232 test |
-| Clasificator B2 | ✅ Antrenat | YOLOv8n-cls, 92.22% Top-1, 257 test |
+| Model detector A4-8010 | ✅ Antrenat | YOLOv8s, mAP50=0.687, F1=0.699, split 80/10/10, 232 test |
+| Clasificator B2 | ✅ Antrenat | YOLOv8n-cls, 91.1% Top-1, macro-F1=0.881, 257 test |
 | Site minimalist | ✅ Gata | 3 tabs: Dashboard + Monitor + Incidente |
 | Monitor live | ✅ Gata | Webcam direct, fără configurare locații |
 | Demo standalone | ✅ Gata | `scripts/demo_littering.py` |
@@ -231,10 +231,10 @@ Capitol 4 — Algoritmul de detecție a aruncării (8-10 pag)
   4.6 Evidența evenimentului (clip + thumbnail + hash)
 
 Capitol 5 — Evaluare și rezultate (10-12 pag)
-  5.1 Metrici detector A4-8010 (mAP50=0.690, F1=0.703)
+  5.1 Metrici detector A4-8010 (mAP50=0.687, F1=0.699)
   5.2 Threshold optim (confidence sweep)
   5.3 Speed benchmark (105 FPS)
-  5.4 Metrici clasificator B2 (92.22%, AUC=0.987)
+  5.4 Metrici clasificator B2 (accuracy=91.1%, macro-F1=0.881)
   5.5 Evaluare sistem littering (FPR=0% pe footage negativ)
   5.6 Comparație cu literatura de specialitate
 

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # ── Paths ────────────────────────────────────────────────────────────────
     REPO_ROOT: Path = Path(__file__).parent.parent
-    DETECTOR_WEIGHTS: str = "runs/detect/parks-trash-A4-ext/weights/best.pt"
+    DETECTOR_WEIGHTS: str = "runs/detect/parks-trash-A4-8010/weights/best.pt"
     CLASSIFIER_WEIGHTS: str = "runs/classify/parks-cls-B2/weights/best.pt"
 
     # ── JWT / Auth ───────────────────────────────────────────────────────────
@@ -27,11 +27,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
-    # ── OTP ──────────────────────────────────────────────────────────────────
-    OTP_LENGTH: int = 6
-    OTP_EXPIRE_MINUTES: int = 5
-
-    # ── SMTP (empty = dev mode, prints OTP to console) ───────────────────────
+    # ── SMTP (optional: incident alerts, authority forwarding, invites) ──────
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
@@ -42,7 +38,7 @@ class Settings(BaseSettings):
     MAX_LOGIN_ATTEMPTS: int = 5
     LOGIN_LOCKOUT_MINUTES: int = 15
 
-    # ── Stripe (empty = dev mode, checkout returns mock URL) ────────────────
+    # ── Stripe (empty = dev mode, checkout activates plans locally) ─────────
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
     STRIPE_PRICE_STARTER: str = ""   # price_... from Stripe dashboard

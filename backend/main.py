@@ -752,6 +752,38 @@ async def create_location(
     return {"id": loc.id, "name": loc.name}
 
 
+@app.delete(
+    "/api/littering/events/{event_id}",
+    response_model=schemas.DetailResponse,
+    summary="[Admin] Delete a littering event completely and its associated files",
+)
+async def delete_littering_event(
+    event_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+
+    event = await session.get(db.LitteringEvent, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    # Delete physical files
+    if event.clip_path:
+        cp = Path("data/littering") / event.clip_path
+        if cp.exists():
+            cp.unlink()
+    if event.thumbnail_path:
+        tp = Path("data/littering") / event.thumbnail_path
+        if tp.exists():
+            tp.unlink()
+
+    await session.delete(event)
+    await session.commit()
+    return schemas.DetailResponse(message="Incident șters definitiv și stocarea eliberată.")
+
+
 @app.patch("/api/locations/{loc_id}", summary="Update monitored location (B2B)")
 async def update_location(
     loc_id: int,
@@ -1281,23 +1313,13 @@ async def admin_invite_user(
     await session.commit()
     await session.refresh(new_user)
 
-    # In dev mode (no SMTP), return password in response; otherwise email it
-    if not settings.SMTP_HOST:
-        return {
-            "id": new_user.id,
-            "username": new_user.username,
-            "email": new_user.email,
-            "role": new_user.role,
-            "dev_password": temp_password,
-            "message": "User creat. SMTP neconfigurat — parola e returnată direct.",
-        }
-    # TODO: send invitation email with temp password
     return {
         "id": new_user.id,
         "username": new_user.username,
         "email": new_user.email,
         "role": new_user.role,
-        "message": f"Invitație trimisă pe {email}",
+        "dev_password": temp_password,
+        "message": "User creat. Trimite parola temporară manual.",
     }
 
 

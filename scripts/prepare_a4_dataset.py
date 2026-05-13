@@ -263,7 +263,7 @@ def main():
     print(f"\n  Dataset gata: {OUT_DIR}")
     print("\nUrmatorul pas — antrenare A4:")
     print(f"  yolo detect train \\")
-    print(f"    model=runs/detect/parks-trash-A3-final/weights/best.pt \\")
+    print(f"    model=yolov8s.pt \\")
     print(f"    data={OUT_DIR}/dataset.yaml \\")
     print(f"    epochs=50 imgsz=640 project=runs/detect name=parks-trash-A4 \\")
     print(f"    freeze=10 batch=16 patience=15")

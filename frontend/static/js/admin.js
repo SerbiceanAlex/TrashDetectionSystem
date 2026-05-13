@@ -553,6 +553,41 @@ function adminApp() {
       }
     },
 
+    async deleteIncident(id) {
+      const ok = await this.showConfirm(
+        'Șterge definitiv',
+        'Acest incident și videoclipul/imaginile asociate vor fi șterse permanent pentru a elibera spațiu. Acțiunea este ireversibilă.',
+        { confirmText: 'Șterge Definitiv', confirmColor: '#dc2626', iconColor: '#dc2626', icon: 'trash-2' }
+      );
+      if (!ok) return;
+      try {
+        await fetchAPI(`/api/littering/events/${id}`, { method: 'DELETE' });
+
+        // Elimină din lista curentă
+        const idx = this.incidents.findIndex(e => e.id === id);
+        if (idx !== -1) {
+          const oldStatus = this.incidents[idx].status;
+          this.incidents.splice(idx, 1);
+
+          // Actualizează KPI-urile locale
+          this.incidentTotalAll = Math.max(0, this.incidentTotalAll - 1);
+          if (oldStatus === 'pending') this.incidentPending = Math.max(0, this.incidentPending - 1);
+          if (oldStatus === 'reviewed') this.incidentReviewed = Math.max(0, this.incidentReviewed - 1);
+          if (oldStatus === 'forwarded') this.incidentForwarded = Math.max(0, this.incidentForwarded - 1);
+        }
+
+        // Închide modalul dacă era deschis
+        if (typeof this.incidentModal !== 'undefined' && this.incidentModal?.id === id) {
+           this.incidentModal = null;
+        }
+
+        showToast('Incident șters definitiv.');
+        this._refreshAdminIcons();
+      } catch (e) {
+        showToast('Eroare: ' + e.message, 'error');
+      }
+    },
+
     /* ── Switch admin sub-tab ─────────────────────────────────────────── */
     switchAdminSubTab(tab) {
       this.adminSubTab = tab;

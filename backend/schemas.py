@@ -49,19 +49,6 @@ class TokenData(BaseModel):
     id: Optional[int] = None
 
 
-# ── OTP (Two-Factor) ────────────────────────────────────────────────────────
-
-class OTPRequired(BaseModel):
-    """Returned when password is correct but OTP verification is needed."""
-    otp_required: bool = True
-    email_hint: str          # masked email, e.g. "a***@gmail.com"
-    message: str = "Cod de verificare trimis pe email"
-
-class OTPVerify(BaseModel):
-    """Client sends this to verify the OTP code."""
-    username: str
-    code: str
-
 class PasswordErrors(BaseModel):
     """Returned when password doesn't meet policy."""
     errors: list[str]
@@ -584,4 +571,3 @@ class LitteringEventStatusUpdate(BaseModel):
 class LitteringEventNotesUpdate(BaseModel):
     """Request body for PATCH /api/littering/events/{id}/notes"""
     notes: str
-

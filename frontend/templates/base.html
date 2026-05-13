@@ -7,9 +7,8 @@
 <body>
 
 {% include 'partials/_overlays.html' %}
-{% include 'partials/_camera_wizard.html' %}
 
-<!-- Auth screen (login / OTP / register) -->
+<!-- Auth screen (login / register) -->
 {% include 'partials/_auth.html' %}
 
 <!-- Main application shell -->
@@ -24,12 +23,8 @@
       {% include 'tabs/dashboard.html' %}
       {% include 'tabs/scan.html' %}
       {% include 'tabs/incidents.html' %}
-      {% include 'tabs/locations.html' %}
-      {% include 'tabs/reports.html' %}
-      {% include 'tabs/plans.html' %}
       {% include 'tabs/admin.html' %}
       {% include 'tabs/more.html' %}
-      {# history.html, map.html, community.html removed — B2B pivot #}
     </main>
 
     <nav class="td-bottom-nav">

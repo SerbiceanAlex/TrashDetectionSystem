@@ -8,7 +8,7 @@ Testează:
   4. Simulare WebSocket monitor cu frame real
 
 Rulare:
-    .venv\Scripts\python.exe scripts\test_integration.py
+    .venv\\Scripts\\python.exe scripts\\test_integration.py
 """
 
 import asyncio
@@ -22,6 +22,8 @@ import cv2
 import httpx
 import numpy as np
 import websockets
+
+__test__ = False
 
 BASE = "http://localhost:8000"
 WS_BASE = "ws://localhost:8000"

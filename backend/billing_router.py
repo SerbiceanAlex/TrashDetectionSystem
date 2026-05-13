@@ -1,8 +1,8 @@
 """
 Stripe billing integration.
 
-If STRIPE_SECRET_KEY is empty (dev mode), checkout returns a mock response
-so the rest of the app works without real keys.
+If STRIPE_SECRET_KEY is empty (dev mode), checkout activates the selected plan
+directly so the rest of the app works without real keys.
 """
 
 from typing import Annotated
@@ -32,7 +32,7 @@ async def create_checkout(
     """
     Create a Stripe Checkout session for upgrading the org plan.
     Returns {checkout_url} — redirect the browser there.
-    Dev mode: returns a mock URL when STRIPE_SECRET_KEY is empty.
+    Dev mode: activates the plan directly when STRIPE_SECRET_KEY is empty.
     """
     plan = (body.get("plan") or "").lower()
     if plan not in ("starter", "pro", "enterprise"):
@@ -46,12 +46,23 @@ async def create_checkout(
             org_obj = fetched
 
     if not settings.STRIPE_SECRET_KEY:
-        # Dev mode — simulate successful checkout redirect
+        # Dev mode — activate the selected plan without leaving the app.
+        limits = PLAN_LIMITS.get(plan, {})
+        org_obj.plan = plan
+        if limits:
+            org_obj.max_cameras = limits["max_cameras"]
+            org_obj.max_incidents_month = limits["max_incidents_month"]
+        org_obj.subscription_active = True
+        await session.commit()
+        await session.refresh(org_obj)
         return {
             "checkout_url": None,
             "dev_mode": True,
-            "message": f"Dev mode: Stripe neconfigurat. Activând planul '{plan}' direct...",
+            "activated": True,
+            "message": f"Dev mode: Stripe neconfigurat. Planul '{plan}' a fost activat direct.",
             "plan": plan,
+            "max_cameras": org_obj.max_cameras,
+            "max_incidents_month": org_obj.max_incidents_month,
         }
 
     try:

@@ -1,9 +1,8 @@
 """
-Tests for authentication flow: register, login (OTP), password policy.
+Tests for authentication flow: register, login, password policy.
 """
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 
 
@@ -92,7 +91,7 @@ async def test_password_rules_endpoint(client: AsyncClient):
     assert len(data["rules"]) >= 4
 
 
-# ── Login (OTP flow) ────────────────────────────────────────────────────────
+# ── Login ───────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_login_wrong_password(client: AsyncClient):
@@ -114,7 +113,7 @@ async def test_login_nonexistent_user(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_login_admin_gets_direct_token(client: AsyncClient):
-    """Admin login should return JWT directly (skip OTP)."""
+    """Admin login should return JWT directly."""
     resp = await client.post("/api/auth/login", data={
         "username": "admin_test",
         "password": "TestPass1!",
@@ -126,54 +125,11 @@ async def test_login_admin_gets_direct_token(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_login_regular_user_requires_otp(client: AsyncClient):
-    """Regular user login should trigger OTP step."""
+async def test_login_regular_user_gets_direct_token(client: AsyncClient):
+    """Regular user login should also return JWT directly."""
     resp = await client.post("/api/auth/login", data={
         "username": "user_test",
         "password": "TestPass1!",
-    })
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["otp_required"] is True
-    assert "email_hint" in data
-    assert "***" in data["email_hint"]
-
-
-# ── OTP verification ────────────────────────────────────────────────────────
-
-@pytest.mark.asyncio
-async def test_verify_otp_wrong_code(client: AsyncClient):
-    resp = await client.post("/api/auth/verify-otp", json={
-        "username": "admin_test",
-        "code": "000000",
-    })
-    assert resp.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_verify_otp_correct_code(client: AsyncClient, session):
-    """Full flow: login regular user → get OTP from DB → verify → get JWT."""
-    from backend.database import OTPCode
-    from sqlalchemy import select
-
-    # Step 1: Login regular user to trigger OTP generation
-    resp = await client.post("/api/auth/login", data={
-        "username": "user_test",
-        "password": "TestPass1!",
-    })
-    assert resp.status_code == 200
-
-    # Step 2: Read OTP from database directly (dev shortcut)
-    result = await session.execute(
-        select(OTPCode).where(OTPCode.is_used == 0).order_by(OTPCode.created_at.desc())
-    )
-    otp = result.scalar_one()
-    code = otp.code
-
-    # Step 3: Verify OTP → get JWT
-    resp = await client.post("/api/auth/verify-otp", json={
-        "username": "user_test",
-        "code": code,
     })
     assert resp.status_code == 200
     data = resp.json()

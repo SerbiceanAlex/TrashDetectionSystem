@@ -225,7 +225,7 @@
       </div>
     </template>
 
-    <!-- Success — show dev password -->
+    <!-- Success — show temporary password -->
     <template x-if="inviteResult">
       <div>
         <div style="background:rgba(5,150,105,.08);border:1px solid rgba(5,150,105,.2);border-radius:12px;padding:14px;margin-bottom:14px">
@@ -236,7 +236,7 @@
         </div>
         <template x-if="inviteResult.dev_password">
           <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:12px;padding:14px;margin-bottom:18px">
-            <p style="font-size:11px;font-weight:700;color:#92400e;margin:0 0 6px;text-transform:uppercase;letter-spacing:.5px">Dev mode — SMTP neconfigurat</p>
+            <p style="font-size:11px;font-weight:700;color:#92400e;margin:0 0 6px;text-transform:uppercase;letter-spacing:.5px">Parolă temporară</p>
             <p style="font-size:12px;color:var(--tx-primary);margin:0 0 8px">Parola temporară (trimite-o utilizatorului manual):</p>
             <code style="display:block;background:var(--bg-raised);padding:10px 12px;border-radius:8px;font-size:14px;font-weight:700;font-family:monospace;color:var(--eco-green-dark);user-select:all;word-break:break-all"
               x-text="inviteResult.dev_password"></code>

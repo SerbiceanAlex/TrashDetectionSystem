@@ -10,7 +10,6 @@ def test_settings_loads():
     from backend.config import settings
     assert len(settings.SECRET_KEY) >= 32
     assert settings.ALGORITHM == "HS256"
-    assert settings.OTP_LENGTH == 6
     assert settings.MAX_UPLOAD_MB == 20
 
 

@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import re
-import secrets
 import logging
 
 import bcrypt
@@ -68,67 +67,7 @@ def decode_access_token(token: str) -> dict:
         return {}
 
 
-# ── OTP generation ───────────────────────────────────────────────────────────
-
-def generate_otp() -> str:
-    """Generate a cryptographically secure 6-digit OTP code."""
-    return "".join(secrets.choice("0123456789") for _ in range(settings.OTP_LENGTH))
-
-
 # ── Email sending ────────────────────────────────────────────────────────────
-
-async def send_otp_email(to_email: str, otp_code: str, username: str) -> bool:
-    """Send OTP code via email. Falls back to console print in dev mode."""
-    subject = f"TrashDet – Cod de verificare: {otp_code}"
-    body = (
-        f"Salut {username},\n\n"
-        f"Codul tău de verificare este: {otp_code}\n\n"
-        f"Codul expiră în {settings.OTP_EXPIRE_MINUTES} minute.\n"
-        f"Dacă nu ai solicitat acest cod, ignoră mesajul.\n\n"
-        f"─ TrashDet"
-    )
-
-    # If SMTP is configured, send real email
-    if settings.SMTP_HOST and settings.SMTP_USER:
-        try:
-            import aiosmtplib
-            from email.mime.text import MIMEText
-
-            msg = MIMEText(body, "plain", "utf-8")
-            msg["Subject"] = subject
-            msg["From"] = settings.SMTP_FROM
-            msg["To"] = to_email
-
-            await aiosmtplib.send(
-                msg,
-                hostname=settings.SMTP_HOST,
-                port=settings.SMTP_PORT,
-                username=settings.SMTP_USER,
-                password=settings.SMTP_PASS,
-                start_tls=True,
-            )
-            logger.info(f"OTP email trimis la {to_email}")
-            return True
-        except Exception as e:
-            logger.error(f"Eroare trimitere email: {e}")
-            # Fall through to console print
-    
-    # Dev mode: print to console
-    logger.info(
-        f"\n{'='*50}\n"
-        f"  [DEV] OTP pentru {username} ({to_email})\n"
-        f"  COD: {otp_code}\n"
-        f"  Expiră în {settings.OTP_EXPIRE_MINUTES} minute\n"
-        f"{'='*50}"
-    )
-    print(
-        f"\n{'='*50}\n"
-        f"  [DEV] OTP pentru {username} ({to_email})\n"
-        f"  COD: {otp_code}\n"
-        f"  Expiră în {settings.OTP_EXPIRE_MINUTES} minute\n"
-        f"{'='*50}"
-    )
-    return True
 
 
 async def send_incident_alert(to_email: str, event_id: int, material: str, detected_at: str, address: str = "") -> bool:

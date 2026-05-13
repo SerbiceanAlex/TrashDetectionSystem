@@ -19,6 +19,8 @@ import cv2
 import numpy as np
 import requests
 
+__test__ = False
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 

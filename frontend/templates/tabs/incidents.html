@@ -512,6 +512,14 @@
             @mouseleave="$el.style.background='var(--bg-raised)'">
             <i data-lucide="x" class="w-4 h-4"></i> Respinge
           </button>
+          <button x-show="isAdmin"
+            @click="deleteIncident(incidentModal.id)"
+            class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ml-auto"
+            style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)"
+            @mouseenter="$el.style.background='rgba(239,68,68,.2)'"
+            @mouseleave="$el.style.background='rgba(239,68,68,.1)'">
+            <i data-lucide="trash-2" class="w-4 h-4"></i> Șterge definitiv
+          </button>
         </div>
       </div>
     </div>
