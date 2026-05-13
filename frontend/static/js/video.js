@@ -368,18 +368,35 @@ function videoApp() {
             clearInterval(this.uploadPollTimer);
             this.videoProgress = 100;
             const evCount = vs.littering_count || 0;
-            this.videoProcessingMsg = `Gata! ${vs.total_frames} frames · ${vs.total_objects} obiecte detectate${evCount > 0 ? ` · ${evCount} incident${evCount > 1 ? 'e' : ''} salvat${evCount > 1 ? 'e' : ''}` : ''}`;
-            this.videoProcessing = false;
+            this.videoProcessingMsg = `Gata! ${vs.total_frames} cadre analizate · ${vs.total_objects} obiecte detectate`;
             this.selectedVideoSession = vs;
             this.loadVideoSessions();
+            
             // Auto-refresh incidents tab
             if (typeof this.loadIncidents === 'function') this.loadIncidents();
-            if (evCount > 0) showToast(`${evCount} incident${evCount > 1 ? 'e' : ''} detectat${evCount > 1 ? 'e' : ''} și salvat${evCount > 1 ? 'e' : ''}!`, 'success');
+            
+            if (evCount > 0) {
+              showToast(`Analiză finalizată: ${evCount} incident(e) salvat(e)!`, 'error');
+            } else {
+              showToast('Analiză finalizată: Niciun incident de aruncare ilegală detectat.', 'success');
+            }
+
+            // Lasă mesajul de succes pe ecran 4 secunde înainte să revină la butonul de upload
+            setTimeout(() => {
+              this.videoProcessing = false;
+              this.uploadFile = null;
+            }, 4000);
+
           } else if (vs.status === 'failed') {
             clearInterval(this.uploadPollTimer);
             this.videoProgress = 0;
-            this.videoProcessingMsg = 'Processing failed.';
-            this.videoProcessing = false;
+            this.videoProcessingMsg = 'Eroare la procesarea fișierului.';
+            showToast('Eroare la procesarea videoclipului.', 'error');
+            
+            setTimeout(() => {
+              this.videoProcessing = false;
+              this.uploadFile = null;
+            }, 3000);
           }
         } catch (_) {}
       }, 2000);
