@@ -1,12 +1,25 @@
-# Trash Detection System — Sistem Two-Stage de Detecție a Deșeurilor
+# TrashDetectionSystem — Sistem Inteligent de Monitorizare a Deșeurilor
 
-Sistem two-stage de detecție și clasificare a deșeurilor în spații verzi urbane (parcuri), implementat cu YOLOv8.
+Sistem two-stage bazat pe **YOLOv8** pentru detecția și clasificarea deșeurilor în spații verzi urbane, cu o componentă activă de **Behavioral Engine** capabilă să identifice abandonul ilegal de deșeuri (littering) în timp real din fluxuri video.
 
-**Lucrare de licență — Universitatea Politehnica București, 2026.**
+**Lucrare de licență — Universitatea 1 Decembrie 1918 Alba Iulia, 2026.**
+**Autor:** Serbicean Alexandru
 
 ---
 
-## Arhitectură
+## Scopul Proiectului
+
+Platforma a evoluat de la o aplicație de tip "gamification/reporting" la un **Sistem Administrativ de Monitorizare** cu următoarele capabilități principale:
+1. **Monitorizare Live (Behavioral Engine):** Analizează fluxul camerei (laptop sau telefon) pentru a detecta momentul exact când o persoană abandonează gunoi.
+2. **Offline Video Processing:** Permite încărcarea clipurilor CCTV (MP4) și procesarea lor asincronă pentru identificarea actelor de littering.
+3. **GDPR by Design:** Toate dovezile video/foto salvate au fețele anonimizate (blurate) automat prin algoritmi de detecție facială, respectând Art. 25 GDPR.
+4. **Mobile-First & HTTPS:** Optimizat pentru a rula pe telefoane mobile (iPhone) pentru calitatea superioară a camerei, utilizând un flux securizat HTTPS.
+
+---
+
+## Arhitectură Modele AI (Two-Stage)
+
+Sistemul folosește o arhitectură în doi pași pentru precizie maximă și reducerea alarmelor false (FP):
 
 ```
 Imagine/Video → [Stage 1: Detector YOLO] → bounding boxes (clasa: trash)
@@ -16,249 +29,83 @@ Imagine/Video → [Stage 1: Detector YOLO] → bounding boxes (clasa: trash)
                             material: glass / metal / paper / plastic / other
 ```
 
-- **Stage 1** (`src/detect_two_stage.py`): YOLOv8s, imgsz=640, clasă unică `trash`, antrenat pe dataset Parks adnotat manual din videoclipuri de parc
-- **Stage 2** (`src/detect_two_stage.py`): YOLOv8n-cls, imgsz=224, antrenat pe TrashNet + crops extrase din dataset-ul de parcuri
+### Modele în producție:
+- **Detector A4-8010:** YOLOv8s, imgsz=640. Antrenat pe un dataset combinat (Parks + TACO). Are un **False Positive Rate de 0%** pe videoclipurile reale din parcuri și o performanță de **mAP50=0.666**. 
+  - Locație: `runs/detect/parks-trash-A4-8010/weights/best.pt`
+- **Clasificator B2:** YOLOv8n-cls, imgsz=224. Antrenat pe TrashNet și secțiuni extrase din datasetul Parks. Acuratețe Top-1 de **91.1%** pe test set.
+  - Locație: `runs/classify/parks-cls-B2/weights/best.pt`
 
 ---
 
-## Rezultate Finale
+## Aplicația Web (FastAPI + Alpine.js)
 
-### Detector — Experiment A
+Interfața web este minimalistă, centrată strict pe funcționalitățile de detecție, renunțând la modulele inutile (SaaS, gamificare) pentru stabilitate maximă:
 
-| Experiment | Model | Dataset | imgsz | Precision | Recall | **mAP50** | mAP50-95 |
-|------------|-------|---------|-------|-----------|--------|-----------|----------|
-| A22 (baseline) | YOLOv8n | Parks 1544 | 416 | 0.707 | 0.286 | 0.393 | 0.281 |
-| A3-final (original) | YOLOv8s | Parks 1544 | 640 | 0.623 | 0.406 | 0.443 | 0.321 |
-| A3-retrain (reproductibil) | YOLOv8s | Parks 1544 | 640 | 0.628 | 0.437 | 0.482 | 0.356 |
-| **A4** ✅ productie | **YOLOv8s** | **Parks+TACO 2307** | **640** | **0.857** | **0.552** | **0.666** | **0.523** |
-
-### Clasificator — Experiment B (metrici pe test set)
-
-| Experiment | Model | Dataset | **Acc Top-1** | **F1 macro** | Imagini test |
-|------------|-------|---------|---------------|--------------|--------------|
-| **B2** ✅ productie | YOLOv8n-cls | TrashNet + parks crops | **91.1%** | 0.881 | 257 |
-| B3 | YOLOv8n-cls | TrashNet + parks crops (extins) | 91.3% | 0.879 | 299 |
-
-### Pipeline End-to-End — Experiment C
-
-| Experiment | Detector | Clasificator | Imagini cu detecții | **Rată detecție** | Total detecții | Viteză |
-|------------|----------|--------------|---------------------|-------------------|----------------|--------|
-| C1 (baseline) | A22 | B2 | 9 / 225 | 4.0% | 10 | 21.4 ms/img |
-| **C2** ✅ best | **A3-final** | **B2** | **219 / 225** | **97.3%** | **739** | 60.7 ms/img |
-
-**Distribuție materiale detectate (C2, 739 detecții):**
-
-| Material | Nr. detecții | Procent |
-|----------|-------------|---------|
-| paper    | 276 | 37.3% |
-| metal    | 267 | 36.1% |
-| glass    | 94  | 12.7% |
-| plastic  | 77  | 10.4% |
-| other    | 25  | 3.4%  |
+1. **Dashboard:** O privire de ansamblu (Placeholder vizual minimalist).
+2. **Monitor:** 
+   - Mod **Live Camera**: Monitorizare fullscreen, cu indicatori de stare (LIBER, PERSOANĂ, VERIFICARE, INCIDENT).
+   - Mod **Upload Video**: Permite analiza clipurilor înregistrate, rulează într-un thread de fundal, generând incidente la finalizarea analizei.
+3. **Incidente:** Galerie cu toate dovezile de aruncare ilegală a gunoiului (clipuri scurte extrase automat, plus metadata despre material și scorul de încredere).
 
 ---
 
-## Modele antrenate
+## Setup & Pornire
 
-### Detectie act de aruncare ilegala — Evaluare FP rate
+### Cerințe:
+- Python 3.11+
+- Mediu virtual (`.venv`)
+- Pachetul `cryptography` pentru certificate HTTPS
 
-| Model | Videos testate | Frames | False Positive | FP Rate |
-|-------|---------------|--------|----------------|---------|
-| A3-retrain | 4 park videos | 1901 | 0 | **0%** |
-| **A4** ✅ productie | 4 park videos | 1901 | 0 | **0%** |
-
-Ambele modele au FP rate 0% pe videoclipuri reale de parc. A4 selectat pentru productie
-datorita imbunatatirii de +22.3pp mAP50 la detectia obiectelor.
-
----
-
-## Modele antrenate
-
-| Model | Cale | Rol |
-|-------|------|-----|
-| **Detector A3-final** | `runs/detect/parks-trash-A3-final/weights/best.pt` | Stage 1 — detectează obiecte trash |
-| **Clasificator B2** | `runs/classify/parks-cls-B2/weights/best.pt` | Stage 2 — clasifică materialul |
-
----
-
-## Notebook-uri
-
-Întreaga pipeline este documentată și reproductibilă prin notebook-uri Jupyter:
-
-| Notebook | Scop |
-|----------|------|
-| `notebooks/data/01_data_preparation.ipynb` | Pregătire dataset detecție (split train/val/test) |
-| `notebooks/data/02_classification_data.ipynb` | Pregătire dataset clasificare (crops + split) |
-| `notebooks/data/03_annotate_parks_crops.ipynb` | Export crops, antrenare B, evaluare clasificator |
-| `notebooks/training/01_train_detector.ipynb` | Antrenare detectori — Experiment A |
-| `notebooks/training/02_train_classifier.ipynb` | Antrenare clasificatori — Experiment B |
-| `notebooks/evaluation/01_evaluate_detector.ipynb` | Evaluare detector A22 și A3-final pe test set |
-| `notebooks/evaluation/02_evaluate_classifier.ipynb` | Evaluare clasificator B2 și B3 pe test set |
-| `notebooks/evaluation/03_inference_demo.ipynb` | Demo vizual two-stage pe test set |
-| `notebooks/evaluation/04_pipeline_C1_C2.ipynb` | Pipeline end-to-end C1 vs C2 |
-| `notebooks/evaluation/05_thesis_figures.ipynb` | Generare figuri și tabele pentru teză |
-
----
-
-## Structura proiectului
-
-```
-TrashDetectionSystem/
-├── src/
-│   └── detect_two_stage.py      # Pipeline two-stage (CLI + modul importabil de backend/)
-├── backend/
-│   ├── main.py                  # FastAPI router, endpoint-uri REST + WebSocket
-│   ├── config.py                # Pydantic BaseSettings — config centralizat din .env
-│   ├── auth.py                  # JWT (PyJWT), bcrypt, OTP, rate limiting, password policy
-│   ├── auth_router.py           # Endpoint-uri /auth/register, /auth/login, /auth/verify-otp, /auth/me
-│   ├── inference.py             # Thread-safe two-stage pipeline (singleton)
-│   ├── video.py                 # WebSocket handler pentru inferență live pe video
-│   ├── database.py              # SQLAlchemy async engine + modele ORM (6 tabele)
-│   ├── schemas.py               # Pydantic schemas (30+ modele)
-│   └── geo.py                   # Geocodare coordonate GPS (Nominatim)
-├── frontend/
-│   ├── static/                  # CSS, JS (Alpine.js modules), manifest PWA, service worker
-│   └── templates/               # HTML (Jinja2) — base + partials + tabs
-├── tests/
-│   ├── conftest.py              # Fixtures pytest (in-memory DB, async client)
-│   ├── test_auth.py             # 14 teste auth (register, OTP, JWT, password policy)
-│   ├── test_api.py              # 10 teste endpoints (sessions, stats, map, export)
-│   └── test_config.py           # 4 teste config
-├── scripts/
-│   ├── train_classifier.py      # Antrenare clasificator (apelat din notebook)
-│   ├── evaluate_classifier.py   # Evaluare clasificator (apelat din notebook)
-│   ├── export_yolo_crops.py     # Export crops din detecții
-│   ├── split_classification_dataset.py   # Split all→train/val/test (clasificare)
-│   ├── merge_classification_datasets.py  # Merge TrashNet + parks crops
-│   ├── validate_yolo_dataset.py          # Validare format dataset YOLO
-│   └── report_classification_dataset_stats.py  # Statistici dataset clasificare
-├── notebooks/
-│   ├── data/                    # Pregătire date
-│   ├── training/                # Antrenare modele
-│   └── evaluation/              # Evaluare, demo, figuri teză
-├── datasets/
-│   ├── parks_detect_full/       # Dataset detecție (train/val/test, adnotat manual)
-│   ├── parks_cls/               # Dataset clasificare (train/val/test)
-│   ├── mixed_cls/               # Dataset clasificare extins (TrashNet + parks)
-│   └── trashnet_cls/            # TrashNet original
-├── results/
-│   ├── detector/                # JSON metrici A22, A3-final
-│   ├── classifier/              # JSON metrici B2, B3
-│   └── pipeline/                # JSON/CSV sumare C1, C2
-├── .env.example                 # Template configurație (SECRET_KEY, SMTP, etc.)
-├── Dockerfile                   # Container imagine Docker
-├── docker-compose.yml           # Orchestrare Docker cu volume persistente
-├── create_admin.py              # Utilitar creare user admin/demo
-├── requirements.txt
-└── README.md
-```
-
----
-
-## Aplicație Web
-
-Interfață web fullstack cu autentificare, GPS, video live și statistici interactive.
-
-**Stack:** FastAPI · SQLAlchemy 2.0 async · SQLite (aiosqlite) · Alpine.js 3 · Chart.js 4 · Leaflet 1.9.4
-
-```bash
-# Pornire server (din directorul rădăcină al proiectului)
-.venv\Scripts\uvicorn backend.main:app --reload --port 8000
-```
-
-Deschide `http://127.0.0.1:8000` în browser.
-
-**Funcționalități:**
-- **Autentificare** — înregistrare/login cu JWT + OTP email (2FA), parole hashed bcrypt, password policy, rate limiting, roluri user/admin
-- **Detectare imagine** — upload drag & drop (limită 20 MB), slider confidence, imagine adnotată instant, coordonate GPS opționale
-- **Detectare batch** — upload multiple imagini simultan, raport agregat per sesiune
-- **Video live** — inferență two-stage în timp real prin WebSocket (stream MJPEG)
-- **Hartă GPS** — toate detecțiile pe hartă Leaflet cu filtre pe material și status (rezolvat/nerezolvat)
-- **Statistici** — pie chart materiale, bar chart detecții pe zi, carduri sumar global, statistici personale, grafic săptămânal
-- **Leaderboard** — clasament utilizatori după număr de detecții raportate
-- **Notificări** — sistem in-app de notificări per utilizator
-- **Export CSV** — descarcă toate detecțiile filtrabile (compatibil Excel)
-- **PWA** — Progressive Web App, instalabil pe mobil/desktop (manifest + service worker)
-- **API docs** — Swagger UI la `/docs`, ReDoc la `/redoc`
-
-> Configurare prin fișier `.env` (vezi `.env.example`). SECRET_KEY, SMTP, model paths, DATABASE_URL.
-
----
-
-## Setup
-
+### Instalare:
 ```bash
 python -m venv .venv
-
-# Windows PowerShell
 .venv\Scripts\Activate.ps1
-
 pip install -r requirements.txt
+pip install cryptography
+```
+
+### Pornire Server (Mod HTTPS pentru iPhone/Mobil):
+Pentru a accesa camera de înaltă calitate a telefonului, serverul trebuie să ruleze pe HTTPS (restricție impusă de browsere pe mobile):
+
+```bash
+python start_https.py
+```
+*Scriptul va genera automat un certificat SSL self-signed și va porni serverul pe `0.0.0.0:8443`.*
+
+**Conectare de pe telefon:**
+1. Conectează telefonul la același Wi-Fi ca PC-ul.
+2. Deschide Safari și accesează adresa afișată în consolă (ex: `https://192.168.1.X:8443`).
+3. La avertismentul de securitate, selectează `Avansat -> Vizitează site-ul`.
+4. Mergi în tab-ul **Monitor** și pornește feed-ul. Interfața va intra automat în modul *Fullscreen Monitor*.
+
+---
+
+## Structura Proiectului (Actualizată)
+
+```text
+TrashDetectionSystem/
+├── src/                         # Scripturi utilitare și pipeline-uri standalone
+├── backend/
+│   ├── main.py                  # API Endpoints (FastAPI) & rute statice
+│   ├── inference.py             # Logica core YOLO, tracking (DeepSORT) și Face Blurring
+│   ├── video.py                 # Handlere WebSocket pentru Live Monitor și Uploads
+│   ├── database.py              # ORM SQLAlchemy
+│   ├── config.py                # Configurație (variabile de mediu)
+│   └── uploads/, videos/, littering/ # Directoare generate automat pentru dovezi
+├── frontend/
+│   ├── static/js/video.js       # Logica de client Alpine.js (WebSocket, canvas, poll)
+│   └── templates/tabs/          # Structura HTML (dashboard, scan, incidents)
+├── scripts/
+│   └── demo_littering.py        # Script standalone pentru testarea detecției pe fișiere video
+├── start_https.py               # Launcher pentru mediu HTTPS local
+├── ACTION_PLAN.md               # Documentul viu cu pașii de dezvoltare și testare
+└── README.md                    # Prezentarea generală a proiectului
 ```
 
 ---
 
-## Utilizare
-
-### Inferență pe video/webcam (CLI)
-
-```bash
-# Pipeline two-stage complet (detector + clasificator material)
-python -m src.detect_two_stage --source path/to/video.mp4 \
-    --detector runs/detect/parks-trash-A3-final/weights/best.pt \
-    --classifier runs/classify/parks-cls-B2/weights/best.pt \
-    --show --save
-```
-
-### Antrenare modele
-
-Antrenarea se face din notebook-uri Jupyter (reproductibil, cu logging vizual):
-
-```
-notebooks/training/01_train_detector.ipynb   → Experiment A (detector)
-notebooks/training/02_train_classifier.ipynb  → Experiment B (clasificator)
-```
-
-### Evaluare
-
-Evaluarea completă se rulează din notebook-uri:
-
-```
-notebooks/evaluation/01_evaluate_detector.ipynb    → metrici A22 + A3-final
-notebooks/evaluation/02_evaluate_classifier.ipynb  → metrici B2 + B3
-notebooks/evaluation/04_pipeline_C1_C2.ipynb       → pipeline C1 vs C2
-notebooks/evaluation/05_thesis_figures.ipynb       → figuri și tabele finale pentru teză
-```
-
-### Pregătire dataset
-
-```bash
-# Split dataset clasificare
-python scripts/split_classification_dataset.py \
-    --source-root datasets/parks_cls_unsorted \
-    --out-root datasets/parks_cls --clear
-
-# Validare format YOLO
-python scripts/validate_yolo_dataset.py
-
-# Statistici dataset
-python scripts/report_classification_dataset_stats.py
-```
-
-### Teste
-
-```bash
-# Rulare suite completă (28 teste, ~2s)
-python -m pytest tests/ -v
-```
-
-### Docker
-
-```bash
-# Build + start
-docker compose up -d
-
-# Sau manual
-docker build -t trashdet .
-docker run -p 8000:8000 --env-file .env -v ./runs:/app/runs:ro trashdet
-```
+## Următorii Pași (Vezi `ACTION_PLAN.md`)
+Sistemul este stabil și pregătit pentru testarea finală. Următoarea etapă constă în generarea datelor reale de test prin:
+1. Plasarea telefonului ca sursă live (CCTV).
+2. Simulare de aruncare ilegală în cadru.
+3. Confirmarea înregistrării clipului în tab-ul "Incidente" cu fețele anonimizate corect.
