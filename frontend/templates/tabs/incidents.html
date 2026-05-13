@@ -40,7 +40,7 @@
   <!-- ── KPI 4 carduri ─────────────────────────────────────────────────── -->
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
 
-    <div @click="incidentStatusFilter='pending'; loadIncidents()"
+    <div @click="incidentStatusFilter='pending'; incidentMaterialFilter=''; loadIncidents()"
       class="p-4 rounded-xl cursor-pointer transition-all duration-200"
       :style="darkMode ? 'background:#292524;border:1px solid #57534e' : 'background:#fffbeb;border:1px solid #fde68a'"
       @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(245,158,11,.45)';$el.style.transform='translateY(-1px)'"
@@ -55,7 +55,7 @@
       <p class="text-[10px] mt-1.5" :style="darkMode ? 'color:#fbbf24;opacity:.7' : 'color:#d97706;opacity:.7'">de revizuit</p>
     </div>
 
-    <div @click="incidentStatusFilter='reviewed'; loadIncidents()"
+    <div @click="incidentStatusFilter='reviewed'; incidentMaterialFilter=''; loadIncidents()"
       class="p-4 rounded-xl cursor-pointer transition-all duration-200"
       :style="darkMode ? 'background:#064e3b;border:1px solid #065f46' : 'background:#ecfdf5;border:1px solid #a7f3d0'"
       @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(16,185,129,.45)';$el.style.transform='translateY(-1px)'"
@@ -65,11 +65,11 @@
       </p>
       <p class="text-3xl font-extrabold leading-none"
          :style="darkMode ? 'color:#34d399' : 'color:#059669'"
-         x-text="incidents.filter(i=>i.status==='reviewed').length"></p>
+         x-text="incidentReviewed ?? 0"></p>
       <p class="text-[10px] mt-1.5" :style="darkMode ? 'color:#34d399;opacity:.7' : 'color:#059669;opacity:.7'">confirmate</p>
     </div>
 
-    <div @click="incidentStatusFilter='forwarded'; loadIncidents()"
+    <div @click="incidentStatusFilter='forwarded'; incidentMaterialFilter=''; loadIncidents()"
       class="p-4 rounded-xl cursor-pointer transition-all duration-200"
       :style="darkMode ? 'background:#1e3a5f;border:1px solid #1d4ed8' : 'background:#eff6ff;border:1px solid #bfdbfe'"
       @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(59,130,246,.45)';$el.style.transform='translateY(-1px)'"
@@ -80,18 +80,18 @@
       </p>
       <p class="text-3xl font-extrabold leading-none"
          :style="darkMode ? 'color:#60a5fa' : 'color:#3b82f6'"
-         x-text="incidents.filter(i=>i.status==='forwarded').length"></p>
+         x-text="incidentForwarded ?? 0"></p>
       <p class="text-[10px] mt-1.5" :style="darkMode ? 'color:#60a5fa;opacity:.7' : 'color:#2563eb;opacity:.7'">la autoritate</p>
     </div>
 
-    <div @click="incidentStatusFilter=''; loadIncidents()"
+    <div @click="incidentStatusFilter=''; incidentMaterialFilter=''; loadIncidents()"
       class="p-4 rounded-xl cursor-pointer transition-all duration-200"
       style="background:var(--bg-surface);border:1px solid var(--bg-border)"
       @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(239,68,68,.35)';$el.style.transform='translateY(-1px)'"
       @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
       <p class="text-[10px] font-bold uppercase tracking-widest mb-2" style="color:var(--tx-muted)">Total</p>
       <p class="text-3xl font-extrabold leading-none" style="color:var(--tx-primary)"
-         x-text="incidentTotal ?? 0"></p>
+         x-text="incidentTotalAll ?? 0"></p>
       <p class="text-[10px] mt-1.5" style="color:var(--tx-muted)">all time</p>
     </div>
   </div>

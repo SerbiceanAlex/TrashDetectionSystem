@@ -54,6 +54,9 @@ function adminApp() {
     incidentStatusFilter: '',
     incidentMaterialFilter: '',
     incidentPending: 0,
+    incidentReviewed: 0,
+    incidentForwarded: 0,
+    incidentTotalAll: 0,
 
     /* ── Init ─────────────────────────────────────────────────────────── */
     initAdmin() {
@@ -467,8 +470,12 @@ function adminApp() {
         this.incidentTotal = data.total;
 
         try {
-          const pendingData = await fetchAPI('/api/littering/events?status=pending&limit=1');
-          this.incidentPending = pendingData.total;
+          // Incarca totalurile globale asincron pentru KPI cards
+          const p1 = fetchAPI('/api/littering/events?status=pending&limit=1').then(d => this.incidentPending = d.total);
+          const p2 = fetchAPI('/api/littering/events?status=reviewed&limit=1').then(d => this.incidentReviewed = d.total);
+          const p3 = fetchAPI('/api/littering/events?status=forwarded&limit=1').then(d => this.incidentForwarded = d.total);
+          const p4 = fetchAPI('/api/littering/events?limit=1').then(d => this.incidentTotalAll = d.total);
+          await Promise.all([p1, p2, p3, p4]);
         } catch (_) {}
       } catch (e) {
         showToast('Eroare la încărcarea incidentelor: ' + e.message, 'error');
@@ -487,6 +494,7 @@ function adminApp() {
         const idx = this.incidents.findIndex(e => e.id === id);
         if (idx !== -1) this.incidents[idx] = updated;
         this.incidentPending = Math.max(0, this.incidentPending - 1);
+        this.incidentReviewed += 1;
         showToast('Incident marcat ca verificat');
       } catch (e) {
         showToast('Eroare: ' + e.message, 'error');
@@ -507,7 +515,13 @@ function adminApp() {
           body: JSON.stringify({ status: 'forwarded' }),
         });
         const idx = this.incidents.findIndex(e => e.id === id);
-        if (idx !== -1) this.incidents[idx] = updated;
+        if (idx !== -1) {
+          const oldStatus = this.incidents[idx].status;
+          this.incidents[idx] = updated;
+          if (oldStatus === 'reviewed') this.incidentReviewed = Math.max(0, this.incidentReviewed - 1);
+          if (oldStatus === 'pending') this.incidentPending = Math.max(0, this.incidentPending - 1);
+          this.incidentForwarded += 1;
+        }
         showToast('Incident trimis la autoritate');
       } catch (e) {
         showToast('Eroare: ' + e.message, 'error');
