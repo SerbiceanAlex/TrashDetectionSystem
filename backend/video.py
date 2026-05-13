@@ -294,6 +294,11 @@ def _process_video_sync(
             if progress_callback and total_frames % 30 == 0:
                 progress_callback(total_frames, total_frames_expected)
 
+        # Flush any pending events at the end of the video
+        final_event = detector.finalize()
+        if final_event is not None:
+            collected_events.append((final_event, total_frames / fps_in))
+
     finally:
         cap.release()
         writer.release()

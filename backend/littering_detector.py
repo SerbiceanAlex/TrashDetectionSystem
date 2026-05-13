@@ -230,14 +230,13 @@ class LitteringDetector:
                 self._pending_event  = None
                 self._post_buffer    = []
 
-        # MODE B — distance-based (runs only when persons visible)
-        if person_boxes:
-            event = self._update_distance_trackers(
-                frame, trash_detections, person_boxes, person_ids or []
-            )
-            if event is not None:
-                self._start_post_capture(event)
-                return event
+        # MODE B — distance-based (runs even when person is absent to handle timeouts)
+        event = self._update_distance_trackers(
+            frame, trash_detections, person_boxes, person_ids or []
+        )
+        if event is not None:
+            self._start_post_capture(event)
+            return event
 
         # MODE A — zone-based
         if self.state == DetectorState.CLEAR:
@@ -283,6 +282,25 @@ class LitteringDetector:
         self._pending_event      = None
         self._rel_trackers.clear()
 
+    def finalize(self) -> Optional[LitteringEvent]:
+        """Call when video stream ends to flush any pending distance events."""
+        if self._pending_event and self._capture_post:
+            self._capture_post = False
+            return self._pending_event
+
+        for tid, tracker in list(self._rel_trackers.items()):
+            if tracker.state in [TrashRelState.SEPARATING, TrashRelState.DROPPED]:
+                # Force fire event since video ended
+                det = {"box": (int(tracker.last_trash_cx), int(tracker.last_trash_cy), int(tracker.last_trash_cx+10), int(tracker.last_trash_cy+10)), "material_name": "unknown", "det_score": 0.5}
+                # Find best matching det from last frame if possible, else mock
+                event = self._build_distance_event(
+                    self._frame_buffer[-1] if self._frame_buffer else np.zeros((10,10,3), dtype=np.uint8),
+                    det, tracker, tracker.max_distance_m, tracker.owner_box
+                )
+                del self._rel_trackers[tid]
+                return event
+        return None
+
     @property
     def current_state(self) -> str:
         return self.state.name
@@ -306,7 +324,7 @@ class LitteringDetector:
         person_boxes: list[tuple[int, int, int, int]],
         person_ids: list[int],
     ) -> Optional[LitteringEvent]:
-        now = time.time()
+        now = self.frame_idx / self.fps
         scale = self._estimate_scale(person_boxes)
 
         pid_map: dict[int, tuple[int, int, int, int]] = {
@@ -380,22 +398,21 @@ class LitteringDetector:
 
         # Person-lost timeout for SEPARATING trackers
         for tid, tracker in list(self._rel_trackers.items()):
-            if tracker.state != TrashRelState.SEPARATING:
-                continue
-            if tracker.person_id not in pid_map:
-                if tracker.person_lost_at is None:
-                    tracker.person_lost_at = now
-                elif now - tracker.person_lost_at >= LOST_TIMEOUT_S:
-                    det = trash_by_id.get(tid)
-                    if det:
-                        event = self._build_distance_event(
-                            frame, det, tracker,
-                            tracker.max_distance_m, tracker.owner_box,
-                        )
-                        del self._rel_trackers[tid]
-                        return event
-            else:
-                tracker.person_lost_at = None
+            if tracker.state in [TrashRelState.SEPARATING, TrashRelState.DROPPED]:
+                if tracker.person_id not in pid_map:
+                    if tracker.person_lost_at is None:
+                        tracker.person_lost_at = now
+                    elif now - tracker.person_lost_at >= LOST_TIMEOUT_S:
+                        det = trash_by_id.get(tid)
+                        if det:
+                            event = self._build_distance_event(
+                                frame, det, tracker,
+                                tracker.max_distance_m, tracker.owner_box,
+                            )
+                            del self._rel_trackers[tid]
+                            return event
+                else:
+                    tracker.person_lost_at = None
 
         return None
 
