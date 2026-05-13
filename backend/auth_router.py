@@ -55,6 +55,24 @@ async def get_current_active_user(
     return current_user
 
 
+async def get_current_user_optional(
+    token: str = Depends(OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)),
+    session: AsyncSession = Depends(db.get_db),
+) -> "db.User | None":
+    """Optional auth — returns None instead of raising 401 when no token is provided."""
+    if not token:
+        return None
+    try:
+        payload = auth.decode_access_token(token)
+        username: str = payload.get("username")
+        if not username:
+            return None
+        result = await session.execute(select(db.User).where(db.User.username == username))
+        return result.scalar_one_or_none()
+    except Exception:
+        return None
+
+
 @router.post("/register", response_model=schemas.UserOut)
 async def register_user(
     user_in: schemas.UserCreate,

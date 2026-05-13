@@ -92,3 +92,6 @@ tmp/
 ngrok/
 cloudflared*
 pinggy*
+
+# SSL certificates (generated locally, never commit private keys)
+certs/

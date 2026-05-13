@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend import database as db
 from backend import inference as infer
 from backend import schemas
-from backend.auth_router import router as auth_router, get_current_active_user, oauth2_scheme
+from backend.auth_router import router as auth_router, get_current_active_user, get_current_user_optional, oauth2_scheme
 from backend.auth import decode_access_token
 from backend.config import settings
 from backend import video as vid
@@ -200,13 +200,10 @@ def _save_files(original_bytes: bytes, annotated_bytes: bytes, stem: str):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
-async def landing(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="landing.html",
-        context={},
-    )
+@app.get("/", include_in_schema=False)
+async def landing():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/app")
 
 
 @app.get("/app", response_class=HTMLResponse, include_in_schema=False)
@@ -1102,7 +1099,7 @@ async def reports_export(
 async def upload_video(
     file: UploadFile = File(...),
     det_conf: float = Query(default=0.50, ge=0.05, le=0.95),
-    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    current_user: db.User | None = Depends(get_current_user_optional),
     session: AsyncSession = Depends(db.get_db),
 ):
     allowed = {
