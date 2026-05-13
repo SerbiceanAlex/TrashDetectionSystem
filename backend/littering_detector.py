@@ -542,6 +542,13 @@ def _make_thumbnail(
 ) -> np.ndarray:
     thumb = frame.copy()
 
+    # Aplica blur GDPR pe presupusa fata (sfertul superior al zonei persoanei)
+    face_h = max(1, int((zone.y2 - zone.y1) * 0.25))
+    fy2 = min(zone.y1 + face_h, thumb.shape[0])
+    region = thumb[zone.y1:fy2, zone.x1:zone.x2]
+    if region.size > 0:
+        thumb[zone.y1:fy2, zone.x1:zone.x2] = cv2.GaussianBlur(region, (51, 51), 0)
+
     _draw_dashed_rect(thumb, (zone.x1, zone.y1), (zone.x2, zone.y2),
                       (0, 165, 255), 2, dash_len=12)
     cv2.putText(thumb, "Person zone", (zone.x1, max(zone.y1 - 6, 10)),

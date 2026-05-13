@@ -481,10 +481,18 @@ def _save_clip(frames: list, fps: float, event_id: int) -> str | None:
         out_path = LITTERING_DIR / f"event_{event_id:06d}.mp4"
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(str(out_path), fourcc, fps, (w, h))
-        for f in frames:
+        from backend.inference import detect_persons, blur_face_regions
+        for f_raw in frames:
+            # We copy to avoid modifying the original buffer frames
+            f = f_raw.copy()
             fh, fw = f.shape[:2]
             if (fw, fh) != (w, h):
                 f = cv2.resize(f, (w, h))
+            
+            # Detectam persoanele in cadru si aplicam blur (GDPR) pe zona capului
+            person_boxes = detect_persons(f)
+            f = blur_face_regions(f, person_boxes)
+            
             writer.write(f)
         writer.release()
         _reencode_h264(out_path)
@@ -864,10 +872,8 @@ async def handle_monitor_ws(
                 # Save thumbnail
                 thumb_rel = None
                 if event.thumbnail is not None:
-                    # Overlay blur on thumbnail too
-                    thumb_blurred = infer.blur_face_regions(event.thumbnail, [])
                     thumb_rel = await asyncio.to_thread(
-                        _save_thumbnail, thumb_blurred, event_id
+                        _save_thumbnail, event.thumbnail, event_id
                     )
 
                 # Update DB with file paths
