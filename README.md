@@ -20,7 +20,7 @@ Pipeline-ul folosit de aplicatie este two-stage:
 
 ```text
 Frame video
-  -> Detector YOLOv8 A4-8010: localizeaza obiectele trash
+  -> Detector YOLOv8 final: localizeaza obiectele trash
   -> Clasificator YOLOv8 B2: estimeaza materialul
   -> Behavioral Engine: decide daca exista act de aruncare
 ```
@@ -29,11 +29,11 @@ Greutatile finale folosite de aplicatie stau in `models/`:
 
 ```text
 models/
-├── detector/A4-8010/best.pt
+├── detector/production/best.pt
 └── classify/B2/best.pt
 ```
 
-`runs/` ramane zona de experimente si antrenari YOLO. Cand alegi un model final, copiezi checkpoint-ul castigator in `models/`.
+`runs/` ramane zona de experimente si antrenari YOLO. Modelul activ este checkpoint-ul promovat in `models/detector/production/best.pt`.
 
 ## Structura proiectului
 
@@ -54,7 +54,7 @@ TrashDetectionSystem/
 │       ├── js/                 # logica UI, auth, monitor, admin
 │       └── css/                # stiluri
 ├── models/
-│   ├── detector/A4-8010/       # model detector folosit in aplicatie
+│   ├── detector/production/    # model detector final folosit in aplicatie
 │   └── classify/B2/            # model clasificator folosit in aplicatie
 ├── notebooks/
 │   ├── training/               # experimente si antrenari
@@ -107,7 +107,7 @@ Pentru camera telefonului, ruleaza serverul HTTPS si deschide adresa afisata in 
 In redactare, aplicatia web trebuie tratata ca suport practic. Partea principala merita sa fie:
 
 1. pregatirea dataseturilor si antrenarea modelelor;
-2. evaluarea detectorului A4-8010 si a clasificatorului B2;
+2. evaluarea detectorului final si a clasificatorului B2;
 3. logica Behavioral Engine si criteriile temporale;
 4. experimentele pe clipuri reale si analiza erorilor;
 5. limite, GDPR si directii viitoare.

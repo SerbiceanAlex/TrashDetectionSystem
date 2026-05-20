@@ -8,8 +8,8 @@ Use this script only after a candidate model passes validation.
 
 Example:
     .venv\\Scripts\\python.exe scripts\\training\\promote_detector.py ^
-        --candidate runs\\detect\\parks-trash-A6-curated\\weights\\best.pt ^
-        --name A6-curated
+        --candidate runs\\detect\\parks-trash-final\\weights\\best.pt ^
+        --name parks-trash-final
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ MANIFEST = REPO / "models" / "detector" / "production" / "manifest.json"
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Promote detector checkpoint to production")
     parser.add_argument("--candidate", required=True, help="Path to candidate best.pt")
-    parser.add_argument("--name", required=True, help="Human-readable model name, e.g. A6-curated")
+    parser.add_argument("--name", required=True, help="Human-readable model name, e.g. parks-trash-final")
     parser.add_argument("--note", default="", help="Optional validation note")
     return parser.parse_args()
 

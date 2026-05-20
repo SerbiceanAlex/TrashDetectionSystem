@@ -1,11 +1,10 @@
 """
 diagnose_pipeline.py
 ====================
-Empirical pipeline diagnostic for the trash detector.
+Empirical pipeline diagnostic for the production trash detector.
 
-Compares the production detector with the A6-curated candidate at different
-detector image sizes and confidence thresholds.
-thresholds on the same video clips. The goal is to separate three issues:
+Tests the active production detector at different detector image sizes and
+confidence thresholds on the same video clips. The goal is to separate three issues:
 
 1. live pipeline configuration, especially low imgsz;
 2. detector checkpoint quality;
@@ -43,7 +42,6 @@ sys.path.insert(0, str(REPO))
 
 MODELS = {
     "production": REPO / "models" / "detector" / "production" / "best.pt",
-    "A6-curated": REPO / "runs" / "detect" / "parks-trash-A6-curated" / "weights" / "best.pt",
 }
 
 TEST_CLIPS = [
@@ -268,7 +266,7 @@ def print_summary(rows: list[dict], model_names: list[str], imgsz_values: list[i
 
     print("\nInterpretare rapida:")
     print("- daca detection_rate creste clar de la 320 la 640/960, live imgsz=320 este blocaj real;")
-    print("- daca A6-curated depaseste production si pastreaza false positives scazute, poate fi promovat;")
+    print("- foloseste acest diagnostic doar pentru calibrarea imgsz/conf a modelului de productie;")
     print("- daca conf=0.15 creste mult dar poate produce fals pozitive, trebuie validare pe clipuri negative.")
 
 

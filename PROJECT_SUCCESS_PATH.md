@@ -34,19 +34,26 @@ Old experiments were moved out of the active tree to reduce confusion.
 Keep these in the active project:
 
 - `models/detector/production/`
-- `models/detector/archive/A4-ext/`
-- `models/detector/archive/A4-8010/`
-- `datasets/parks_detect_A4/`
+- `models/classify/B2/`
+- `models/pretrained/yolov8n.pt`
 - `datasets/parks_detect_final/`
 - `runs/detect/parks-trash-final/`
-- `notebooks/training/06_train_detector_A7_parks_focused.ipynb`
-- `notebooks/training/07_train_detector_A7_best_extended.ipynb`
+- `notebooks/training/01_train_classifier.ipynb`
+- `notebooks/training/02_train_detector_final.ipynb`
+- `notebooks/evaluation/01_evaluate_detector.ipynb`
+- `notebooks/evaluation/04_inference_demo.ipynb`
+
+The only detector checkpoint used by the application is
+`models/detector/production/best.pt`.
 
 ## Archived Cleanup
 
 Moved on 2026-05-20:
 
-- Old runs: `runs/archive/detect/cleanup_2026-05-20/`
 - Old generated datasets: `datasets/archive/cleanup_2026-05-20/`
+- Historical baseline dataset was moved under `datasets/archive/cleanup_2026-05-20/`
+- Temporary validation runs: `runs/archive/validation_tmp_2026-05-20/`
 
-These are retained only as recovery material until the thesis is defended.
+Historical detector runs were removed from the active tree; the retained run is
+`runs/detect/parks-trash-final`. Archived material is retained only as recovery
+material until the thesis is defended.

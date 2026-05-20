@@ -47,10 +47,8 @@ def section(title: str) -> None:
 
 def find_test_image() -> Path | None:
     candidates = [
+        REPO_ROOT / "datasets/parks_detect_final/images/test",
         REPO_ROOT / "datasets/raw/images/park01_download_img_001.jpg",
-        REPO_ROOT / "datasets/parks_detect_A4/images/test",
-        REPO_ROOT / "datasets/parks_detect_full/images/val",
-        REPO_ROOT / "datasets/parks_detect/images/val",
     ]
     for candidate in candidates:
         if candidate.is_file():

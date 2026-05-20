@@ -1,6 +1,6 @@
 {
   "experiment": "parks-trash-final",
-  "model_start": "D:\\TrashDetectionSystem\\runs\\detect\\parks-trash-A7-pilot1-a4ext-i640\\weights\\best.pt",
+  "model_start": "historical transfer checkpoint; no longer active after final promotion",
   "dataset": "D:\\TrashDetectionSystem\\datasets\\parks_detect_final\\dataset.yaml",
   "split": "test",
   "imgsz": 640,
@@ -8,7 +8,7 @@
   "epochs_requested": 150,
   "patience": 25,
   "lr0": 0.0002,
-  "weights": "D:\\TrashDetectionSystem\\runs\\detect\\parks-trash-final\\weights\\best.pt",
+  "weights": "D:\\TrashDetectionSystem\\models\\detector\\production\\best.pt",
   "results": {
     "precision": 0.9234,
     "recall": 0.8229,
