@@ -3,7 +3,7 @@
   "pilot": "a7_1",
   "comment": "A4-ext + A7 + imgsz=640 \u2014 testeaza efectul DATELOR",
   "model_start": "D:\\TrashDetectionSystem\\runs\\archive\\detect\\parks-trash-A4-ext\\weights\\best.pt",
-  "dataset": "D:\\TrashDetectionSystem\\datasets\\parks_detect_A7_parks_focused_801010\\dataset.yaml",
+  "dataset": "D:\\TrashDetectionSystem\\datasets\\parks_detect_final\\dataset.yaml",
   "imgsz": 640,
   "batch": 8,
   "epochs_requested": 30,

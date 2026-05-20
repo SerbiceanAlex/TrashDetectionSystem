@@ -3,9 +3,9 @@
 This project is now centered on the final detector:
 
 - Active production detector: `models/detector/production/best.pt`
-- Final training run: `runs/detect/parks-trash-A7-best-ext-i640`
-- Final dataset: `datasets/parks_detect_A7_parks_focused_801010`
-- Final test metrics: `results/detector/parks-trash-A7-best-ext-i640-test.json`
+- Final training run: `runs/detect/parks-trash-final`
+- Final dataset: `datasets/parks_detect_final`
+- Final test metrics: `results/detector/parks-trash-final-test.json`
 
 ## Final Detector Metrics
 
@@ -37,8 +37,8 @@ Keep these in the active project:
 - `models/detector/archive/A4-ext/`
 - `models/detector/archive/A4-8010/`
 - `datasets/parks_detect_A4/`
-- `datasets/parks_detect_A7_parks_focused_801010/`
-- `runs/detect/parks-trash-A7-best-ext-i640/`
+- `datasets/parks_detect_final/`
+- `runs/detect/parks-trash-final/`
 - `notebooks/training/06_train_detector_A7_parks_focused.ipynb`
 - `notebooks/training/07_train_detector_A7_best_extended.ipynb`
 
