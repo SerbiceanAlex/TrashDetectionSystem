@@ -1,0 +1,157 @@
+\chapter{Date, pregătire experimentală și antrenarea modelelor}
+
+\section{Sursele de date utilizate}
+
+Pentru realizarea sistemului propus au fost utilizate două categorii principale de date: date pentru detecția obiectelor de tip deșeu și date pentru clasificarea materialului obiectului detectat. Separarea acestor două sarcini este importantă deoarece detectorul trebuie să localizeze obiectul în cadru, iar clasificatorul trebuie să ofere o descriere suplimentară asupra tipului de material. Astfel, sistemul nu depinde de un singur model care să rezolve simultan toate aspectele problemei, ci de un flux de procesare în care fiecare componentă are o responsabilitate clară.
+
+Pentru etapa de detecție a fost utilizat setul de date \texttt{parks\_detect\_A4}. Acesta reprezintă varianta extinsă a setului de date folosit pentru detectorul final al lucrării. Setul combină imagini interne pregătite pentru scenarii de tip parc sau spațiu verde, denumite \texttt{parks\_detect\_full}, cu imagini provenite din setul public TACO, destinat adnotării obiectelor de tip gunoi în contexte reale \cite{proenca2020taco}. Alegerea TACO este justificată de diversitatea obiectelor și a scenelor, deoarece deșeurile pot apărea în numeroase forme, dimensiuni și condiții vizuale.
+
+În varianta utilizată pentru experimentul A4, toate categoriile de deșeuri din TACO au fost remapate către o singură clasă, \texttt{trash}. Această decizie urmărește obiectivul principal al detectorului: localizarea obiectelor suspecte, nu clasificarea fină a materialului în etapa de detecție. Clasificarea materialului este tratată separat, prin modelul B2. Astfel, detectorul rămâne simplu și rapid, iar clasificatorul poate analiza mai atent regiunea decupată din imagine.
+
+După pregătire și redistribuire, setul de date de detecție a fost împărțit în proporție aproximativă 80/10/10 pentru antrenare, validare și testare. Distribuția finală este prezentată în tabelul următor.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|r|r|r|}
+\hline
+Split & Număr imagini & Număr etichete & Proporție aproximativă \\
+\hline
+Antrenare & 1845 & 1845 & 80\% \\
+Validare & 230 & 230 & 10\% \\
+Testare & 232 & 232 & 10\% \\
+\hline
+Total & 2307 & 2307 & 100\% \\
+\hline
+\end{tabular}
+\caption{Distribuția setului de date \texttt{parks\_detect\_A4} utilizat pentru detectorul A4-8010}
+\label{tab:a4_dataset_split}
+\end{table}
+
+Pentru clasificarea materialului a fost utilizat setul de date \texttt{trashnet\_cls}, organizat în cinci clase: \texttt{glass}, \texttt{metal}, \texttt{other}, \texttt{paper} și \texttt{plastic}. Aceste clase au fost alese deoarece sunt relevante pentru descrierea obiectelor de tip deșeu și pot ajuta la interpretarea incidentului în aplicația demonstrativă. În cazul unui incident detectat, sistemul poate salva nu doar existența unui obiect suspect, ci și o estimare a materialului acestuia.
+
+Distribuția imaginilor pentru clasificator este prezentată în tabelul următor. Se observă că setul de date nu este perfect echilibrat, clasa \texttt{paper} având cele mai multe exemple, iar clasa \texttt{other} având cele mai puține. Acest dezechilibru trebuie luat în considerare la interpretarea rezultatelor, deoarece acuratețea globală poate fi influențată de clasele majoritare.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|r|r|r|r|}
+\hline
+Clasă & Antrenare & Validare & Testare & Total \\
+\hline
+glass & 400 & 50 & 51 & 501 \\
+metal & 328 & 41 & 41 & 410 \\
+other & 109 & 13 & 15 & 137 \\
+paper & 797 & 99 & 101 & 997 \\
+plastic & 385 & 48 & 49 & 482 \\
+\hline
+Total & 2019 & 251 & 257 & 2527 \\
+\hline
+\end{tabular}
+\caption{Distribuția setului de date \texttt{trashnet\_cls} utilizat pentru clasificatorul B2}
+\label{tab:b2_dataset_split}
+\end{table}
+
+\section{Preprocesarea și adnotarea imaginilor}
+
+Pregătirea datelor pentru detector a urmărit obținerea unei structuri compatibile cu formatul YOLO. În acest format, fiecare imagine are asociat un fișier text cu aceeași denumire, în care fiecare linie descrie un obiect prin clasa sa și prin coordonatele normalizate ale cutiei de delimitare. Pentru fiecare obiect, formatul utilizat este:
+
+\begin{equation}
+\mathrm{clasa},\ x_{centru},\ y_{centru},\ latime,\ inaltime
+\end{equation}
+
+Coordonatele sunt normalizate în intervalul $[0, 1]$, raportat la dimensiunea imaginii. Această reprezentare permite antrenarea detectorului indiferent de rezoluția originală a imaginilor, deoarece pozițiile sunt exprimate relativ, nu în pixeli absoluți.
+
+Pentru imaginile provenite din TACO, adnotările inițiale sunt disponibile în format COCO, unde cutiile de delimitare sunt descrise prin coordonatele colțului stânga-sus și dimensiunile cutiei. În cadrul proiectului, aceste adnotări au fost convertite în format YOLO. Conversia a presupus calcularea centrului cutiei și normalizarea dimensiunilor în funcție de lățimea și înălțimea imaginii. În plus, adnotările invalide, cu dimensiuni nule sau foarte mici, au fost eliminate pentru a evita introducerea de zgomot în antrenare.
+
+O altă etapă importantă a fost uniformizarea imaginilor. Imaginile foarte mari au fost redimensionate astfel încât dimensiunea maximă să nu depășească 1280 pixeli înainte de salvare. Această limitare reduce consumul de spațiu și evită situațiile în care imagini foarte mari încetinesc pregătirea datasetului, fără a aduce un avantaj semnificativ pentru antrenarea la rezoluția de intrare a modelului. Pentru detector, rezoluția de antrenare folosită ulterior a fost de 640 pixeli.
+
+În cazul setului intern \texttt{parks\_detect\_full}, imaginile erau deja organizate în structură YOLO, cu directoare separate pentru imagini și etichete. Acest set a fost folosit ca bază pentru scenariile apropiate de problema lucrării, iar imaginile TACO au fost adăugate pentru a crește diversitatea vizuală. Fișierele au fost redenumite acolo unde era necesar pentru a evita coliziunile de nume între surse.
+
+Pentru clasificator, datele au fost organizate în directoare pe clase. Spre deosebire de detector, un model de clasificare nu are nevoie de cutii de delimitare, ci de imagini etichetate la nivel de clasă. Structura utilizată este de forma:
+
+\begin{center}
+\texttt{dataset/split/clasa/imagine}
+\end{center}
+
+Această organizare este compatibilă cu antrenarea modelelor de clasificare YOLOv8, unde numele directorului reprezintă eticheta imaginii. În sistemul propus, clasificatorul nu este aplicat direct pe întreaga scenă, ci pe regiuni de interes obținute din detector. Această abordare reduce influența fundalului și permite modelului să se concentreze asupra obiectului detectat.
+
+\section{Organizarea seturilor de antrenare, validare și testare}
+
+Împărțirea datelor în seturi distincte este necesară pentru evaluarea corectă a modelelor. Setul de antrenare este folosit pentru ajustarea ponderilor modelului, setul de validare pentru monitorizarea performanței în timpul antrenării, iar setul de testare pentru evaluarea finală pe date care nu au fost folosite în procesul de învățare. În această lucrare, accentul este pus pe rezultatele obținute pe setul de testare, deoarece acestea oferă o estimare mai corectă a comportamentului modelului pe imagini necunoscute.
+
+Pentru setul de date de detecție A4, împărțirea finală a fost refăcută la proporția 80/10/10, folosind o valoare de inițializare fixă, egală cu 42. Utilizarea unei valori de inițializare fixe este importantă pentru reproductibilitate: aceeași listă de imagini produce aceeași distribuție în antrenare, validare și testare. În lipsa acestei reguli, două rulări diferite ar putea produce rezultate ușor diferite, ceea ce ar îngreuna compararea experimentelor.
+
+În cazul clasificatorului B2, setul de date \texttt{trashnet\_cls} conține 2019 imagini pentru antrenare, 251 pentru validare și 257 pentru testare. Proporția este apropiată de 80/10/10 și este suficient de clară pentru evaluarea unui model de clasificare. Totuși, distribuția pe clase nu este perfect echilibrată. Din acest motiv, în capitolul de rezultate nu este suficientă raportarea acurateții globale; este necesară și interpretarea valorilor de precizie, recall și F1 pe clase.
+
+Organizarea datelor a urmărit evitarea amestecării datelor de test în procesul de antrenare. Această regulă este importantă în special pentru modelele de viziune artificială, deoarece imagini foarte asemănătoare între setul de antrenare și setul de testare pot duce la rezultate optimiste. Într-un sistem practic, modelul trebuie să funcționeze pe scene necunoscute, nu doar pe imagini similare cu cele văzute în antrenare.
+
+Pe lângă seturile principale, în proiect există și experimente auxiliare, precum \texttt{mixed\_cls}, care combină imagini din mai multe surse pentru clasificarea materialului. Aceste experimente sunt utile pentru comparație, însă modelul selectat în aplicația curentă este B2, datorită raportului bun dintre acuratețe, simplitate și viteză de inferență.
+
+\section{Antrenarea detectorului de deșeuri}
+
+Detectorul final utilizat în aplicație este A4-8010, bazat pe arhitectura YOLOv8s. Alegerea variantei YOLOv8s reprezintă un compromis între acuratețe și timp de inferență. Variantele mai mici pot fi mai rapide, dar pot rata obiecte mici sau parțial vizibile, iar variantele mai mari pot necesita resurse hardware mai mari. În contextul proiectului, YOLOv8s oferă o bază potrivită pentru procesare video la rezoluție de 640 pixeli.
+
+Antrenarea detectorului a pornit de la un model preantrenat YOLOv8s, pus la dispoziție prin biblioteca Ultralytics \cite{ultralytics2023yolov8}. Utilizarea unui model preantrenat este o formă de învățare prin transfer. În loc ca modelul să învețe de la zero caracteristici generale precum muchii, texturi și forme, acesta pornește de la ponderi deja învățate pe seturi mari de imagini și este adaptat la clasa \texttt{trash}.
+
+Configurația principală de antrenare a detectorului este prezentată în tabelul următor.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+Parametru & Valoare utilizată \\
+\hline
+Model de bază & YOLOv8s \\
+Dataset & \texttt{parks\_detect\_A4} \\
+Clase & 1, \texttt{trash} \\
+Rezoluție intrare & 640 \\
+Batch size & 8 \\
+Număr maxim de epoci & 150 \\
+Patience & 20 \\
+Seed & 42 \\
+Split & 80/10/10 \\
+\hline
+\end{tabular}
+\caption{Configurația principală pentru antrenarea detectorului A4-8010}
+\label{tab:a4_training_config}
+\end{table}
+
+În timpul antrenării au fost folosite augmentări specifice bibliotecii YOLOv8, precum modificări de culoare, flip orizontal, mosaic și mixup. Aceste tehnici au rolul de a crește diversitatea exemplelor văzute de model și de a reduce riscul de supraînvățare. Pentru un detector de deșeuri, augmentarea este utilă deoarece obiectele pot apărea în condiții variate de lumină, la scări diferite și pe fundaluri neuniforme.
+
+Modelul A4-8010 a fost evaluat pe setul de testare format din 232 imagini. Rezultatele finale salvate pentru acest model indică o precizie de 0.7875, un recall de 0.6286, un scor F1 de 0.6991, mAP50 de 0.6873 și mAP50-95 de 0.5278. Aceste valori vor fi discutate detaliat în capitolul de experimente, însă ele arată că modelul are o capacitate rezonabilă de a localiza obiecte de tip deșeu în condițiile datasetului utilizat.
+
+Un aspect important este diferența dintre evaluarea detectorului și evaluarea sistemului complet. Detectorul decide dacă există obiecte de tip \texttt{trash} în cadre individuale. Sistemul complet trebuie să decidă dacă apariția obiectului este legată temporal de prezența unei persoane și de un posibil act de aruncare. Din acest motiv, detectorul A4-8010 este tratat ca prima componentă a fluxului, nu ca soluție completă a problemei.
+
+\section{Antrenarea clasificatorului de material}
+
+Clasificatorul final utilizat în aplicație este B2, bazat pe YOLOv8n-cls. Rolul său este de a estima materialul obiectului detectat în prima etapă a fluxului. Modelul nu caută obiecte în întreaga imagine, ci primește regiuni decupate sau imagini pregătite pentru clasificare și produce una dintre cele cinci clase: \texttt{glass}, \texttt{metal}, \texttt{other}, \texttt{paper} sau \texttt{plastic}.
+
+Alegerea YOLOv8n-cls este motivată de viteza de inferență și dimensiunea redusă a modelului. În aplicația finală, clasificatorul poate fi apelat de mai multe ori, în funcție de numărul de obiecte detectate într-un cadru. Prin urmare, un model compact este avantajos, mai ales dacă sistemul rulează pe hardware obișnuit, nu pe infrastructură dedicată.
+
+Configurația principală pentru antrenarea clasificatorului B2 este prezentată în tabelul următor.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|l|}
+\hline
+Parametru & Valoare utilizată \\
+\hline
+Model de bază & YOLOv8n-cls \\
+Dataset & \texttt{trashnet\_cls} \\
+Clase & glass, metal, other, paper, plastic \\
+Rezoluție intrare & 224 \\
+Batch size & 32 \\
+Număr maxim de epoci & 200 \\
+Patience & 20 \\
+Seed & 42 \\
+Split & aproximativ 80/10/10 \\
+\hline
+\end{tabular}
+\caption{Configurația principală pentru antrenarea clasificatorului B2}
+\label{tab:b2_training_config}
+\end{table}
+
+Antrenarea a fost configurată cu oprire automată atunci când performanța pe validare nu se mai îmbunătățește. În experimentul B2, cel mai bun model a fost obținut în jurul epocii 31, iar antrenarea s-a oprit după 51 de epoci, ca urmare a mecanismului de early stopping. Această strategie previne continuarea inutilă a antrenării după ce modelul nu mai obține îmbunătățiri relevante și reduce riscul de supraînvățare.
+
+Pe setul de testare, clasificatorul B2 a obținut o acuratețe de 0.9105, precizie macro de 0.8666, recall macro de 0.9135 și F1 macro de 0.8809. Valorile macro sunt importante deoarece tratează clasele în mod echilibrat, indiferent de numărul de imagini din fiecare clasă. În contextul setului de date folosit, această analiză este necesară deoarece există diferențe vizibile între clasele majoritare și clasa \texttt{other}.
+
+Integrarea clasificatorului în flux permite sistemului să ofere o descriere mai completă a incidentului. Detectorul A4-8010 indică prezența unui obiect de tip deșeu și poziția acestuia în cadru, iar clasificatorul B2 estimează materialul. În aplicația demonstrativă, această informație poate fi asociată alertei salvate, împreună cu scorurile de încredere și cu fragmentul video relevant. Astfel, datele și modelele pregătite în acest capitol stau la baza algoritmului temporal prezentat în capitolul următor.

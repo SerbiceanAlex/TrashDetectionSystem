@@ -66,9 +66,9 @@ def main() -> int:
     errors: list[str] = []
 
     model_files = {
-        "Trash detector": REPO_ROOT / "models/detector/A4-8010/best.pt",
+        "Trash detector": REPO_ROOT / "models/detector/production/best.pt",
         "Material classifier": REPO_ROOT / "models/classify/B2/best.pt",
-        "Person detector": REPO_ROOT / "yolov8n.pt",
+        "Person detector": REPO_ROOT / "models/pretrained/yolov8n.pt",
     }
 
     section("TEST 1 - Model files")

@@ -16,7 +16,7 @@ def parse_args():
     parser.add_argument("--source", required=True, help="0 for webcam, or path to an image or video file")
     parser.add_argument(
         "--detector",
-        default="models/detector/A4-8010/best.pt",
+        default="models/detector/production/best.pt",
         help="YOLO detector checkpoint for the single-class trash detector",
     )
     parser.add_argument(

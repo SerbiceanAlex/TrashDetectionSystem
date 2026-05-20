@@ -70,7 +70,7 @@ TrashDetectionSystem/
 ├── results/                    # rezultate si metrici folosite in lucrare
 ├── start_https.py              # pornire locala HTTPS pentru camera telefonului
 ├── requirements.txt
-└── ACTION_PLAN.md
+└── PROJECT_SUCCESS_PATH.md     # status proiect si modelul A7-best in productie
 ```
 
 Directoarele `datasets/`, `runs/`, `outputs/`, `backend/uploads/`, `backend/videos/` si fisierele `.pt` sunt artefacte locale si nu sunt versionate.

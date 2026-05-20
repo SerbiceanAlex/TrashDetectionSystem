@@ -1,8 +1,0 @@
-clip_id,label_gt,scene,trash_type,onset_gt,first_alert_frame,n_alerts,total_frames,latency_frames,outcome,eval_time_s
-yt_littering_car_toss,TP,CCTV - aruncare gunoi din masina,unknown,,,0,556,,FN,17.56
-yt_littering_surveillance,TP,CCTV - aruncare gunoi surprinsa pe camera de supraveghere,unknown,,1611,1,2408,,TP,70.51
-yt_illegal_dumping_cctv,TP,CCTV - illegal dumping,unknown,,1611,1,2408,,TP,70.54
-yt_gunoi_ro_strada,TP,strada RO - gunoi aruncat,unknown,,1447,1,1579,,TP,47.29
-yt_littering_uk,TP,UK - littering fine caught on camera,unknown,,431,1,815,,TP,24.45
-yt_throwing_garbage_street,TP,strada - persoana arunca gunoi,unknown,,453,3,1341,,TP,39.35
-yt_littering_cctv_2024,TP,CCTV 2024 - littering,unknown,,584,1,857,,TP,25.35

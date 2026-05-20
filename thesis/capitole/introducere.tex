@@ -1,0 +1,49 @@
+\chapterwithoutnumber{Introducere}
+
+\section*{Contextul lucrării}
+
+Dezvoltarea sistemelor inteligente de analiză video a devenit o direcție importantă în domeniul informaticii aplicate, în special datorită progreselor obținute de rețelele neuronale convoluționale și de arhitecturile moderne de detecție a obiectelor. În ultimii ani, modelele de tip YOLO au demonstrat că detecția obiectelor poate fi realizată în timp real, cu un echilibru bun între acuratețe și viteză de procesare \cite{redmon2016yolo}. Evoluțiile recente ale bibliotecilor de viziune artificială, precum Ultralytics YOLOv8 \cite{ultralytics2023yolov8}, au făcut posibilă integrarea acestor modele în aplicații practice, accesibile și ușor de adaptat pentru scenarii concrete.
+
+Tema acestei lucrări pornește de la problema identificării automate a deșeurilor în spații publice și evoluează către o direcție mai specifică: detecția actului de aruncare ilegală a deșeurilor prin analiza video în timp real. Diferența dintre simpla detectare a unui obiect de tip deșeu și identificarea unui incident este importantă. Un sistem care marchează doar prezența unui obiect abandonat nu poate stabili dacă obiectul exista deja în scenă, dacă a fost adus de vânt sau dacă a fost lăsat intenționat de o persoană. În schimb, un sistem orientat pe eveniment trebuie să coreleze temporal apariția persoanei, modificările din scenă și stabilizarea unui obiect suspect după părăsirea zonei monitorizate.
+
+Direcția lucrării s-a conturat treptat. Punctul de plecare a fost ideea unui sistem capabil să detecteze automat deșeuri în imagini sau fluxuri video. O astfel de abordare este utilă, dar rămâne limitată dacă rezultatul se reduce la localizarea obiectelor aflate deja în scenă. Din acest motiv, lucrarea a fost orientată către o problemă mai apropiată de un scenariu real de monitorizare: surprinderea momentului producerii faptei. Această schimbare mută accentul de la o detecție statică la o analiză temporală, în care rezultatele modelelor de viziune artificială sunt interpretate în funcție de succesiunea evenimentelor observate în cadru.
+
+\section*{Problema abordată și soluția propusă}
+
+Lucrarea propune un sistem inteligent capabil să analizeze fluxuri video și să semnaleze automat situațiile în care există indicii că o persoană a aruncat un deșeu într-un spațiu public. Sistemul combină un detector de obiecte antrenat pentru identificarea deșeurilor, un clasificator pentru estimarea tipului de material și un algoritm temporal care urmărește evoluția scenei. Pentru partea de detecție și clasificare sunt utilizate modele YOLOv8, iar pentru raționamentul temporal este definită o mașină de stări care urmărește tranziția dintre starea fără activitate, prezența persoanei, perioada de monitorizare și generarea alertei.
+
+Motivația alegerii acestei teme este dată de utilitatea practică a unui astfel de sistem pentru administratori de spații verzi, campusuri universitare, zone de agrement sau spații private deschise publicului. Aruncarea necorespunzătoare a deșeurilor afectează aspectul urban, poate genera costuri suplimentare de curățenie și poate reduce calitatea mediului. În același timp, monitorizarea manuală permanentă a camerelor video este dificilă și ineficientă. Un sistem automat de analiză video poate funcționa ca instrument de filtrare a evenimentelor relevante, oferind alerte și dovezi video care pot fi verificate ulterior de un operator uman.
+
+Problema abordată este relevantă și din perspectiva modului în care sistemele informatice pot transforma datele vizuale brute în informații utile. O cameră video produce o succesiune de cadre, însă aceste cadre nu au valoare operațională fără interpretare. În contextul lucrării, interpretarea presupune localizarea obiectelor de interes, estimarea clasei acestora, observarea prezenței unei persoane și verificarea apariției unui obiect suspect după un interval temporal. Astfel, sistemul nu urmărește doar să răspundă la întrebarea „există un deșeu în imagine?”, ci la întrebarea mai complexă „există suficiente indicii că un deșeu a fost aruncat în timpul monitorizării?”.
+
+\section*{Scopul și obiectivele lucrării}
+
+Scopul lucrării este proiectarea, implementarea și evaluarea unui sistem de detecție a aruncării ilegale de deșeuri prin analiza video. Accentul principal este pus pe componenta de învățare automată și pe algoritmul temporal de identificare a incidentului, iar aplicația web este tratată ca o demonstrație practică a integrării modelelor într-un flux funcțional. Această delimitare este importantă deoarece lucrarea nu urmărește dezvoltarea unei platforme comerciale complete, ci demonstrarea unei soluții informatice coerente, în care modelele antrenate și logica temporală pot funcționa împreună.
+
+Obiectivele lucrării sunt următoarele:
+
+\begin{itemize}
+  \item studierea conceptelor teoretice privind viziunea artificială, detecția obiectelor și rețelele neuronale convoluționale;
+  \item pregătirea și organizarea datelor necesare pentru antrenarea modelelor de detecție și clasificare;
+  \item antrenarea și evaluarea unui detector YOLOv8 pentru identificarea obiectelor de tip deșeu;
+  \item antrenarea și evaluarea unui clasificator pentru estimarea materialului obiectului detectat;
+  \item proiectarea unui algoritm temporal care să diferențieze simpla prezență a unui deșeu de un posibil act de aruncare ilegală;
+  \item integrarea modelelor într-o aplicație demonstrativă cu procesare video și generare de alerte;
+  \item evaluarea rezultatelor obținute și discutarea limitărilor sistemului.
+\end{itemize}
+
+\section*{Metodologia cercetării}
+
+Metodologia de cercetare este una aplicativ-experimentală. Mai întâi sunt analizate conceptele teoretice relevante pentru detecția obiectelor, clasificarea imaginilor și analiza video. Apoi sunt pregătite seturile de date, sunt antrenate modelele de învățare automată și sunt evaluate pe seturi de testare. În etapa următoare, rezultatele modelelor sunt integrate într-un flux video, unde decizia finală nu depinde de un singur cadru, ci de evoluția scenei pe o perioadă scurtă de timp. Această abordare este necesară deoarece actul de aruncare ilegală este un eveniment temporal, nu doar o proprietate statică a unei imagini.
+
+Pentru fundamentarea datasetului și a problemei de detecție a deșeurilor sunt relevante și lucrări care tratează adnotarea obiectelor de tip gunoi în contexte reale, precum TACO \cite{proenca2020taco}. De asemenea, pentru analiza video și urmărirea obiectelor sau persoanelor în timp, literatura recentă privind urmărirea multi-obiect oferă metode utile, cum este ByteTrack \cite{zhang2022bytetrack}. Chiar dacă sistemul propus nu se limitează la o singură tehnică de tracking, aceste direcții justifică nevoia de corelare temporală între detecții succesive.
+
+\section*{Contribuția și limitele lucrării}
+
+Contribuția autorului constă în pregătirea fluxului de date, antrenarea și evaluarea modelelor utilizate, integrarea acestora într-un flux în două etape și definirea unui mecanism temporal pentru semnalarea incidentelor. De asemenea, a fost realizată o aplicație demonstrativă prin care rezultatele modelelor pot fi observate într-un context practic. Această aplicație permite testarea scenariilor video, afișarea alertelor și salvarea unor materiale relevante pentru analiza ulterioară. Prin urmare, contribuția nu se limitează la utilizarea unui model existent, ci include adaptarea și integrarea acestuia într-o soluție orientată pe o problemă concretă.
+
+Lucrarea are și anumite limite. În primul rând, performanța sistemului depinde de calitatea imaginilor video, de poziționarea camerei, de iluminare și de dimensiunea obiectelor din cadru. În al doilea rând, sistemul nu trebuie interpretat ca o soluție juridică automată, ci ca un instrument de asistență care poate semnala evenimente suspecte și poate salva dovezi pentru verificare ulterioară. În al treilea rând, clasele de obiecte și scenariile de testare sunt limitate de datele disponibile și de condițiile în care au fost realizate experimentele. Din aceste motive, rezultatele trebuie interpretate în raport cu contextul experimental și cu scopul demonstrativ al aplicației.
+
+\section*{Structura lucrării}
+
+Din punct de vedere al structurii, lucrarea este organizată astfel. Capitolul 1 prezintă fundamentele teoretice privind viziunea artificială, rețelele neuronale convoluționale, detecția obiectelor, YOLOv8 și metricile de evaluare. Capitolul 2 descrie datele utilizate, pregătirea experimentală și procesul de antrenare a modelelor. Capitolul 3 prezintă modelul propus pentru analiza actului de aruncare ilegală, cu accent pe fluxul în două etape și pe mașina de stări. Capitolul 4 descrie proiectarea și implementarea sistemului, inclusiv arhitectura aplicației și integrarea modelelor. Capitolul 5 prezintă experimentele, rezultatele obținute și interpretarea acestora. Lucrarea se încheie cu o secțiune de concluzii, în care sunt sintetizate contribuțiile, limitările și direcțiile viitoare de dezvoltare.

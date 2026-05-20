@@ -1,0 +1,19 @@
+{
+  "experiment": "parks-trash-A7-best-ext-i640",
+  "model_start": "D:\\TrashDetectionSystem\\runs\\detect\\parks-trash-A7-pilot1-a4ext-i640\\weights\\best.pt",
+  "dataset": "D:\\TrashDetectionSystem\\datasets\\parks_detect_A7_parks_focused_801010\\dataset.yaml",
+  "split": "test",
+  "imgsz": 640,
+  "batch": 8,
+  "epochs_requested": 150,
+  "patience": 25,
+  "lr0": 0.0002,
+  "weights": "D:\\TrashDetectionSystem\\runs\\detect\\parks-trash-A7-best-ext-i640\\weights\\best.pt",
+  "results": {
+    "precision": 0.9234,
+    "recall": 0.8229,
+    "f1": 0.8703,
+    "mAP50": 0.9102,
+    "mAP50_95": 0.6834
+  }
+}

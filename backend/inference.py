@@ -69,7 +69,7 @@ def load_models():
             _cls_names = {0: "unknown"}
 
     if _person_det is None:
-        person_pt = settings.REPO_ROOT / "yolov8n.pt"
+        person_pt = settings.REPO_ROOT / "models" / "pretrained" / "yolov8n.pt"
         _person_det = YOLO(str(person_pt))
         _person_det.to(_DEVICE)
         log.info("Person detector loaded: %s", person_pt)
@@ -87,7 +87,7 @@ def _resize_if_needed(frame: np.ndarray) -> np.ndarray:
 
 def run_pipeline(
     image_bytes: bytes,
-    det_conf: float = 0.25,
+    det_conf: float = settings.DEFAULT_DET_CONF,
     det_imgsz: int = 640,
     cls_imgsz: int = 224,
 ) -> tuple[list[dict], bytes, float]:
@@ -127,8 +127,8 @@ def run_pipeline(
 
 def run_pipeline_frame(
     frame: np.ndarray,
-    det_conf: float = 0.25,
-    det_imgsz: int = settings.LIVE_IMGSZ,   # 320 by default for live — faster on GPU
+    det_conf: float = settings.DEFAULT_DET_CONF,
+    det_imgsz: int = settings.LIVE_IMGSZ,
     cls_imgsz: int = 224,
 ) -> tuple[list[dict], np.ndarray, float]:
     """
@@ -163,7 +163,7 @@ def run_pipeline_frame(
 
 def run_pipeline_track(
     frame: np.ndarray,
-    det_conf: float = 0.25,
+    det_conf: float = settings.DEFAULT_DET_CONF,
     det_imgsz: int = settings.LIVE_IMGSZ,
     cls_imgsz: int = 224,
 ) -> tuple[list[dict], np.ndarray, float]:

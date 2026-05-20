@@ -1,0 +1,104 @@
+\usepackage{fontspec}
+\setmainfont{Times New Roman}
+
+\usepackage{polyglossia}
+\setmainlanguage{romanian}
+
+\usepackage[
+  a4paper,
+  left=2.5cm,
+  right=2cm,
+  top=2cm,
+  bottom=2cm,
+  headheight=1.25cm,
+  footskip=1.25cm
+]{geometry}
+
+\usepackage{setspace}
+\setstretch{1.5}
+
+\usepackage{amsmath}
+
+\usepackage{indentfirst}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+
+\usepackage{ragged2e}
+\AtBeginDocument{\justifying}
+
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\captionsetup{
+  justification=centering,
+  labelsep=colon,
+  font=normalsize
+}
+\captionsetup[table]{position=bottom}
+\renewcommand{\figurename}{Figura}
+\renewcommand{\tablename}{Tabel}
+
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\centering\fontsize{14}{16}\selectfont}
+  {CAPITOLUL \thechapter}
+  {1em}
+  {\MakeUppercase}
+\titlespacing{\chapter}{0pt}{0pt}{24pt}
+
+\titleformat{\section}
+  {\normalfont\bfseries\centering\normalsize}
+  {\thesection}
+  {1em}
+  {}
+\titlespacing{\section}{0pt}{18pt}{12pt}
+
+\titleformat{\subsection}
+  {\normalfont\bfseries\centering\normalsize}
+  {\thesubsection}
+  {1em}
+  {}
+\titlespacing{\subsection}{0pt}{12pt}{6pt}
+
+\usepackage{tocloft}
+\setcounter{tocdepth}{1}
+\renewcommand{\contentsname}{Cuprins}
+\renewcommand{\cftchapfont}{\bfseries}
+\renewcommand{\cftchappagefont}{\bfseries}
+\setlength{\cftbeforechapskip}{6pt}
+\setlength{\cftbeforesecskip}{2pt}
+\setlength{\cftchapnumwidth}{1.6em}
+\setlength{\cftsecnumwidth}{2.8em}
+
+\usepackage{cite}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\blankpage}{%
+  \thispagestyle{empty}%
+  \null%
+  \clearpage%
+}
+
+\newcommand{\cleartooddpage}{%
+  \clearpage%
+  \ifodd\value{page}%
+  \else%
+    \blankpage%
+  \fi%
+}
+
+\newcommand{\chapterwithoutnumber}[1]{%
+  \chapter*{\MakeUppercase{#1}}%
+  \addcontentsline{toc}{chapter}{#1}%
+}
+
+\makeatletter
+\newcommand{\customtableofcontents}{%
+  \thispagestyle{plain}%
+  \begin{center}
+    {\bfseries\fontsize{14}{16}\selectfont Cuprins\par}
+  \end{center}
+  \vspace{1.1cm}
+  \@starttoc{toc}%
+}
+\makeatother

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend import database as db
 from backend import inference as infer
 from backend.auth import send_incident_alert
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -541,7 +542,7 @@ def _iou_overlap(tb, pb) -> float:
 _OVERLAP_THRESH = 0.35  # overlap over this may be body false-positive (adaptive)
 _MIN_TRASH_AREA_FRAC = 0.00015  # ignore tiny noise boxes
 _MAX_TRASH_AREA_FRAC = 0.18     # ignore huge background regions (e.g. bed/floor)
-_TRASH_TRACK_IMGSZ = 320         # 320 for real-time webcam (was 416 — too slow on CPU)
+_TRASH_TRACK_IMGSZ = settings.LIVE_IMGSZ  # 640 improves small/occluded trash detection in live video
 _PERSON_FILTER_SHRINK = 0.72     # shrink person boxes for overlap filtering only
 _HANDHELD_MAX_PERSON_RATIO = 0.12  # keep small objects overlapping a person (in hand)
 _TRASH_STABLE_SEEN = 4             # require 4 consecutive detections — reduces duplicate/ghost boxes
@@ -698,7 +699,7 @@ async def handle_monitor_ws(
 
     tracker = await asyncio.to_thread(_load_tracker)
 
-    det_conf   = max(det_conf, 0.35)    # floor — minimum 0.35 to avoid false positives on non-trash items
+    det_conf = max(det_conf, settings.MONITOR_MIN_DET_CONF)
     detector = LitteringDetector(fps=25.0, monitor_seconds=10.0, pre_event_seconds=5.0, zone_expand=0.35)
 
     # Temporal smoothing counters — require N consecutive frames to confirm/clear

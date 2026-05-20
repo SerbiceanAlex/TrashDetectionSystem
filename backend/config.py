@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # ── Paths ────────────────────────────────────────────────────────────────
     REPO_ROOT: Path = Path(__file__).parent.parent
-    DETECTOR_WEIGHTS: str = "models/detector/A4-8010/best.pt"
+    DETECTOR_WEIGHTS: str = "models/detector/production/best.pt"
     CLASSIFIER_WEIGHTS: str = "models/classify/B2/best.pt"
 
     # ── JWT / Auth ───────────────────────────────────────────────────────────
@@ -58,7 +58,9 @@ class Settings(BaseSettings):
 
     # ── Inference ────────────────────────────────────────────────────────────
     MAX_IMAGE_DIM: int = 1920
-    LIVE_IMGSZ: int = 320
+    LIVE_IMGSZ: int = 640
+    DEFAULT_DET_CONF: float = 0.30
+    MONITOR_MIN_DET_CONF: float = 0.35
 
     @property
     def detector_path(self) -> Path:

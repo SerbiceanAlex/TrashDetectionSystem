@@ -7,6 +7,9 @@ scikit-learn>=1.3.0
 yt-dlp>=2024.0.0
 ipywidgets>=8.0.0
 pandas>=2.0.0
+huggingface_hub>=0.27.0
+hf_xet>=1.0.0
+roboflow>=1.1.64
 
 # Web application
 fastapi>=0.135.0

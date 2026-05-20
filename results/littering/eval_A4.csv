@@ -1,5 +1,0 @@
-clip_id,label_gt,scene,trash_type,onset_gt,first_alert_frame,n_alerts,total_frames,latency_frames,outcome,eval_time_s
-neg_park01_download_01,FP,video parc real - fara aruncare intentionata,,,,0,687,,TN,39.9
-neg_park01_download_02,FP,video parc real - fara aruncare intentionata,,,,0,311,,TN,10.19
-neg_park01_download_03,FP,video parc real - fara aruncare intentionata,,,,0,240,,TN,16.09
-neg_park01_download_04,FP,video parc real - fara aruncare intentionata,,,,0,663,,TN,39.25

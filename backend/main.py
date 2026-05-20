@@ -205,7 +205,7 @@ async def index(request: Request):
 async def detect(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    det_conf: float = Query(default=0.50, ge=0.05, le=0.95, description="Detector confidence threshold"),
+    det_conf: float = Query(default=settings.DEFAULT_DET_CONF, ge=0.05, le=0.95, description="Detector confidence threshold"),
     latitude: float = Query(default=None, description="GPS latitude"),
     longitude: float = Query(default=None, description="GPS longitude"),
     user_note: str = Query(default=None, description="User note/description for the report"),
@@ -312,7 +312,7 @@ async def detect(
 @app.websocket("/ws/video/live")
 async def ws_video_live(
     websocket: WebSocket,
-    det_conf: float = 0.50,
+    det_conf: float = settings.DEFAULT_DET_CONF,
 ):
     """WebSocket for live webcam video: browser sends JPEG frames, server
     returns annotated frames + stats JSON."""
@@ -323,7 +323,7 @@ async def ws_video_live(
 @app.websocket("/ws/video/monitor")
 async def ws_video_monitor(
     websocket: WebSocket,
-    det_conf: float = Query(default=0.40, ge=0.10, le=0.95),
+    det_conf: float = Query(default=settings.MONITOR_MIN_DET_CONF, ge=0.10, le=0.95),
     person_conf: float = Query(default=0.20, ge=0.10, le=0.95),
     lat: Optional[float] = Query(default=None),
     lng: Optional[float] = Query(default=None),
@@ -1116,7 +1116,7 @@ async def reports_export(
           summary="Upload a video file for offline processing")
 async def upload_video(
     file: UploadFile = File(...),
-    det_conf: float = Query(default=0.50, ge=0.05, le=0.95),
+    det_conf: float = Query(default=settings.DEFAULT_DET_CONF, ge=0.05, le=0.95),
     current_user: db.User | None = Depends(get_current_user_optional),
     session: AsyncSession = Depends(db.get_db),
 ):
