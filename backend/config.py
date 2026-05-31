@@ -67,9 +67,9 @@ class Settings(BaseSettings):
     LIVE_IMGSZ: int = 640
     DEFAULT_DET_CONF: float = 0.30
     MONITOR_MIN_DET_CONF: float = 0.35
-    MONITOR_TARGET_FPS: int = 20
-    MONITOR_CAPTURE_MAX_DIM: int = 576
-    MONITOR_JPEG_QUALITY: float = 0.76
+    MONITOR_TARGET_FPS: int = 25
+    MONITOR_CAPTURE_MAX_DIM: int = 512
+    MONITOR_JPEG_QUALITY: float = 0.72
     MONITOR_TRASH_IMGSZ: int = 512
     MONITOR_PERSON_IMGSZ: int = 512
 

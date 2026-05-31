@@ -810,8 +810,8 @@ async def handle_monitor_ws(
     # Temporal smoothing counters — require N consecutive frames to confirm/clear
     _PERSON_CONFIRM = max(2, int(round(0.15 * analysis_fps)))
     _PERSON_CLEAR   = max(4, int(round(0.45 * analysis_fps)))
-    _TRASH_DETECT_STRIDE = 2 if analysis_fps >= 24 else 1
-    _PERSON_DETECT_STRIDE = 3 if analysis_fps >= 24 else 2
+    _TRASH_DETECT_STRIDE = 2 if analysis_fps >= 20 else 1
+    _PERSON_DETECT_STRIDE = 3 if analysis_fps >= 20 else 2
     _person_streak  = 0   # >0 = seen consecutively, <0 = absent consecutively
     _person_stable  = False  # last stable person state
     _trash_tracks: dict[int, dict] = {}

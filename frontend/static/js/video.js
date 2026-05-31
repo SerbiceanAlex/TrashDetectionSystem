@@ -192,9 +192,10 @@ function videoApp() {
     monitorTrash: 0,
     monitorAlerts: [],
     monitorPersonConf: 0.35,
-    monitorSendFps: 20,
-    monitorCaptureMaxDim: 576,
-    monitorJpegQuality: 0.76,
+    monitorSendFps: 25,
+    monitorCaptureMaxDim: 512,
+    monitorRenderMaxDim: 960,
+    monitorJpegQuality: 0.72,
     monitorFacingMode: 'environment',   // 'environment' = spate, 'user' = față
     _monitorAnimFrame: null,
     _monitorCaptureCanvas: null,
@@ -207,13 +208,13 @@ function videoApp() {
     async startMonitor() {
       try {
         const runtime = this.systemInfo?.runtime || {};
-        const configuredTargetFps = Number(runtime.monitor_target_fps || 20);
-        if (this.monitorSendFps === 20 && configuredTargetFps !== 20) {
+        const configuredTargetFps = Number(runtime.monitor_target_fps || 25);
+        if (this.monitorSendFps === 25 && configuredTargetFps !== 25) {
           this.monitorSendFps = configuredTargetFps;
         }
-        this.monitorSendFps = Math.max(12, Math.min(Number(this.monitorSendFps || configuredTargetFps || 20), 30));
-        this.monitorCaptureMaxDim = Math.max(416, Math.min(Number(runtime.monitor_capture_max_dim || this.monitorCaptureMaxDim || 576), 640));
-        this.monitorJpegQuality = Math.max(0.60, Math.min(Number(runtime.monitor_jpeg_quality || this.monitorJpegQuality || 0.76), 0.90));
+        this.monitorSendFps = Math.max(12, Math.min(Number(this.monitorSendFps || configuredTargetFps || 25), 30));
+        this.monitorCaptureMaxDim = Math.max(416, Math.min(Number(runtime.monitor_capture_max_dim || this.monitorCaptureMaxDim || 512), 640));
+        this.monitorJpegQuality = Math.max(0.60, Math.min(Number(runtime.monitor_jpeg_quality || this.monitorJpegQuality || 0.72), 0.90));
 
         this.monitorStream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -304,7 +305,7 @@ function videoApp() {
           } else {
             this.monitorState = msg.state || 'CLEAR';
             this.monitorProgress = msg.monitor_progress || 0;
-            const targetFps = Number(msg.analysis_fps_target || this.monitorSendFps || 20);
+            const targetFps = Number(msg.analysis_fps_target || this.monitorSendFps || 25);
             const nextFps = Math.min(Math.max(msg.fps || 0, 0), targetFps);
             this._updateMonitorFps(nextFps, targetFps);
             this.monitorPersons = msg.persons || 0;
@@ -342,8 +343,12 @@ function videoApp() {
         if (!vw) return;
 
         // Draw video to display canvas — this implicitly clears previous overlays
-        const dw = displayCanvas.offsetWidth || vw;
-        const dh = displayCanvas.offsetHeight || vh;
+        const cssW = displayCanvas.offsetWidth || vw;
+        const cssH = displayCanvas.offsetHeight || vh;
+        const renderMaxDim = Math.max(640, Math.min(Number(this.monitorRenderMaxDim || 960), 1280));
+        const renderScale = Math.min(1, renderMaxDim / Math.max(cssW, cssH));
+        const dw = Math.round(cssW * renderScale);
+        const dh = Math.round(cssH * renderScale);
         if (displayCanvas.width !== dw) displayCanvas.width = dw;
         if (displayCanvas.height !== dh) displayCanvas.height = dh;
         const ctx = displayCanvas.getContext('2d');
@@ -354,15 +359,6 @@ function videoApp() {
           this._drawMonitorOverlay(displayCanvas, this._lastMonitorMsg);
         }
 
-        // Capture: bounded max dimension. Browser video stays fluid; AI analysis is throttled
-        // via monitorSendFps so the laptop does not build a WebSocket backlog.
-        const maxDim = Math.max(416, Math.min(Number(this.monitorCaptureMaxDim || 576), 640));
-        const scale = Math.min(1, maxDim / Math.max(vw, vh));
-        cc.width = Math.round(vw * scale);
-        cc.height = Math.round(vh * scale);
-        const cctx = cc.getContext('2d');
-        cctx.drawImage(video, 0, 0, cc.width, cc.height);
-
         if (this.monitorWs && this.monitorWs.readyState === WebSocket.OPEN) {
           const now = performance.now();
           const sendIntervalMs = 1000 / Math.max(this.monitorSendFps || 12, 1);
@@ -371,6 +367,16 @@ function videoApp() {
           // WebSocket backlog when the laptop is on battery or the tab is throttled.
           if (!this._monitorSending && !this._monitorFrameInFlight && (now - this._monitorLastSendAt) >= sendIntervalMs) {
             if (this.monitorWs.bufferedAmount < 500000) {
+              // Build the JPEG only when a frame is actually due. The preview
+              // canvas still renders every animation frame, but encoding is
+              // throttled to the AI rhythm.
+              const maxDim = Math.max(416, Math.min(Number(this.monitorCaptureMaxDim || 512), 640));
+              const scale = Math.min(1, maxDim / Math.max(vw, vh));
+              cc.width = Math.round(vw * scale);
+              cc.height = Math.round(vh * scale);
+              const cctx = cc.getContext('2d');
+              cctx.drawImage(video, 0, 0, cc.width, cc.height);
+
               this._monitorSending = true;
               this._monitorFrameInFlight = true;
               this._monitorLastSendAt = now;
@@ -394,7 +400,7 @@ function videoApp() {
                   .finally(() => {
                     this._monitorSending = false;
                   });
-              }, 'image/jpeg', this.monitorJpegQuality || 0.76);
+              }, 'image/jpeg', this.monitorJpegQuality || 0.72);
             }
           }
         }
@@ -403,7 +409,7 @@ function videoApp() {
     },
 
     _updateMonitorFps(rawFps, targetFps) {
-      const target = Math.max(1, Number(targetFps || this.monitorSendFps || 20));
+      const target = Math.max(1, Number(targetFps || this.monitorSendFps || 25));
       const raw = Math.max(0, Math.min(Number(rawFps || 0), target));
       this.monitorFpsRaw = raw;
 
