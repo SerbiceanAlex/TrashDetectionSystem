@@ -70,10 +70,39 @@ def get_local_ip() -> str:
         return "127.0.0.1"
 
 
+def cert_matches_lan_ip(lan_ip: str) -> bool:
+    """Return True when the existing local cert is still valid for this LAN IP."""
+    if not CERT_FILE.exists() or not KEY_FILE.exists():
+        return False
+
+    try:
+        decoded = ssl._ssl._test_decode_cert(str(CERT_FILE))
+        san_values = decoded.get("subjectAltName", [])
+        names = {(kind, value) for kind, value in san_values}
+
+        not_after = decoded.get("notAfter")
+        if not_after:
+            expires = dt.datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=dt.timezone.utc)
+            if expires <= dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1):
+                return False
+
+        return (
+            ("DNS", "localhost") in names
+            and ("IP Address", "127.0.0.1") in names
+            and ("IP Address", lan_ip) in names
+        )
+    except Exception:
+        return False
+
+
 def generate_self_signed_cert(lan_ip: str) -> None:
     CERT_DIR.mkdir(exist_ok=True)
-    if CERT_FILE.exists() and KEY_FILE.exists():
+    if cert_matches_lan_ip(lan_ip):
         return
+    if CERT_FILE.exists() or KEY_FILE.exists():
+        print(f"{C.YELLOW}[HTTPS]{C.RESET} Regenerating certificate for LAN IP {lan_ip}...")
+        CERT_FILE.unlink(missing_ok=True)
+        KEY_FILE.unlink(missing_ok=True)
 
     print("[HTTPS] Generating self-signed certificate...")
     try:
