@@ -69,7 +69,7 @@ def load_models():
             _cls_names = {0: "unknown"}
 
     if _person_det is None:
-        person_pt = settings.REPO_ROOT / "models" / "pretrained" / "yolov8n.pt"
+        person_pt = settings.person_detector_path
         _person_det = YOLO(str(person_pt))
         _person_det.to(_DEVICE)
         log.info("Person detector loaded: %s", person_pt)

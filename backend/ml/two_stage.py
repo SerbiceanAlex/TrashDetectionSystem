@@ -7,6 +7,8 @@ from pathlib import Path
 import cv2
 from ultralytics import YOLO
 
+from backend.config import settings
+
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
@@ -16,12 +18,12 @@ def parse_args():
     parser.add_argument("--source", required=True, help="0 for webcam, or path to an image or video file")
     parser.add_argument(
         "--detector",
-        default="models/detector/production/best.pt",
+        default=settings.DETECTOR_WEIGHTS,
         help="YOLO detector checkpoint for the single-class trash detector",
     )
     parser.add_argument(
         "--classifier",
-        default="models/classify/B2/best.pt",
+        default=settings.CLASSIFIER_WEIGHTS,
         help="YOLO classification checkpoint for material classification",
     )
     parser.add_argument("--det-conf", type=float, default=0.25, help="Detector confidence threshold")

@@ -72,6 +72,10 @@ def decode_access_token(token: str) -> dict:
 
 async def send_incident_alert(to_email: str, event_id: int, material: str, detected_at: str, address: str = "") -> bool:
     """Trimite alertă email instant la detectarea unui incident."""
+    if not settings.ENABLE_INCIDENT_EMAILS:
+        logger.info("Email incident dezactivat; alerta #%s către %s nu a fost trimisă.", event_id, to_email)
+        return False
+
     subject = f"[TrashDet] Incident detectat #{event_id} — {material}"
     body = (
         f"Incident de aruncare ilegală detectat automat.\n\n"
@@ -128,6 +132,10 @@ async def send_forward_email(
     admin_username: str = "admin",
 ) -> bool:
     """Trimite email de transmitere a dovezii unui incident la autoritate."""
+    if not settings.ENABLE_AUTHORITY_EMAILS:
+        logger.info("Email autoritate dezactivat; incidentul #%s nu a fost trimis către %s.", event_id, to_email)
+        return False
+
     subject = f"[TrashDet] Incident #{event_id} — Dovadă aruncare ilegală"
     body = (
         f"Stimate/Stimată reprezentant {authority_name},\n\n"

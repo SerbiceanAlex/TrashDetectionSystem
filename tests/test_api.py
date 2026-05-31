@@ -39,6 +39,18 @@ async def test_app_shell_returns_html(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_system_info_is_public_and_uses_production_model(client: AsyncClient):
+    resp = await client.get("/api/system/info")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["models"]["detector"]["weights"] == "models/detector/production/best.pt"
+    assert data["models"]["detector"]["name"]
+    assert "mAP50" in data["models"]["detector"]["metrics"]
+    assert data["models"]["classifier"]["weights"] == "models/classify/B2/best.pt"
+    assert data["runtime"]["littering_file_retention_days"] >= 1
+
+
+@pytest.mark.asyncio
 async def test_littering_events_list_empty_for_admin(client: AsyncClient):
     _override_admin()
     resp = await client.get("/api/littering/events")

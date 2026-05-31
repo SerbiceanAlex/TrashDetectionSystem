@@ -25,9 +25,14 @@ import websockets
 
 __test__ = False
 
-BASE = "http://localhost:8000"
-WS_BASE = "ws://localhost:8000"
-TEST_IMAGE = Path("datasets/raw/images/park01_download_img_001.jpg")
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from backend.config import settings
+
+BASE = settings.APP_BASE_URL.rstrip("/")
+WS_BASE = BASE.replace("https://", "wss://").replace("http://", "ws://")
+TEST_IMAGE = ROOT / "datasets" / "raw" / "images" / "park01_download_img_001.jpg"
 
 GREEN = "\033[92m"
 RED   = "\033[91m"
@@ -46,9 +51,8 @@ _counters = {'ok': 0, 'fail': 0}
 def get_admin_token(client: httpx.Client) -> str:
     """Login as admin and return JWT token."""
     for creds in [
-        {"username": "admin", "password": "Admin@1234"},
-        {"username": "sandu123", "password": "Admin@1234"},
-        {"username": "admin", "password": "admin"},
+        {"username": "admin", "password": "Admin1234!"},
+        {"username": "operator", "password": "Operator1234!"},
     ]:
         # OAuth2PasswordRequestForm requires form data
         r = client.post(f"{BASE}/api/auth/login", data=creds)
@@ -331,7 +335,7 @@ def main():
     sep("SUMAR FINAL")
     ok, fail = _counters['ok'], _counters['fail']
     print(f"\n  {GREEN}{ok} PASS{RESET} / {RED if fail else GREEN}{fail} FAIL{RESET}\n")
-    print(f"{GREEN}Rulează serverul și deschide http://localhost:8000{RESET}")
+    print(f"{GREEN}Rulează serverul și deschide {BASE}{RESET}")
     print(f"Login admin → tab {BOLD}Scanare → Monitor{RESET} pentru test live.")
     print(f"Sau tab {BOLD}Admin → Incidente{RESET} pentru a vedea evenimentele create.")
     sys.exit(0 if fail == 0 else 1)

@@ -6,7 +6,7 @@ Utilizare:
 
 Creează:
   - admin  /  admin@trash.local  /  Admin1234!   (rol: admin)
-  - demo   /  demo@trash.local   /  Demo1234!    (rol: user)
+  - operator / operator@trash.local / Operator1234! (rol: user)
 
 Dacă utilizatorii există deja, îi sare.
 """
@@ -32,9 +32,9 @@ USERS_TO_CREATE = [
         "points":   0,
     },
     {
-        "username": "demo",
-        "email":    "demo@trash.local",
-        "password": "Demo1234!",
+        "username": "operator",
+        "email":    "operator@trash.local",
+        "password": "Operator1234!",
         "role":     "user",
         "points":   0,
     },
@@ -68,7 +68,7 @@ async def main():
 
     print("\nGata. Utilizatori disponibili:")
     print("  username: admin   parola: Admin1234!   rol: admin")
-    print("  username: demo    parola: Demo1234!    rol: user")
+    print("  username: operator parola: Operator1234! rol: user/operator")
 
 
 if __name__ == "__main__":

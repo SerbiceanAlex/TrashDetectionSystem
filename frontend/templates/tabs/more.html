@@ -29,15 +29,33 @@
     <div class="space-y-2 text-sm" style="color:var(--text-muted)">
       <div class="flex justify-between">
         <span>Model detector</span>
-        <span class="font-mono text-xs">A4-8010 (mAP50=0.687)</span>
+        <span class="font-mono text-xs"
+              x-text="systemInfo?.models?.detector?.name ?? 'Detector final'"></span>
+      </div>
+      <div class="flex justify-between">
+        <span>mAP50 detector</span>
+        <span class="font-mono text-xs"
+              x-text="fmtMetric(systemInfo?.models?.detector?.metrics?.mAP50)"></span>
+      </div>
+      <div class="flex justify-between">
+        <span>mAP50-95 detector</span>
+        <span class="font-mono text-xs"
+              x-text="fmtMetric(systemInfo?.models?.detector?.metrics?.mAP50_95)"></span>
       </div>
       <div class="flex justify-between">
         <span>Clasificator</span>
-        <span class="font-mono text-xs">B2 (91.1%)</span>
+        <span class="font-mono text-xs"
+              x-text="systemInfo?.models?.classifier?.name ?? 'B2 material classifier'"></span>
       </div>
       <div class="flex justify-between">
         <span>Arhitectura</span>
-        <span class="font-mono text-xs">YOLOv8s + YOLOv8n-cls</span>
+        <span class="font-mono text-xs"
+              x-text="(systemInfo?.models?.detector?.architecture ?? 'YOLOv8s') + ' + ' + (systemInfo?.models?.classifier?.architecture ?? 'YOLOv8n-cls')"></span>
+      </div>
+      <div class="flex justify-between">
+        <span>Retenție probe</span>
+        <span class="font-mono text-xs"
+              x-text="(systemInfo?.runtime?.littering_file_retention_days ?? 30) + ' zile'"></span>
       </div>
     </div>
   </div>

@@ -55,7 +55,7 @@
     </div>
     <div class="flex-1 min-w-0">
       <p class="text-base font-bold" style="color:#fff">Panou Administrator</p>
-      <p class="text-sm mt-0.5" style="color:rgba(255,255,255,.65)">Utilizatori · Incidente · Autorități · Webhook-uri</p>
+      <p class="text-sm mt-0.5" style="color:rgba(255,255,255,.65)">Utilizatori · Incidente · Stocare · Audit local</p>
     </div>
     <span class="px-3 py-1.5 rounded-full text-xs font-bold"
           style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff">ADMIN</span>
@@ -66,9 +66,7 @@
     <template x-for="st in [
       {id:'overview',    label:'Prezentare', icon:'bar-chart-3'},
       {id:'users',       label:'Utilizatori',icon:'users'},
-      {id:'incidents',   label:'Incidente',  icon:'alert-triangle'},
-      {id:'authorities', label:'Autorități', icon:'landmark'},
-      {id:'webhooks',    label:'Webhooks',   icon:'link'}
+      {id:'incidents',   label:'Incidente',  icon:'alert-triangle'}
     ]" :key="st.id">
       <button @click="switchAdminSubTab(st.id)"
         class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap"
@@ -128,42 +126,103 @@
       </div>
     </div>
 
-    <!-- Grafice -->
+    <!-- Grafice native: fara dependenta de CDN/Chart.js -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div class="rounded-2xl p-4" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
-        <p class="text-xs font-bold mb-3 flex items-center gap-1.5" style="color:var(--tx-primary)">
-          <i data-lucide="trending-up" class="w-3.5 h-3.5" style="color:#6366f1"></i> Incidente / zi (30 zile)
-        </p>
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-xs font-bold flex items-center gap-1.5" style="color:var(--tx-primary)">
+            <i data-lucide="trending-up" class="w-3.5 h-3.5" style="color:#10b981"></i> Incidente / zi
+          </p>
+          <span class="text-[11px] font-bold" style="color:#10b981"
+                x-text="_chartTotal(adminCharts?.reports_timeline) + ' in 30 zile'"></span>
+        </div>
         <div style="height:180px;position:relative">
           <div x-show="adminChartsLoading" class="rounded-xl animate-pulse h-full" style="background:var(--bg-raised)"></div>
-          <canvas id="adminChartReports" x-show="!adminChartsLoading"></canvas>
+          <div x-show="!adminChartsLoading && adminCharts" class="h-full flex items-end gap-1">
+            <template x-for="r in adminCharts.reports_timeline" :key="r.day">
+              <div class="flex-1 h-full flex flex-col justify-end items-center gap-1">
+                <div class="w-full rounded-t-md transition-all"
+                     :title="r.day + ': ' + r.count + ' incidente'"
+                     :style="'height:'+_chartBarHeight(r.count, adminCharts.reports_timeline)+'%;background:'+(r.count ? 'linear-gradient(180deg,#34d399,#059669)' : 'rgba(148,163,184,.18)')"></div>
+                <span x-show="r.day.endsWith('-01') || r.day.endsWith('-10') || r.day.endsWith('-20') || r.day.endsWith('-30')"
+                      class="text-[9px]" style="color:var(--tx-muted)" x-text="r.day.slice(8)"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+      <div class="rounded-2xl p-4" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
+        <div class="flex items-center justify-between mb-3">
+          <p class="text-xs font-bold flex items-center gap-1.5" style="color:var(--tx-primary)">
+            <i data-lucide="user-plus" class="w-3.5 h-3.5" style="color:#60a5fa"></i> Utilizatori noi / luna
+          </p>
+          <span class="text-[11px] font-bold" style="color:#60a5fa"
+                x-text="_chartTotal(adminCharts?.users_timeline) + ' conturi'"></span>
+        </div>
+        <div style="height:180px;position:relative">
+          <div x-show="adminChartsLoading" class="rounded-xl animate-pulse h-full" style="background:var(--bg-raised)"></div>
+          <div x-show="!adminChartsLoading && adminCharts" class="h-full flex items-end gap-3">
+            <template x-for="r in adminCharts.users_timeline" :key="r.month">
+              <div class="flex-1 h-full flex flex-col justify-end items-center gap-2">
+                <div class="w-full rounded-t-lg transition-all"
+                     :title="r.month + ': ' + r.count + ' utilizatori'"
+                     :style="'height:'+_chartBarHeight(r.count, adminCharts.users_timeline)+'%;background:linear-gradient(180deg,#93c5fd,#2563eb)'"></div>
+                <span class="text-[10px]" style="color:var(--tx-muted)" x-text="r.month"></span>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
       <div class="rounded-2xl p-4" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
         <p class="text-xs font-bold mb-3 flex items-center gap-1.5" style="color:var(--tx-primary)">
-          <i data-lucide="user-plus" class="w-3.5 h-3.5" style="color:#6366f1"></i> Utilizatori noi / lună
+          <i data-lucide="layers" class="w-3.5 h-3.5" style="color:#818cf8"></i> Distribuție material
         </p>
-        <div style="height:180px;position:relative">
+        <div style="min-height:200px;position:relative">
           <div x-show="adminChartsLoading" class="rounded-xl animate-pulse h-full" style="background:var(--bg-raised)"></div>
-          <canvas id="adminChartUsers" x-show="!adminChartsLoading"></canvas>
+          <div x-show="!adminChartsLoading && adminCharts" class="space-y-3">
+            <template x-for="m in adminCharts.material_distribution" :key="m.material">
+              <div>
+                <div class="flex items-center justify-between text-xs mb-1">
+                  <span class="font-semibold" style="color:var(--tx-secondary)" x-text="_materialLabel(m.material)"></span>
+                  <span class="font-bold" style="color:var(--tx-primary)" x-text="m.count"></span>
+                </div>
+                <div class="h-2 rounded-full overflow-hidden" style="background:var(--bg-raised)">
+                  <div class="h-full rounded-full"
+                       :style="'width:'+Math.max(4, Math.round((Number(m.count||0)/_chartMax(adminCharts.material_distribution))*100))+'%;background:linear-gradient(90deg,#818cf8,#22c55e)'"></div>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
       <div class="rounded-2xl p-4" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
         <p class="text-xs font-bold mb-3 flex items-center gap-1.5" style="color:var(--tx-primary)">
-          <i data-lucide="layers" class="w-3.5 h-3.5" style="color:#6366f1"></i> Distribuție material
+          <i data-lucide="check-circle" class="w-3.5 h-3.5" style="color:#22c55e"></i> Rată validare
         </p>
         <div style="height:200px;position:relative">
           <div x-show="adminChartsLoading" class="rounded-xl animate-pulse h-full" style="background:var(--bg-raised)"></div>
-          <canvas id="adminChartMaterials" x-show="!adminChartsLoading"></canvas>
-        </div>
-      </div>
-      <div class="rounded-2xl p-4" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
-        <p class="text-xs font-bold mb-3 flex items-center gap-1.5" style="color:var(--tx-primary)">
-          <i data-lucide="check-circle" class="w-3.5 h-3.5" style="color:#6366f1"></i> Rată rezolvare
-        </p>
-        <div style="height:200px;position:relative">
-          <div x-show="adminChartsLoading" class="rounded-xl animate-pulse h-full" style="background:var(--bg-raised)"></div>
-          <canvas id="adminChartResolution" x-show="!adminChartsLoading"></canvas>
+          <div x-show="!adminChartsLoading && adminCharts" class="h-full flex items-center justify-center gap-6">
+            <div class="w-28 h-28 rounded-full flex items-center justify-center"
+                 :style="'background:conic-gradient(#22c55e 0 '+_resolutionPct()+'%, rgba(148,163,184,.18) '+_resolutionPct()+'% 100%)'">
+              <div class="w-20 h-20 rounded-full flex flex-col items-center justify-center"
+                   style="background:var(--bg-surface);border:1px solid var(--bg-border)">
+                <span class="text-2xl font-extrabold" style="color:#22c55e" x-text="_resolutionPct() + '%'"></span>
+                <span class="text-[9px] uppercase font-bold" style="color:var(--tx-muted)">validare</span>
+              </div>
+            </div>
+            <div class="space-y-2 text-xs">
+              <p style="color:var(--tx-secondary)">
+                Confirmate:
+                <span class="font-bold" style="color:var(--tx-primary)"
+                      x-text="adminCharts.resolution_rate.resolved"></span>
+              </p>
+              <p style="color:var(--tx-secondary)">
+                De verificat:
+                <span class="font-bold" style="color:var(--tx-primary)"
+                      x-text="adminCharts.resolution_rate.unresolved"></span>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -186,24 +245,24 @@
       <div x-show="!adminStorageLoading && adminStorage" class="grid grid-cols-3 gap-3">
         <div class="text-center p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
           <p class="text-lg font-extrabold leading-none mb-0.5" style="color:var(--eco-green-dark)"
-             x-text="_fmtBytes(adminStorage?.uploads_bytes)"></p>
-          <p class="text-[10px]" style="color:var(--tx-muted)">Uploads</p>
+             x-text="_fmtBytes(adminStorage?.evidence_bytes)"></p>
+          <p class="text-[10px]" style="color:var(--tx-muted)">Dovezi</p>
         </div>
         <div class="text-center p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
           <p class="text-lg font-extrabold leading-none mb-0.5" :style="darkMode?'color:#60a5fa':'color:#2563eb'"
-             x-text="_fmtBytes(adminStorage?.annotated_bytes)"></p>
-          <p class="text-[10px]" style="color:var(--tx-muted)">Adnotări</p>
+             x-text="_fmtBytes(adminStorage?.videos_bytes)"></p>
+          <p class="text-[10px]" style="color:var(--tx-muted)">Analize video</p>
         </div>
         <div class="text-center p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
           <p class="text-lg font-extrabold leading-none mb-0.5" :style="darkMode?'color:#fbbf24':'color:#d97706'"
-             x-text="_fmtBytes(adminStorage?.videos_bytes)"></p>
-          <p class="text-[10px]" style="color:var(--tx-muted)">Video</p>
+             x-text="_fmtBytes((adminStorage?.uploads_bytes || 0) + (adminStorage?.annotated_bytes || 0))"></p>
+          <p class="text-[10px]" style="color:var(--tx-muted)">Uploaduri</p>
         </div>
       </div>
     </div>
 
     <!-- Broadcast -->
-    <div class="rounded-2xl p-4" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
+    <div x-show="false" class="rounded-2xl p-4" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
       <p class="text-xs font-bold mb-1 flex items-center gap-1.5" style="color:var(--tx-primary)">
         <i data-lucide="megaphone" class="w-3.5 h-3.5" style="color:#6366f1"></i> Broadcast utilizatori
       </p>
@@ -347,15 +406,25 @@
               x-text="incidentPending + ' nerezolvate'"></span>
       </p>
       <div class="flex gap-2">
+        <select x-model="incidentReporterFilter" @change="incidentPage=0; loadIncidents()"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold outline-none transition-all"
+          style="border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary)"
+          @focus="$el.style.borderColor='#ef4444'"
+          @blur="$el.style.borderColor='var(--bg-border)'">
+          <option value="">Toți operatorii</option>
+          <template x-for="u in adminUsers" :key="u.id">
+            <option :value="u.id" x-text="u.username + (u.role === 'admin' ? ' (admin)' : '')"></option>
+          </template>
+        </select>
         <select x-model="incidentStatusFilter" @change="loadIncidents()"
           class="px-3 py-1.5 rounded-xl text-xs font-semibold outline-none transition-all"
           style="border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary)"
           @focus="$el.style.borderColor='#ef4444'"
           @blur="$el.style.borderColor='var(--bg-border)'">
           <option value="">Toate statusurile</option>
-          <option value="pending">Nerezolvate</option>
-          <option value="reviewed">Verificate</option>
-          <option value="forwarded">Trimise</option>
+          <option value="pending">De verificat</option>
+          <option value="reviewed">Confirmate</option>
+          <option value="forwarded">Arhivate</option>
           <option value="dismissed">False pozitive</option>
         </select>
         <button @click="loadIncidents()"
@@ -400,7 +469,7 @@
               <div class="flex items-center gap-1.5 flex-wrap mb-1">
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
                   :style="ev.status==='pending'?'background:rgba(245,158,11,.18);color:'+(darkMode?'#fbbf24':'#d97706'):ev.status==='reviewed'?'background:rgba(16,185,129,.18);color:'+(darkMode?'#10b981':'#047857'):ev.status==='forwarded'?'background:rgba(59,130,246,.18);color:'+(darkMode?'#60a5fa':'#1d4ed8'):'background:rgba(107,114,128,.18);color:'+(darkMode?'#9ca3af':'#64748b')"
-                  x-text="ev.status==='pending'?'Așteptare':ev.status==='reviewed'?'Verificat':ev.status==='forwarded'?'Trimis':'Respins'">
+                  x-text="ev.status==='pending'?'Așteptare':ev.status==='reviewed'?'Confirmat':ev.status==='forwarded'?'Arhivat':'Fals pozitiv'">
                 </span>
                 <span class="text-[10px] px-2 py-0.5 rounded-full capitalize font-semibold"
                   style="background:var(--bg-raised);color:var(--tx-muted);border:1px solid var(--bg-border)"
@@ -410,6 +479,16 @@
               </div>
               <p class="text-xs font-semibold mb-0.5" style="color:var(--tx-primary)"
                 x-text="new Date((ev.detected_at||'').replace(' ','T')+(ev.detected_at&&!ev.detected_at.endsWith('Z')?'Z':'')).toLocaleString('ro-RO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})"></p>
+              <p class="text-[11px] mb-1" style="color:var(--tx-muted)">
+                Operator:
+                <span class="font-semibold" style="color:var(--tx-secondary)"
+                  x-text="ev.reporter_username || (ev.reporter_id ? ('user #' + ev.reporter_id) : 'legacy / neatribuit')"></span>
+              </p>
+              <p class="text-[11px] mb-1" style="color:var(--tx-muted)">
+                Locatie:
+                <span class="font-semibold" style="color:var(--tx-secondary)"
+                  x-text="ev.address || (ev.latitude && ev.longitude ? (Number(ev.latitude).toFixed(5)+', '+Number(ev.longitude).toFixed(5)) : 'nespecificata')"></span>
+              </p>
               <template x-if="ev.notes">
                 <p class="text-[11px] px-2 py-1 rounded-lg" style="background:rgba(99,102,241,.08);color:#818cf8;border-left:2px solid #6366f1"
                    x-text="ev.notes"></p>
@@ -428,17 +507,17 @@
             <button x-show="ev.status==='pending'" @click="markIncidentReviewed(ev.id)"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
               style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:#10b981">
-              <i data-lucide="check" class="w-3.5 h-3.5"></i> Verificat
+              <i data-lucide="check" class="w-3.5 h-3.5"></i> Confirmă
             </button>
             <button x-show="ev.status!=='forwarded' && ev.status!=='dismissed'" @click="forwardIncident(ev.id)"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
               style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:#60a5fa">
-              <i data-lucide="send" class="w-3.5 h-3.5"></i> Forward
+              <i data-lucide="archive" class="w-3.5 h-3.5"></i> Arhivează
             </button>
             <button x-show="ev.status!=='dismissed'" @click="dismissIncident(ev.id)"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
               style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-muted)">
-              <i data-lucide="x" class="w-3.5 h-3.5"></i> Respinge
+              <i data-lucide="x" class="w-3.5 h-3.5"></i> Fals pozitiv
             </button>
           </div>
           <template x-if="ev.status==='pending'">
@@ -551,7 +630,7 @@
     <div class="flex items-start gap-2 p-3 rounded-xl text-xs"
          style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);color:var(--tx-secondary)">
       <i data-lucide="lightbulb" class="w-3.5 h-3.5 shrink-0 mt-0.5" style="color:#60a5fa"></i>
-      <p>Pentru a trimite un incident la autoritate, mergi la tab-ul <strong style="color:var(--tx-primary)">Incidente</strong> și apasă butonul <strong style="color:var(--tx-primary)">Trimite autorității</strong>.</p>
+      <p>În modul de licență, contactele sunt păstrate ca extensie opțională. Fluxul principal este: confirmi incidentul, adaugi notă dacă este cazul și arhivezi dovada local.</p>
     </div>
   </div>
 

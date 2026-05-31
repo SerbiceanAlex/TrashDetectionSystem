@@ -83,7 +83,7 @@ def run_smoke(clip_path: Path, conf: float, imgsz: int, frame_skip: int) -> dict
 
     print("Loading detector...")
     detector_model = YOLO(str(detector_path))
-    person_path = settings.REPO_ROOT / "models" / "pretrained" / "yolov8n.pt"
+    person_path = settings.person_detector_path
     print(f"Loading person detector: {person_path}")
     person_model = YOLO(str(person_path))
 

@@ -11,6 +11,7 @@ Artefacte active:
 - Run final: `runs/detect/parks-trash-final`
 - Rezultate finale: `results/detector/parks-trash-final-test.json`
 - Smoke video: `scripts/smoke/pipeline_e2e_smoke.py`
+- Evaluare video batch: `scripts/evaluation/evaluate_video_events.py`
 - Smoke sistem: `scripts/smoke/littering_system_smoke.py`
 
 Metrici finale detector:
@@ -24,6 +25,13 @@ Metrici finale detector:
 | mAP50-95 | 0.6834 |
 
 Regula: nu mai schimbam modelul final sau datasetul final fara motiv puternic. De acum testam, documentam si integram.
+
+Storage live:
+
+- clipurile si thumbnail-urile incidentelor se pastreaza local in `backend/littering`;
+- retention implicit: `30` zile (`LITTERING_FILE_RETENTION_DAYS`);
+- backend-ul ruleaza cleanup automat la pornire si apoi la fiecare `24` ore;
+- DB-ul pastreaza metadatele incidentului, dar sterge fisierele vechi ca sa nu creasca disk-ul la infinit.
 
 ## 1. Verificare Tehnica De Baza
 
@@ -88,13 +96,30 @@ Important: detectorul este piesa principala a lucrarii. Clasificatorul este supo
 
 Obiectiv: demonstram ca sistemul detecteaza actul de aruncare, nu doar gunoi static.
 
-Ruleaza:
+Smoke rapid pe clipul de referinta:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\smoke\pipeline_e2e_smoke.py
 ```
 
-Apoi testeaza manual pe mai multe clipuri din:
+Evaluare batch pe mai multe clipuri:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluation\evaluate_video_events.py --clips all --frame-skip 1
+```
+
+Pentru o verificare mai scurta:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluation\evaluate_video_events.py --clips littering_cctv_2024.mp4,dumping_neighbor_00001.mp4,cctv_parking_away_00001.mp4 --frame-skip 1 --out results\video_events\quick_video_event_eval
+```
+
+Rezultatele se salveaza in:
+
+- `results/video_events/*.csv`
+- `results/video_events/*.json`
+
+Apoi eticheteaza manual clipurile din:
 
 - `datasets/test_videos`
 

@@ -23,8 +23,8 @@ The thesis should focus on the successful path:
 
 1. Baseline object detector.
 2. Dataset expansion and observed noise issues.
-3. A7 dataset filtering and 80/10/10 split.
-4. Final A7 extended training.
+3. Final dataset filtering and 80/10/10 split.
+4. Final extended detector training.
 5. Final evaluation and integration in the application.
 
 Old experiments were moved out of the active tree to reduce confusion.

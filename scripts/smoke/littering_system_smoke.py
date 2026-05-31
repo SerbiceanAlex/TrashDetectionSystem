@@ -21,6 +21,8 @@ __test__ = False
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
+from backend.config import settings
+
 PASS = "[  OK  ]"
 FAIL = "[ FAIL ]"
 INFO = "[ INFO ]"
@@ -64,9 +66,9 @@ def main() -> int:
     errors: list[str] = []
 
     model_files = {
-        "Trash detector": REPO_ROOT / "models/detector/production/best.pt",
-        "Material classifier": REPO_ROOT / "models/classify/B2/best.pt",
-        "Person detector": REPO_ROOT / "models/pretrained/yolov8n.pt",
+        "Trash detector": settings.detector_path,
+        "Material classifier": settings.classifier_path,
+        "Person detector": settings.person_detector_path,
     }
 
     section("TEST 1 - Model files")

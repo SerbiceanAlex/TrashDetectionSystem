@@ -62,7 +62,10 @@ SEPARATION_DIST_M     = 1.50   # person distance that triggers SEPARATING state
 ABANDON_DIST_M        = 3.00   # person distance that triggers ABANDONED event
 JITTER_THRESHOLD_PX   = 15.0   # max trash centre movement (px) to count as static
 STATIC_FRAMES_NEEDED  = 8      # consecutive frames trash must be static → DROPPED
-LOST_TIMEOUT_S        = 2.0    # seconds person can be absent before triggering ABANDONED
+LOST_TIMEOUT_S        = 5.0    # seconds person can be absent before ABANDONED (was 2.0 — too aggressive)
+CONFIRM_EVENT_S       = 3.0    # MODE A — wait this long after candidate event; cancel if person returns
+                                # 3s = bun compromis: ignora reveniri rapide (<3s) dar prinde aruncari reale
+EVENT_COOLDOWN_S      = 8.0    # suppress duplicate alerts immediately after one incident fires
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -188,6 +191,12 @@ class LitteringDetector:
         self._post_buffer: list[np.ndarray] = []
         self._pending_event: Optional[LitteringEvent] = None
 
+        # MODE A — event confirmation window (debounce against brief person re-entries)
+        self._confirm_frames: int           = int(CONFIRM_EVENT_S * self.fps)
+        self._event_candidate: Optional[LitteringEvent] = None
+        self._event_candidate_remaining: int = 0
+        self._event_cooldown_remaining: int = 0
+
         # MODE B state
         self._rel_trackers: dict[int, TrashRelTracker] = {}
 
@@ -219,6 +228,8 @@ class LitteringDetector:
         self._frame_buffer.append(frame.copy())
 
         current_trash_ids = {d["track_id"] for d in trash_detections}
+        if self._event_cooldown_remaining > 0:
+            self._event_cooldown_remaining -= 1
 
         # Post-event clip finalisation
         if self._capture_post and self._pending_event is not None:
@@ -235,8 +246,10 @@ class LitteringDetector:
             frame, trash_detections, person_boxes, person_ids or []
         )
         if event is not None:
-            self._start_post_capture(event)
-            return event
+            if self._event_cooldown_remaining <= 0:
+                self._start_post_capture(event)
+                return event
+            return None
 
         # MODE A — zone-based
         if self.state == DetectorState.CLEAR:
@@ -251,19 +264,33 @@ class LitteringDetector:
                 self._enter_monitoring()
 
         elif self.state == DetectorState.MONITORING:
+            # If event candidate is pending, handle confirmation window first
+            if self._event_candidate is not None:
+                self._event_candidate_remaining -= 1
+                if self._event_candidate_remaining <= 0:
+                    # Confirmation window elapsed — fire the event for real.
+                    # We do not cancel merely because a person is visible again;
+                    # person detectors can flicker or detect another passer-by.
+                    confirmed = self._event_candidate
+                    self._event_candidate = None
+                    self._known_trash_ids.update(current_trash_ids)
+                    self._enter_clear()
+                    self._start_post_capture(confirmed)
+                    return confirmed
+                return None
+
             if person_boxes:
                 self._enter_person_present(person_boxes, current_trash_ids)
             elif self.frame_idx - self._monitoring_start > self.monitor_frames:
                 self._enter_clear()
             else:
                 new_ids = current_trash_ids - self._baseline_trash_ids
-                if new_ids:
-                    event = self._check_zone_overlap(new_ids, trash_detections, frame)
-                    if event is not None:
-                        self._known_trash_ids.update(current_trash_ids)
-                        self._enter_clear()
-                        self._start_post_capture(event)
-                        return event
+                if new_ids and self._event_cooldown_remaining <= 0:
+                    candidate = self._check_zone_overlap(new_ids, trash_detections, frame)
+                    if candidate is not None:
+                        # Start confirmation window — do NOT fire yet; wait to see if person returns
+                        self._event_candidate = candidate
+                        self._event_candidate_remaining = self._confirm_frames
                 self._known_trash_ids.update(current_trash_ids)
 
         return None
@@ -280,6 +307,9 @@ class LitteringDetector:
         self._post_frames_needed = 0
         self._post_buffer        = []
         self._pending_event      = None
+        self._event_candidate    = None
+        self._event_candidate_remaining = 0
+        self._event_cooldown_remaining = 0
         self._rel_trackers.clear()
 
     def finalize(self) -> Optional[LitteringEvent]:
@@ -538,12 +568,50 @@ class LitteringDetector:
                     )
         return None
 
+    def _person_returned_to_candidate(
+        self,
+        candidate: LitteringEvent,
+        person_boxes: list[tuple[int, int, int, int]],
+    ) -> bool:
+        """
+        Cancel MODE A confirmation only when a person comes back to the relevant
+        evidence zone. A random person elsewhere in the frame should not cancel
+        a valid littering candidate.
+        """
+        if not person_boxes:
+            return False
+
+        zone = PersonZone(*candidate.person_box, self.frame_idx).expanded(0.35)
+        tx1, ty1, tx2, ty2 = candidate.trash_box
+        tcx = (tx1 + tx2) / 2.0
+        tcy = (ty1 + ty2) / 2.0
+
+        for px1, py1, px2, py2 in person_boxes:
+            # Person overlaps the last known person zone.
+            if _box_iou((px1, py1, px2, py2), zone) >= 0.05:
+                return True
+
+            # Person is physically near/covering the candidate trash object.
+            pw = max(px2 - px1, 1)
+            ph = max(py2 - py1, 1)
+            expanded_person = (
+                int(px1 - 0.20 * pw),
+                int(py1 - 0.20 * ph),
+                int(px2 + 0.20 * pw),
+                int(py2 + 0.20 * ph),
+            )
+            if _point_in_box(tcx, tcy, expanded_person):
+                return True
+
+        return False
+
     def _start_post_capture(self, event: LitteringEvent) -> None:
         self._capture_post       = True
         self._post_frames_needed = int(3.0 * self.fps)
         self._post_buffer        = []
         event.clip_frames        = list(self._frame_buffer)
         self._pending_event      = event
+        self._event_cooldown_remaining = int(EVENT_COOLDOWN_S * self.fps)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -559,12 +627,7 @@ def _make_thumbnail(
 ) -> np.ndarray:
     thumb = frame.copy()
 
-    # Aplica blur GDPR pe presupusa fata (sfertul superior al zonei persoanei)
-    face_h = max(1, int((zone.y2 - zone.y1) * 0.25))
-    fy2 = min(zone.y1 + face_h, thumb.shape[0])
-    region = thumb[zone.y1:fy2, zone.x1:zone.x2]
-    if region.size > 0:
-        thumb[zone.y1:fy2, zone.x1:zone.x2] = cv2.GaussianBlur(region, (51, 51), 0)
+    # No face blur — visual evidence intentionally identifies the perpetrator
 
     _draw_dashed_rect(thumb, (zone.x1, zone.y1), (zone.x2, zone.y2),
                       (0, 165, 255), 2, dash_len=12)
@@ -581,6 +644,33 @@ def _make_thumbnail(
                 cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
 
     return cv2.resize(thumb, size, interpolation=cv2.INTER_AREA)
+
+
+def _point_in_box(x: float, y: float, box: tuple[int, int, int, int]) -> bool:
+    x1, y1, x2, y2 = box
+    return x1 <= x <= x2 and y1 <= y <= y2
+
+
+def _box_iou(
+    box: tuple[int, int, int, int],
+    zone: tuple[int, int, int, int],
+) -> float:
+    ax1, ay1, ax2, ay2 = box
+    bx1, by1, bx2, by2 = zone
+
+    ix1 = max(ax1, bx1)
+    iy1 = max(ay1, by1)
+    ix2 = min(ax2, bx2)
+    iy2 = min(ay2, by2)
+    iw = max(0, ix2 - ix1)
+    ih = max(0, iy2 - iy1)
+    inter = iw * ih
+    if inter == 0:
+        return 0.0
+
+    area_a = max(0, ax2 - ax1) * max(0, ay2 - ay1)
+    area_b = max(0, bx2 - bx1) * max(0, by2 - by1)
+    return inter / max(area_a + area_b - inter, 1)
 
 
 def _draw_dashed_rect(

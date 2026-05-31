@@ -9,18 +9,23 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
 import requests
 
 __test__ = False
 
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 
-BASE = "http://localhost:8000"
+from backend.config import settings
+
+BASE = settings.APP_BASE_URL.rstrip("/")
 
 
 def main() -> int:
     for creds in [
-        {"username": "admin", "password": "Admin123!"},
+        {"username": "admin", "password": "Admin1234!"},
         {"username": "admin_test", "password": "TestPass1!"},
     ]:
         resp = requests.post(f"{BASE}/api/auth/login", data=creds, timeout=5)

@@ -12,13 +12,18 @@ It is safe to import; pytest collection will not execute requests.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import requests
 
 __test__ = False
 
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 
-BASE = "http://localhost:8000"
+from backend.config import settings
+
+BASE = settings.APP_BASE_URL.rstrip("/")
 
 
 def check(label: str, condition: bool, detail: str = "") -> bool:
@@ -31,7 +36,7 @@ def check(label: str, condition: bool, detail: str = "") -> bool:
 
 def admin_token() -> str | None:
     credentials = [
-        {"username": "admin", "password": "Admin123!"},
+        {"username": "admin", "password": "Admin1234!"},
         {"username": "admin_test", "password": "TestPass1!"},
     ]
     for creds in credentials:

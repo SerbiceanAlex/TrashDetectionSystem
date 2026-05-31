@@ -1,0 +1,25 @@
+{
+  "clip": "YTDown_YouTube_Littering-in-Public-Social-Experiment_Media_zyqp4nu8klk_001_1080p.mp4",
+  "video_fps": 29.97,
+  "effective_fps": 5.99,
+  "duration_sec": 138.84,
+  "total_frames": 4161,
+  "frames_processed": 833,
+  "frame_skip": 5,
+  "conf": 0.3,
+  "person_conf": 0.4,
+  "imgsz": 640,
+  "events_detected": 0,
+  "first_event_time_sec": "",
+  "runtime_sec": 125.06,
+  "runtime_fps": 6.66,
+  "state_CLEAR_pct": 0.0,
+  "state_PERSON_PRESENT_pct": 93.76,
+  "state_MONITORING_pct": 6.24,
+  "transitions_count": 15,
+  "transitions": {
+    "PERSON_PRESENT->MONITORING": 8,
+    "MONITORING->PERSON_PRESENT": 7
+  },
+  "events": []
+}

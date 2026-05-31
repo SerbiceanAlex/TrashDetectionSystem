@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     REPO_ROOT: Path = Path(__file__).parent.parent
     DETECTOR_WEIGHTS: str = "models/detector/production/best.pt"
     CLASSIFIER_WEIGHTS: str = "models/classify/B2/best.pt"
+    PERSON_DETECTOR_WEIGHTS: str = "models/pretrained/yolov8n.pt"
 
     # ── JWT / Auth ───────────────────────────────────────────────────────────
     SECRET_KEY: str = "CHANGE-ME-generate-with-python-c-import-secrets-secrets.token_hex(32)"
@@ -33,6 +34,8 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASS: str = ""
     SMTP_FROM: str = "noreply@trashdet.local"
+    ENABLE_INCIDENT_EMAILS: bool = False
+    ENABLE_AUTHORITY_EMAILS: bool = False
 
     # ── Rate limiting ────────────────────────────────────────────────────────
     MAX_LOGIN_ATTEMPTS: int = 5
@@ -52,6 +55,9 @@ class Settings(BaseSettings):
     RETENTION_DAYS_FAKE: int = 30
     RETENTION_DAYS_EXPIRED: int = 60
     RETENTION_DAYS_CLEANED: int = 365
+    STORAGE_CLEANUP_ENABLED: bool = True
+    STORAGE_CLEANUP_INTERVAL_HOURS: int = 24
+    LITTERING_FILE_RETENTION_DAYS: int = 30
 
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = ""  # computed in property if empty
@@ -61,6 +67,11 @@ class Settings(BaseSettings):
     LIVE_IMGSZ: int = 640
     DEFAULT_DET_CONF: float = 0.30
     MONITOR_MIN_DET_CONF: float = 0.35
+    MONITOR_TARGET_FPS: int = 20
+    MONITOR_CAPTURE_MAX_DIM: int = 576
+    MONITOR_JPEG_QUALITY: float = 0.76
+    MONITOR_TRASH_IMGSZ: int = 512
+    MONITOR_PERSON_IMGSZ: int = 512
 
     @property
     def detector_path(self) -> Path:
@@ -69,6 +80,10 @@ class Settings(BaseSettings):
     @property
     def classifier_path(self) -> Path:
         return self.REPO_ROOT / self.CLASSIFIER_WEIGHTS
+
+    @property
+    def person_detector_path(self) -> Path:
+        return self.REPO_ROOT / self.PERSON_DETECTOR_WEIGHTS
 
     @property
     def db_url(self) -> str:

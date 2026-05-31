@@ -1,0 +1,4 @@
+clip,expected_event,outcome,events_detected,first_event_time_sec,frames_processed,video_fps,effective_fps,duration_sec,runtime_fps,conf,person_conf,imgsz,frame_skip,state_CLEAR_pct,state_PERSON_PRESENT_pct,state_MONITORING_pct,transitions_count
+littering_cctv_2024.mp4,unknown,unknown,1,22.33,857,30.0,30.0,28.57,26.29,0.3,0.4,640,1,9.8,61.61,28.59,28
+dumping_neighbor_00001.mp4,unknown,unknown,8,13.18,4537,29.97,29.97,151.38,21.08,0.3,0.4,640,1,21.09,53.67,25.24,64
+cctv_parking_away_00001.mp4,unknown,unknown,0,,239,14.09,14.09,16.97,17.29,0.3,0.4,640,1,100.0,0.0,0.0,0

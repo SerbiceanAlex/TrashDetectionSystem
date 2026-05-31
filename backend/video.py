@@ -7,7 +7,7 @@ import base64
 import json
 import logging
 import time
-from collections import Counter
+from collections import Counter, deque
 from pathlib import Path
 
 import cv2
@@ -374,6 +374,11 @@ async def process_uploaded_video(
             )
 
         # ── Save littering events detected in the uploaded video ─────────────
+        async with db.AsyncSessionLocal() as owner_session:
+            owner_vs = await db.get_video_session_by_id(owner_session, session_id)
+            owner_user_id = owner_vs.user_id if owner_vs else None
+            owner_org_id = (owner_vs.organization_id if owner_vs else None) or 1
+
         for event, ts_sec in result.get("littering_events", []):
             try:
                 # Save thumbnail to disk (blocking I/O → offload to thread)
@@ -395,13 +400,15 @@ async def process_uploaded_video(
                         person_count=1,
                         thumbnail_path=thumb_rel,
                         detection_method="zone",
+                        reporter_id=owner_user_id,
+                        organization_id=owner_org_id,
                     )
 
                 # Save clip frames
                 clip_rel = None
                 if event.clip_frames:
                     clip_rel = await asyncio.to_thread(
-                        _save_clip, event.clip_frames, result.get("fps", 25.0) or 25.0, db_event.id
+                        _save_clip, event.clip_frames, result.get("fps", 25.0) or 25.0, db_event.id, event.trash_box
                     )
 
                 # Rename thumbnail + update DB with paths
@@ -475,10 +482,16 @@ def _reencode_h264(src: Path) -> Path:
         return src
 
 
-def _save_clip(frames: list, fps: float, event_id: int) -> str | None:
+def _save_clip(frames: list, fps: float, event_id: int, trigger_box: tuple[int, int, int, int] | None = None) -> str | None:
     """
     Encode a list of BGR numpy frames as an mp4 clip (H.264 for browser).
     Returns the filename or None on failure.
+
+    Frames are annotated with:
+      - GREEN bbox + label for trash detections (run via detector)
+      - ORANGE bbox for the trigger trash region that caused the incident
+      - BLUE bbox + label for person detections (yolov8n)
+    NO face blur — visual evidence intentionally shows the perpetrator.
     """
     if not frames:
         return None
@@ -487,18 +500,62 @@ def _save_clip(frames: list, fps: float, event_id: int) -> str | None:
         out_path = LITTERING_DIR / f"event_{event_id:06d}.mp4"
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(str(out_path), fourcc, fps, (w, h))
-        from backend.inference import detect_persons, blur_face_regions
+
+        import torch
+        from ultralytics import YOLO
+
+        from backend.inference import detect_persons
+        # Load detector once for the whole clip (singleton-cached)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        det = YOLO(str(settings.detector_path))
+        det.to(device)
+
         for f_raw in frames:
-            # We copy to avoid modifying the original buffer frames
             f = f_raw.copy()
             fh, fw = f.shape[:2]
             if (fw, fh) != (w, h):
                 f = cv2.resize(f, (w, h))
-            
-            # Detectam persoanele in cadru si aplicam blur (GDPR) pe zona capului
+
+            # Trash detections — green boxes
+            results = det.predict(
+                f, imgsz=_TRASH_TRACK_IMGSZ, conf=0.30, verbose=False, device=device
+            )
+            for r in results:
+                if r.boxes is None:
+                    continue
+                for box in r.boxes:
+                    x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                    conf = float(box.conf[0])
+                    cv2.rectangle(f, (x1, y1), (x2, y2), (0, 220, 0), 2)
+                    cv2.putText(
+                        f, f"trash {conf:.2f}", (x1, max(y1 - 8, 18)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 220, 0), 2, cv2.LINE_AA,
+                    )
+
+            # Person detections — blue boxes (no blur)
             person_boxes = detect_persons(f)
-            f = blur_face_regions(f, person_boxes)
-            
+            for (px1, py1, px2, py2) in person_boxes:
+                cv2.rectangle(f, (int(px1), int(py1)), (int(px2), int(py2)), (255, 128, 0), 2)
+                cv2.putText(
+                    f, "person", (int(px1), max(int(py1) - 8, 18)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 128, 0), 2, cv2.LINE_AA,
+                )
+
+            if trigger_box:
+                tx1, ty1, tx2, ty2 = [int(v) for v in trigger_box]
+                tx1, ty1 = max(0, tx1), max(0, ty1)
+                tx2, ty2 = min(w - 1, tx2), min(h - 1, ty2)
+                if tx2 > tx1 and ty2 > ty1:
+                    cv2.rectangle(f, (tx1, ty1), (tx2, ty2), (0, 165, 255), 3)
+                    cv2.putText(
+                        f, "declansator incident", (tx1, min(max(ty1 - 10, 22), h - 8)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.62, (0, 165, 255), 2, cv2.LINE_AA,
+                    )
+
+            cv2.putText(
+                f, f"TrashDet incident #{event_id:06d}", (12, h - 16),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2, cv2.LINE_AA,
+            )
             writer.write(f)
         writer.release()
         _reencode_h264(out_path)
@@ -542,11 +599,50 @@ def _iou_overlap(tb, pb) -> float:
 _OVERLAP_THRESH = 0.35  # overlap over this may be body false-positive (adaptive)
 _MIN_TRASH_AREA_FRAC = 0.00015  # ignore tiny noise boxes
 _MAX_TRASH_AREA_FRAC = 0.18     # ignore huge background regions (e.g. bed/floor)
-_TRASH_TRACK_IMGSZ = settings.LIVE_IMGSZ  # 640 improves small/occluded trash detection in live video
+_TRASH_TRACK_IMGSZ = settings.MONITOR_TRASH_IMGSZ
 _PERSON_FILTER_SHRINK = 0.72     # shrink person boxes for overlap filtering only
 _HANDHELD_MAX_PERSON_RATIO = 0.12  # keep small objects overlapping a person (in hand)
 _TRASH_STABLE_SEEN = 4             # require 4 consecutive detections — reduces duplicate/ghost boxes
 _TRASH_GRACE_MISSES = 4            # keep last box for a few missed frames (visual stability)
+_MONITOR_PREWARMED = False
+
+
+def prewarm_monitor_inference() -> None:
+    """
+    Warm up the monitor-specific inference path once during backend startup.
+
+    The first YOLO/ByteTrack call pays a one-time CUDA/kernel initialization
+    cost. Doing it at startup makes the first Monitor click feel ready instead
+    of waiting several seconds for the first boxes/FPS.
+    """
+    global _MONITOR_PREWARMED
+    if _MONITOR_PREWARMED:
+        return
+
+    try:
+        import torch
+        from ultralytics import YOLO
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        dummy = np.zeros((384, 640, 3), dtype=np.uint8)
+
+        tracker = YOLO(str(settings.detector_path))
+        tracker.to(device)
+        tracker.track(
+            dummy,
+            conf=max(settings.MONITOR_MIN_DET_CONF, 0.35),
+            imgsz=_TRASH_TRACK_IMGSZ,
+            verbose=False,
+            persist=True,
+            tracker="bytetrack.yaml",
+            device=device,
+        )
+
+        infer.detect_persons(dummy, conf=0.25, imgsz=settings.MONITOR_PERSON_IMGSZ)
+        _MONITOR_PREWARMED = True
+        logger.info("Monitor inference prewarmed on %s", device)
+    except Exception:
+        logger.exception("Monitor inference prewarm failed")
 
 
 def _valid_trash_box(box: tuple[int, int, int, int], frame_w: int, frame_h: int) -> bool:
@@ -663,9 +759,12 @@ async def handle_monitor_ws(
     websocket: WebSocket,
     det_conf: float,
     person_conf: float,
+    analysis_fps: float,
     latitude: float | None,
     longitude: float | None,
     session: AsyncSession,
+    user_id: int | None = None,
+    organization_id: int | None = None,
 ):
     """
     WebSocket endpoint for littering detection (monitor mode).
@@ -700,11 +799,19 @@ async def handle_monitor_ws(
     tracker = await asyncio.to_thread(_load_tracker)
 
     det_conf = max(det_conf, settings.MONITOR_MIN_DET_CONF)
-    detector = LitteringDetector(fps=25.0, monitor_seconds=10.0, pre_event_seconds=5.0, zone_expand=0.35)
+    analysis_fps = max(5.0, min(float(analysis_fps or settings.MONITOR_TARGET_FPS), 30.0))
+    detector = LitteringDetector(
+        fps=analysis_fps,
+        monitor_seconds=10.0,
+        pre_event_seconds=5.0,
+        zone_expand=0.35,
+    )
 
     # Temporal smoothing counters — require N consecutive frames to confirm/clear
-    _PERSON_CONFIRM = 2   # frames needed to count person as "present"
-    _PERSON_CLEAR   = 8   # frames needed to count person as "gone" (~0.27s @30fps)
+    _PERSON_CONFIRM = max(2, int(round(0.15 * analysis_fps)))
+    _PERSON_CLEAR   = max(4, int(round(0.45 * analysis_fps)))
+    _TRASH_DETECT_STRIDE = 2 if analysis_fps >= 24 else 1
+    _PERSON_DETECT_STRIDE = 3 if analysis_fps >= 24 else 2
     _person_streak  = 0   # >0 = seen consecutively, <0 = absent consecutively
     _person_stable  = False  # last stable person state
     _trash_tracks: dict[int, dict] = {}
@@ -712,6 +819,8 @@ async def handle_monitor_ws(
     total_frames = 0
     total_ms = 0.0
     t_start = time.time()
+    recent_frame_times: deque[float] = deque(maxlen=max(8, int(round(analysis_fps * 2))))
+    _cached_trash_dets: list[dict] = []
     _cached_person_boxes: list = []   # reuse between frames for person skip
 
     resolved_address: str | None = None
@@ -727,38 +836,47 @@ async def handle_monitor_ws(
 
             t0 = time.perf_counter()
 
-            # Stage 1: trash tracking (per-session fresh tracker)
-            results = tracker.track(
-                frame, conf=det_conf, imgsz=_TRASH_TRACK_IMGSZ, verbose=False,
-                persist=True, tracker="bytetrack.yaml"
-            )
-            boxes = results[0].boxes
-            trash_dets: list[dict] = []
-            if boxes is not None and boxes.xyxy is not None:
-                xyxy_list = boxes.xyxy.tolist()
-                conf_list = boxes.conf.tolist() if boxes.conf is not None else [0.0] * len(xyxy_list)
-                id_list = (
-                    [int(x) for x in boxes.id.tolist()]
-                    if (hasattr(boxes, "id") and boxes.id is not None)
-                    else list(range(len(xyxy_list)))
+            # Stage 1: trash tracking (per-session fresh tracker).
+            # For the live monitor, running YOLO every frame is overkill on a
+            # 4GB laptop GPU. On the stable FPS profile, every second frame
+            # keeps latency low while freeing enough GPU time for smoother UI.
+            if total_frames % _TRASH_DETECT_STRIDE == 0:
+                results = tracker.track(
+                    frame, conf=det_conf, imgsz=_TRASH_TRACK_IMGSZ, verbose=False,
+                    persist=True, tracker="bytetrack.yaml"
                 )
-                h_f, w_f = frame.shape[:2]
-                for xyxy, det_score, track_id in zip(xyxy_list, conf_list, id_list):
-                    x1 = max(0, int(xyxy[0])); y1 = max(0, int(xyxy[1]))
-                    x2 = min(w_f, int(xyxy[2])); y2 = min(h_f, int(xyxy[3]))
-                    if _valid_trash_box((x1, y1, x2, y2), w_f, h_f):
-                        trash_dets.append({
-                            "track_id": track_id,
-                            "box": (x1, y1, x2, y2),
-                            "det_score": float(det_score),
-                            "material_name": "unknown",  # classify only on event
-                        })
+                boxes = results[0].boxes
+                trash_dets: list[dict] = []
+                if boxes is not None and boxes.xyxy is not None:
+                    xyxy_list = boxes.xyxy.tolist()
+                    conf_list = boxes.conf.tolist() if boxes.conf is not None else [0.0] * len(xyxy_list)
+                    id_list = (
+                        [int(x) for x in boxes.id.tolist()]
+                        if (hasattr(boxes, "id") and boxes.id is not None)
+                        else list(range(len(xyxy_list)))
+                    )
+                    h_f, w_f = frame.shape[:2]
+                    for xyxy, det_score, track_id in zip(xyxy_list, conf_list, id_list):
+                        x1 = max(0, int(xyxy[0])); y1 = max(0, int(xyxy[1]))
+                        x2 = min(w_f, int(xyxy[2])); y2 = min(h_f, int(xyxy[3]))
+                        if _valid_trash_box((x1, y1, x2, y2), w_f, h_f):
+                            trash_dets.append({
+                                "track_id": track_id,
+                                "box": (x1, y1, x2, y2),
+                                "det_score": float(det_score),
+                                "material_name": "unknown",  # classify only on event
+                            })
+                _cached_trash_dets = trash_dets
+            else:
+                trash_dets = [dict(d) for d in _cached_trash_dets]
 
-            # Stage 2: person detection — run every 2 frames, cache result between
-            # imgsz 640 (was 1280) — 2-3x faster, sufficient for webcam/typical distances
-            if total_frames % 2 == 0:
+            # Stage 2: person detection — run periodically and cache result between.
+            # Every 3rd frame is enough for stable person presence while keeping
+            # the detector workload smooth on a laptop GPU.
+            # Person detection is intentionally lighter in live monitor mode.
+            if total_frames % _PERSON_DETECT_STRIDE == 0:
                 _cached_person_boxes = infer.detect_persons(
-                    frame, conf=max(person_conf, 0.25), imgsz=640,
+                    frame, conf=max(person_conf, 0.25), imgsz=settings.MONITOR_PERSON_IMGSZ,
                 )
             person_boxes = _cached_person_boxes
 
@@ -822,7 +940,16 @@ async def handle_monitor_ws(
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
             total_frames += 1
             total_ms += elapsed_ms
-            avg_fps = total_frames / max(time.time() - t_start, 0.001)
+            now_wall = time.time()
+            recent_frame_times.append(now_wall)
+            if len(recent_frame_times) >= 2:
+                avg_fps = (len(recent_frame_times) - 1) / max(
+                    recent_frame_times[-1] - recent_frame_times[0],
+                    0.001,
+                )
+            else:
+                avg_fps = total_frames / max(now_wall - t_start, 0.001)
+            display_fps = min(avg_fps, analysis_fps)
 
             # Stage 3: state machine update
             event = detector.update(frame, detector_trash_dets, smoothed_person_boxes)
@@ -844,11 +971,8 @@ async def handle_monitor_ws(
                 except Exception:
                     pass  # keep "unknown"
 
-                # Apply face blur before storing evidence
-                blurred_frame = infer.blur_face_regions(frame, person_boxes)
-
-                # Hash of blurred frame for chain of custody
-                img_hash = _sha256_frame(blurred_frame)
+                # No face blur — visual evidence intentionally identifies the perpetrator
+                img_hash = _sha256_frame(frame)
 
                 # Save evidence to DB first (need ID for filenames)
                 db_event = await db.create_littering_event(
@@ -865,6 +989,8 @@ async def handle_monitor_ws(
                     owner_person_id=event.owner_person_id,
                     distance_at_abandonment=event.distance_at_abandonment,
                     detection_method=event.detection_method,
+                    reporter_id=user_id,
+                    organization_id=organization_id or 1,
                 )
                 event_id = db_event.id
 
@@ -872,7 +998,7 @@ async def handle_monitor_ws(
                 clip_rel = None
                 if event.clip_frames:
                     clip_rel = await asyncio.to_thread(
-                        _save_clip, event.clip_frames, detector.fps, event_id
+                        _save_clip, event.clip_frames, detector.fps, event_id, event.trash_box
                     )
 
                 # Save thumbnail
@@ -911,12 +1037,13 @@ async def handle_monitor_ws(
                     "address": resolved_address,
                 }))
 
-                # Send instant email alert to nearest location's alert_email
-                asyncio.create_task(_send_location_alert(
-                    session, event_id, event.material,
-                    db_event.detected_at.isoformat(), resolved_address,
-                    latitude, longitude
-                ))
+                # Optional instant email alert; disabled by default for the local thesis demo.
+                if settings.ENABLE_INCIDENT_EMAILS:
+                    asyncio.create_task(_send_location_alert(
+                        session, event_id, event.material,
+                        db_event.detected_at.isoformat(), resolved_address,
+                        latitude, longitude
+                    ))
 
             else:
                 # ── Normal status frame ───────────────────────────────────
@@ -926,7 +1053,8 @@ async def handle_monitor_ws(
                     "monitor_progress": round(detector.monitoring_progress, 2),
                     "persons": len(smoothed_person_boxes),
                     "trash": len(display_trash_dets),
-                    "fps": round(avg_fps, 1),
+                    "fps": round(display_fps, 1),
+                    "analysis_fps_target": round(analysis_fps, 1),
                     "ms": round(elapsed_ms, 1),
                     "person_boxes": [list(b) for b in smoothed_person_boxes],
                     "trash_boxes": [

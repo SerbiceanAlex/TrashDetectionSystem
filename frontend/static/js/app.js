@@ -30,6 +30,7 @@ function ecoApp() {
 
     // Organization / trial
     org: null,
+    systemInfo: null,
 
     // Payment modal
     payModalOpen: false,
@@ -74,6 +75,7 @@ function ecoApp() {
       if (this.darkMode) document.documentElement.classList.add('dark');
 
       registerToastAlpine(this);
+      await this.loadSystemInfo();
 
       await this.initAuth();
       this.initVideo();
@@ -88,6 +90,7 @@ function ecoApp() {
         await this.loadOrg();
         await this.loadDashboard();
         this._setupAdminTab();
+        if (typeof this.loadVideoSessions === 'function') this.loadVideoSessions();
         this.loadNotifications();
         this._notifInterval = setInterval(() => this.loadNotifications(), 30000);
         if (_checkout === 'success') {
@@ -111,6 +114,7 @@ function ecoApp() {
           await this.loadOrg();
           await this.loadDashboard();
           this._setupAdminTab();
+          if (typeof this.loadVideoSessions === 'function') this.loadVideoSessions();
           this.loadNotifications();
           if (!this._notifInterval) {
             this._notifInterval = setInterval(() => this.loadNotifications(), 30000);
@@ -121,6 +125,8 @@ function ecoApp() {
           this.notifications = [];
           this.unreadNotifications = 0;
           this.org = null;
+          this.videoSessions = [];
+          this.videoSessionsTotal = 0;
         }
       });
 
@@ -129,9 +135,15 @@ function ecoApp() {
       });
 
       this.$watch('activeTab', (tab) => {
+        if (!this.isLoggedIn) {
+          this.sidebarOpen = false;
+          this.refreshIcons();
+          return;
+        }
         if (tab === 'dashboard') this.loadDashboard();
+        if (tab === 'scan' && typeof this.loadVideoSessions === 'function') this.loadVideoSessions();
         if (tab === 'incidents') this.loadIncidents();
-        if (tab === 'admin') this.loadAdminAll();
+        if (tab === 'admin' && this.isAdmin) this.loadAdminAll();
         if (tab !== 'scan' && this.monitorActive) this.stopMonitor();
         this.sidebarOpen = false;
         this.refreshIcons();
@@ -231,13 +243,14 @@ function ecoApp() {
       return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
     },
     async loadDashboard() {
+      if (!this.token) return;
       this.dashB2BLoading = true;
       try {
-        const data = await fetch('/api/dashboard/b2b', {
-          headers: { Authorization: 'Bearer ' + this.token }
-        }).then(r => r.ok ? r.json() : null);
-        if (data) this.dashB2B = data;
-      } catch (e) { console.error('loadDashboard B2B', e); }
+        this.dashB2B = await fetchAPI('/api/dashboard/b2b');
+      } catch (e) {
+        console.error('loadDashboard B2B', e);
+        showToast('Nu pot incarca dashboard-ul: ' + e.message, 'error');
+      }
       this.dashB2BLoading = false;
     },
 
@@ -248,6 +261,20 @@ function ecoApp() {
       } catch (e) {
         console.error('loadOrg', e);
       }
+    },
+
+    async loadSystemInfo() {
+      try {
+        this.systemInfo = await fetchAPI('/api/system/info');
+      } catch (e) {
+        console.error('loadSystemInfo', e);
+        this.systemInfo = null;
+      }
+    },
+
+    fmtMetric(value, digits = 3) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+      return Number(value).toFixed(digits);
     },
 
     get planFeatures() {
@@ -311,8 +338,10 @@ function ecoApp() {
     /* ── Admin check ─────────────────────────────────────────────────── */
     get isAdmin() { return this.user?.role === 'admin'; },
 
-    /* ── Toate tab-urile vizibile pentru toti utilizatorii ──────────── */
-    get visibleTabs() { return this.tabs; },
+    /* ── Tab-uri vizibile pe rol: operator simplu vs administrator ──── */
+    get visibleTabs() {
+      return this.isAdmin ? [...this.tabs, this.adminTab] : this.tabs;
+    },
     _setupAdminTab() {},
 
     /* ── Dark mode ────────────────────────────────────────────────────── */

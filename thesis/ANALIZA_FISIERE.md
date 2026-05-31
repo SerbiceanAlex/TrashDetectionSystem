@@ -2,7 +2,7 @@
 
 ## Tema lucrării
 
-**Sistem inteligent de detecție a aruncării ilegale de deșeuri în spații publice prin analiza video în timp real**
+**Sistem inteligent pentru detectarea deșeurilor în spații verzi utilizând procesarea imaginilor video**
 
 Direcția este potrivită pentru o lucrare de Informatică/Machine Learning deoarece are:
 

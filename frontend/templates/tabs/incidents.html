@@ -61,7 +61,7 @@
       @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(16,185,129,.45)';$el.style.transform='translateY(-1px)'"
       @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
       <p class="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1" style="color:#059669">
-        <i data-lucide="check-circle" class="w-3 h-3"></i> Verificate
+        <i data-lucide="check-circle" class="w-3 h-3"></i> Confirmate
       </p>
       <p class="text-3xl font-extrabold leading-none"
          :style="darkMode ? 'color:#34d399' : 'color:#059669'"
@@ -76,12 +76,12 @@
       @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
       <p class="text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center gap-1"
          :style="darkMode ? 'color:#60a5fa' : 'color:#2563eb'">
-        <i data-lucide="send" class="w-3 h-3"></i> Trimise
+        <i data-lucide="archive" class="w-3 h-3"></i> Arhivate
       </p>
       <p class="text-3xl font-extrabold leading-none"
          :style="darkMode ? 'color:#60a5fa' : 'color:#3b82f6'"
          x-text="incidentForwarded ?? 0"></p>
-      <p class="text-[10px] mt-1.5" :style="darkMode ? 'color:#60a5fa;opacity:.7' : 'color:#2563eb;opacity:.7'">la autoritate</p>
+      <p class="text-[10px] mt-1.5" :style="darkMode ? 'color:#60a5fa;opacity:.7' : 'color:#2563eb;opacity:.7'">probe salvate</p>
     </div>
 
     <div @click="incidentStatusFilter=''; incidentMaterialFilter=''; loadIncidents()"
@@ -106,9 +106,9 @@
         <template x-for="f in [
           {v:'', l:'Toate', color:''},
           {v:'pending', l:'Așteptare', color:'#f59e0b'},
-          {v:'reviewed', l:'Verificate', color:'#10b981'},
-          {v:'forwarded', l:'Trimise', color:'#3b82f6'},
-          {v:'dismissed', l:'Respinse', color:'#6b7280'}
+          {v:'reviewed', l:'Confirmate', color:'#10b981'},
+          {v:'forwarded', l:'Arhivate', color:'#3b82f6'},
+          {v:'dismissed', l:'Fals pozitiv', color:'#6b7280'}
         ]" :key="f.v">
           <button @click="incidentStatusFilter=f.v; loadIncidents()"
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-150"
@@ -173,16 +173,77 @@
     </div>
   </template>
 
+  <!-- ── Selecție multiplă admin ──────────────────────────────────────── -->
+  <div x-show="isAdmin && !incidentsLoading && incidents.length > 0"
+       x-cloak
+       class="rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center gap-3"
+       style="background:var(--bg-surface);border:1px solid var(--bg-border)">
+    <div class="flex items-center gap-2 flex-1 min-w-0">
+      <button @click="toggleIncidentPageSelection()"
+        class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+        :style="areAllIncidentsOnPageSelected()
+          ? 'background:rgba(239,68,68,.14);color:#ef4444;border:1px solid rgba(239,68,68,.25)'
+          : 'background:var(--bg-raised);color:var(--tx-secondary);border:1px solid var(--bg-border)'">
+        <span class="w-4 h-4 rounded-md flex items-center justify-center"
+              :style="areAllIncidentsOnPageSelected()
+                ? 'background:#ef4444;color:#fff;border:1px solid #ef4444'
+                : 'background:transparent;border:1px solid var(--bg-border)'">
+          <i x-show="areAllIncidentsOnPageSelected()" data-lucide="check" class="w-3 h-3"></i>
+        </span>
+        <span x-text="areAllIncidentsOnPageSelected() ? 'Deselectează pagina' : 'Selectează pagina'"></span>
+      </button>
+
+      <span x-show="incidentSelectedIds.length > 0"
+            class="text-xs font-semibold truncate"
+            style="color:var(--tx-secondary)"
+            x-text="incidentSelectedIds.length + ' selectate'"></span>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button x-show="incidentSelectedIds.length > 0"
+        @click="clearIncidentSelection()"
+        class="px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+        style="background:var(--bg-raised);color:var(--tx-secondary);border:1px solid var(--bg-border)">
+        Curăță
+      </button>
+      <button x-show="incidentSelectedIds.length > 0"
+        @click="deleteSelectedIncidents()"
+        :disabled="incidentBulkDeleting"
+        class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+        :style="incidentBulkDeleting
+          ? 'background:rgba(239,68,68,.10);color:#ef4444;opacity:.55;cursor:not-allowed;border:1px solid rgba(239,68,68,.18)'
+          : 'background:rgba(239,68,68,.14);color:#ef4444;border:1px solid rgba(239,68,68,.28)'">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        <span x-text="incidentBulkDeleting ? 'Se șterge...' : 'Șterge selectate'"></span>
+      </button>
+    </div>
+  </div>
+
   <!-- ── Lista incidente ────────────────────────────────────────────────── -->
   <div x-show="!incidentsLoading && incidents.length > 0" class="space-y-3">
     <template x-for="ev in incidents" :key="ev.id">
       <div class="rounded-2xl overflow-hidden cursor-pointer transition-all duration-200"
-        style="background:var(--bg-surface);border:1px solid var(--bg-border)"
+        :style="isIncidentSelected(ev.id)
+          ? 'background:var(--bg-surface);border:1px solid rgba(239,68,68,.55);box-shadow:0 0 0 2px rgba(239,68,68,.12)'
+          : 'background:var(--bg-surface);border:1px solid var(--bg-border)'"
         @click="incidentModal = ev"
         @mouseenter="$el.style.boxShadow='0 4px 20px rgba(239,68,68,.1)';$el.style.borderColor='rgba(239,68,68,.3)'"
-        @mouseleave="$el.style.boxShadow='';$el.style.borderColor='var(--bg-border)'">
+        @mouseleave="if(!isIncidentSelected(ev.id)){$el.style.boxShadow='';$el.style.borderColor='var(--bg-border)'}">
 
         <div class="flex gap-3 p-4 items-start">
+
+          <!-- Selectare bulk — admin only -->
+          <button x-show="isAdmin"
+            @click.stop="toggleIncidentSelection(ev.id)"
+            class="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all"
+            :aria-pressed="isIncidentSelected(ev.id)"
+            :title="isIncidentSelected(ev.id) ? 'Deselectează incident' : 'Selectează incident'"
+            :style="isIncidentSelected(ev.id)
+              ? 'background:#ef4444;color:#fff;border:1px solid #ef4444'
+              : 'background:var(--bg-raised);color:var(--tx-muted);border:1px solid var(--bg-border)'">
+            <i x-show="isIncidentSelected(ev.id)" data-lucide="check" class="w-4 h-4"></i>
+            <span x-show="!isIncidentSelected(ev.id)" class="w-3.5 h-3.5 rounded-md" style="border:1.5px solid currentColor"></span>
+          </button>
 
           <!-- Thumbnail -->
           <div class="relative shrink-0 rounded-xl overflow-hidden"
@@ -217,7 +278,7 @@
                   : ev.status==='forwarded'
                   ? 'background:rgba(59,130,246,.18);color:'+(darkMode?'#60a5fa':'#1d4ed8')
                   : 'background:rgba(107,114,128,.18);color:'+(darkMode?'#9ca3af':'#64748b')"
-                x-text="ev.status==='pending'?'Așteptare':ev.status==='reviewed'?'Verificat':ev.status==='forwarded'?'Trimis':'Respins'">
+                x-text="ev.status==='pending'?'Așteptare':ev.status==='reviewed'?'Confirmat':ev.status==='forwarded'?'Arhivat':'Fals pozitiv'">
               </span>
               <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize"
                 :style="ev.material==='plastic'?('background:rgba(59,130,246,.12);color:'+(darkMode?'#60a5fa':'#2563eb'))
@@ -250,7 +311,7 @@
             <button x-show="ev.status==='pending'" @click="markIncidentReviewed(ev.id)"
               class="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
               style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.2)"
-              title="Marchează verificat"
+              title="Confirmă incident"
               @mouseenter="$el.style.background='rgba(16,185,129,.2)'"
               @mouseleave="$el.style.background='rgba(16,185,129,.1)'">
               <i data-lucide="check" class="w-4 h-4"></i>
@@ -259,10 +320,10 @@
               @click="forwardIncident(ev.id)"
               class="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
               style="background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.2)"
-              title="Trimite autorității"
+              title="Arhivează dovada"
               @mouseenter="$el.style.background='rgba(59,130,246,.2)'"
               @mouseleave="$el.style.background='rgba(59,130,246,.1)'">
-              <i data-lucide="send" class="w-4 h-4"></i>
+              <i data-lucide="archive" class="w-4 h-4"></i>
             </button>
           </div>
         </div>
@@ -303,224 +364,208 @@
 
   <!-- ══ MODAL INCIDENT ═════════════════════════════════════════════════ -->
   <div x-show="incidentModal" x-cloak
+    x-effect="if (incidentModal && window.lucide) $nextTick(() => lucide.createIcons())"
     @click="incidentModal=null"
-    class="fixed inset-0 z-[300] flex items-end sm:items-center justify-center p-4 sm:p-6"
-    style="background:rgba(0,0,0,.65);backdrop-filter:blur(6px)"
+    class="incident-modal-backdrop"
     x-transition:enter="transition ease-out duration-200"
     x-transition:enter-start="opacity-0"
     x-transition:enter-end="opacity-100">
 
     <div @click.stop
-      class="w-full rounded-2xl overflow-hidden"
-      style="max-width:600px;max-height:92vh;overflow-y:auto;background:var(--bg-surface);border:1px solid var(--bg-border);box-shadow:0 24px 64px rgba(0,0,0,.4)"
+      class="incident-detail-modal"
       x-transition:enter="transition ease-out duration-250"
       x-transition:enter-start="opacity-0 translate-y-4 scale-95"
       x-transition:enter-end="opacity-100 translate-y-0 scale-100">
 
-      <!-- Modal header -->
-      <div class="flex items-center justify-between px-5 py-4"
-           style="border-bottom:1px solid var(--bg-border);background:var(--bg-raised)">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-xl flex items-center justify-center"
-               style="background:rgba(239,68,68,.12)">
-            <i data-lucide="alert-triangle" class="w-4 h-4" style="color:#ef4444"></i>
+      <div class="incident-detail-header">
+        <div class="incident-detail-title">
+          <div class="incident-detail-icon">
+            <i data-lucide="alert-triangle" class="w-5 h-5"></i>
           </div>
-          <div>
-            <p class="text-sm font-bold" style="color:var(--tx-primary)"
+          <div class="min-w-0">
+            <p class="incident-detail-name"
                x-text="'Incident #' + (incidentModal?.id ?? '')"></p>
-            <p class="text-[11px]" style="color:var(--tx-muted)"
+            <p class="incident-detail-date"
                x-text="new Date(((incidentModal?.detected_at||'').replace(' ','T')+(incidentModal?.detected_at&&!incidentModal.detected_at.endsWith('Z')?'Z':''))).toLocaleString('ro-RO',{dateStyle:'long',timeStyle:'short'})"></p>
           </div>
         </div>
         <button @click="incidentModal=null"
-          class="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
-          style="background:rgba(239,68,68,.08);color:#ef4444;border:1px solid rgba(239,68,68,.2)"
-          @mouseenter="$el.style.background='rgba(239,68,68,.18)'"
-          @mouseleave="$el.style.background='rgba(239,68,68,.08)'">
-          <i data-lucide="x" class="w-4 h-4"></i>
+          class="incident-detail-close"
+          aria-label="Închide incident">
+          <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
 
-      <!-- Video/thumbnail -->
-      <template x-if="incidentModal?.clip_path">
-        <div style="background:#000">
-          <video :src="'/littering/' + incidentModal.clip_path"
-            controls preload="metadata"
-            style="width:100%;max-height:320px;display:block">
-          </video>
-        </div>
-      </template>
-      <template x-if="!incidentModal?.clip_path && incidentModal?.thumbnail_path">
-        <div class="flex items-center justify-center" style="background:#000;height:180px">
-          <img :src="'/littering/' + incidentModal.thumbnail_path"
-               style="max-height:180px;max-width:100%;object-fit:contain"/>
-        </div>
-      </template>
-
-      <!-- Modal body -->
-      <div class="p-5 space-y-4">
-
-        <!-- Status + material badges -->
-        <div class="flex gap-2 flex-wrap">
-          <span class="text-xs font-bold px-3 py-1 rounded-full"
-            :style="incidentModal?.status==='pending'
-              ? 'background:rgba(245,158,11,.18);color:'+(darkMode?'#fbbf24':'#d97706')
-              : incidentModal?.status==='reviewed'
-              ? 'background:rgba(16,185,129,.18);color:'+(darkMode?'#10b981':'#047857')
-              : incidentModal?.status==='forwarded'
-              ? 'background:rgba(59,130,246,.18);color:'+(darkMode?'#60a5fa':'#1d4ed8')
-              : 'background:rgba(107,114,128,.18);color:'+(darkMode?'#9ca3af':'#64748b')"
-            x-text="incidentModal?.status==='pending'?'În așteptare':incidentModal?.status==='reviewed'?'Verificat':incidentModal?.status==='forwarded'?'Trimis autorității':'Respins'">
-          </span>
-          <span class="text-xs font-semibold px-3 py-1 rounded-full capitalize"
-            :style="incidentModal?.material==='plastic'?('background:rgba(59,130,246,.12);color:'+(darkMode?'#60a5fa':'#2563eb'))
-              :incidentModal?.material==='paper'?('background:rgba(245,158,11,.12);color:'+(darkMode?'#fbbf24':'#b45309'))
-              :incidentModal?.material==='glass'?('background:rgba(6,182,212,.12);color:'+(darkMode?'#22d3ee':'#0e7490'))
-              :incidentModal?.material==='metal'?('background:rgba(139,92,246,.12);color:'+(darkMode?'#a78bfa':'#6d28d9'))
-              :'background:var(--bg-raised);color:var(--tx-muted)'"
-            x-text="incidentModal?.material==='paper'?'Hârtie':incidentModal?.material==='glass'?'Sticlă':incidentModal?.material==='plastic'?'Plastic':incidentModal?.material==='metal'?'Metal':incidentModal?.material==='other'?'Altele':incidentModal?.material||'Necunoscut'">
-          </span>
-        </div>
-
-        <!-- Metrics grid -->
-        <div class="grid grid-cols-2 gap-3">
-          <div class="p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
-            <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">Confidență detecție</p>
-            <p class="text-2xl font-extrabold" style="color:var(--tx-primary)"
-               x-text="incidentModal ? (incidentModal.det_score*100).toFixed(0)+'%' : '—'"></p>
+      <div class="incident-detail-shell">
+        <section class="incident-media-panel">
+          <div class="incident-media-stage">
+            <template x-if="incidentModal?.clip_path">
+              <video :src="'/littering/' + incidentModal.clip_path"
+                controls preload="metadata"
+                class="incident-media">
+              </video>
+            </template>
+            <template x-if="!incidentModal?.clip_path && incidentModal?.thumbnail_path">
+              <img :src="'/littering/' + incidentModal.thumbnail_path"
+                   class="incident-media"
+                   alt="Dovadă incident"/>
+            </template>
+            <template x-if="!incidentModal?.clip_path && !incidentModal?.thumbnail_path">
+              <div class="incident-media-empty">
+                <i data-lucide="image-off" class="w-8 h-8"></i>
+                <span>Dovadă indisponibilă</span>
+              </div>
+            </template>
           </div>
-          <div class="p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
-            <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">Proximitate persoană</p>
-            <p class="text-2xl font-extrabold"
-               :style="incidentModal?.proximity_score > 0.5 ? 'color:#10b981' : 'color:#f59e0b'"
-               x-text="incidentModal?.proximity_score != null ? (incidentModal.proximity_score*100).toFixed(0)+'%' : '—'"></p>
-          </div>
-          <div class="p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
-            <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">Metodă detecție</p>
-            <p class="text-sm font-semibold" style="color:var(--tx-primary)"
-               x-text="incidentModal?.detection_method || 'zone'"></p>
-          </div>
-          <div class="p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
-            <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">Persoane prezente</p>
-            <p class="text-2xl font-extrabold" style="color:var(--tx-primary)"
-               x-text="incidentModal?.person_count ?? '—'"></p>
-          </div>
-        </div>
+        </section>
 
-        <!-- Location -->
-        <template x-if="incidentModal?.address">
-          <div class="flex items-center gap-2 p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
-            <i data-lucide="map-pin" class="w-4 h-4 shrink-0" style="color:#ef4444"></i>
-            <span class="text-sm" style="color:var(--tx-primary)" x-text="incidentModal.address"></span>
-          </div>
-        </template>
+        <aside class="incident-detail-panel">
+          <div class="incident-detail-scroll">
+            <div class="incident-chips-row">
+              <span class="incident-chip"
+                :style="incidentModal?.status==='pending'
+                  ? 'background:rgba(245,158,11,.18);color:'+(darkMode?'#fbbf24':'#d97706')+';border-color:rgba(245,158,11,.28)'
+                  : incidentModal?.status==='reviewed'
+                  ? 'background:rgba(16,185,129,.16);color:'+(darkMode?'#34d399':'#047857')+';border-color:rgba(16,185,129,.28)'
+                  : incidentModal?.status==='forwarded'
+                  ? 'background:rgba(59,130,246,.16);color:'+(darkMode?'#60a5fa':'#1d4ed8')+';border-color:rgba(59,130,246,.28)'
+                  : 'background:rgba(107,114,128,.16);color:'+(darkMode?'#cbd5e1':'#64748b')+';border-color:rgba(107,114,128,.28)'"
+                x-text="incidentModal?.status==='pending'?'În așteptare':incidentModal?.status==='reviewed'?'Confirmat':incidentModal?.status==='forwarded'?'Arhivat':'Fals pozitiv'">
+              </span>
+              <span class="incident-chip"
+                :style="incidentModal?.material==='plastic'?('background:rgba(59,130,246,.12);color:'+(darkMode?'#60a5fa':'#2563eb')+';border-color:rgba(59,130,246,.24)')
+                  :incidentModal?.material==='paper'?('background:rgba(245,158,11,.12);color:'+(darkMode?'#fbbf24':'#b45309')+';border-color:rgba(245,158,11,.24)')
+                  :incidentModal?.material==='glass'?('background:rgba(6,182,212,.12);color:'+(darkMode?'#22d3ee':'#0e7490')+';border-color:rgba(6,182,212,.24)')
+                  :incidentModal?.material==='metal'?('background:rgba(139,92,246,.12);color:'+(darkMode?'#a78bfa':'#6d28d9')+';border-color:rgba(139,92,246,.24)')
+                  :'background:var(--bg-raised);color:var(--tx-muted);border-color:var(--bg-border)'"
+                x-text="incidentModal?.material==='paper'?'Hârtie':incidentModal?.material==='glass'?'Sticlă':incidentModal?.material==='plastic'?'Plastic':incidentModal?.material==='metal'?'Metal':incidentModal?.material==='other'?'Altele':incidentModal?.material||'Necunoscut'">
+              </span>
+            </div>
 
-        <!-- SHA-256 -->
-        <template x-if="incidentModal?.image_hash">
-          <div class="p-3 rounded-xl" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
-            <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">SHA-256 · GDPR chain-of-custody</p>
-            <p class="text-[11px] font-mono truncate" style="color:var(--tx-secondary)"
-               x-text="incidentModal.image_hash"></p>
-          </div>
-        </template>
+            <div class="incident-metric-grid">
+              <div class="incident-metric-card">
+                <span>Confidență</span>
+                <strong x-text="incidentModal ? (incidentModal.det_score*100).toFixed(0)+'%' : '—'"></strong>
+              </div>
+              <div class="incident-metric-card">
+                <span>Proximitate</span>
+                <strong :style="incidentModal?.proximity_score > 0.5 ? 'color:#10b981' : 'color:#f59e0b'"
+                        x-text="incidentModal?.proximity_score != null ? (incidentModal.proximity_score*100).toFixed(0)+'%' : '—'"></strong>
+              </div>
+              <div class="incident-metric-card">
+                <span>Metodă</span>
+                <strong class="incident-metric-text" x-text="incidentModal?.detection_method || 'zone'"></strong>
+              </div>
+              <div class="incident-metric-card">
+                <span>Persoane</span>
+                <strong x-text="incidentModal?.person_count ?? '—'"></strong>
+              </div>
+            </div>
 
-        <!-- Note investigator -->
-        <div x-data="{ noteSaving: false, noteDraft: '' }"
-             x-effect="noteDraft = incidentModal?.notes || ''">
-          <p class="text-[10px] uppercase tracking-wide mb-1.5" style="color:var(--tx-muted)">
-            Notă investigator
-          </p>
-          <textarea
-            x-model="noteDraft"
-            placeholder="Adaugă observații, detalii suplimentare sau instrucțiuni pentru autoritate…"
-            rows="3"
-            class="w-full px-3 py-2.5 rounded-xl text-sm resize-y outline-none transition-all"
-            style="border:1px solid var(--bg-border);background:var(--bg-raised);color:var(--tx-primary);font-family:inherit"
-            @focus="$el.style.borderColor='#6366f1'"
-            @blur="$el.style.borderColor='var(--bg-border)'">
-          </textarea>
-          <div class="flex items-center justify-between mt-2">
-            <span class="text-[11px]" style="color:var(--tx-muted)"
-                  x-text="noteDraft.length + ' / 1000 caractere'"></span>
-            <button
-              @click="
-                noteSaving = true;
-                fetch('/api/littering/events/' + incidentModal.id + '/notes', {
-                  method: 'PATCH',
-                  headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
-                  body: JSON.stringify({notes: noteDraft})
-                }).then(r => r.ok ? r.json() : Promise.reject(r))
-                  .then(updated => {
-                    incidentModal.notes = noteDraft;
-                    const idx = incidents.findIndex(e => e.id === incidentModal.id);
-                    if (idx !== -1) incidents[idx].notes = noteDraft;
-                    showToast('Notă salvată');
-                  })
-                  .catch(() => showToast('Eroare la salvare notă', 'error'))
-                  .finally(() => noteSaving = false)
-              "
-              :disabled="noteSaving"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
-              style="background:rgba(99,102,241,.1);color:#818cf8;border:1px solid rgba(99,102,241,.2)"
-              :style="noteSaving ? 'opacity:.6;cursor:wait' : ''"
-              @mouseenter="if(!noteSaving)$el.style.background='rgba(99,102,241,.2)'"
-              @mouseleave="$el.style.background='rgba(99,102,241,.1)'">
-              <i data-lucide="save" class="w-3.5 h-3.5"></i>
-              <span x-text="noteSaving ? 'Se salvează…' : 'Salvează notă'"></span>
+            <template x-if="incidentModal?.address">
+              <div class="incident-evidence-card">
+                <div class="incident-evidence-label">
+                  <i data-lucide="map-pin" class="w-3.5 h-3.5"></i>
+                  Locație
+                </div>
+                <p x-text="incidentModal.address"></p>
+              </div>
+            </template>
+
+            <template x-if="incidentModal?.image_hash">
+              <div class="incident-evidence-card">
+                <div class="incident-evidence-label">
+                  <i data-lucide="fingerprint" class="w-3.5 h-3.5"></i>
+                  SHA-256
+                </div>
+                <p class="incident-hash" x-text="incidentModal.image_hash"></p>
+              </div>
+            </template>
+
+            <div x-data="{ noteSaving: false, noteDraft: '' }"
+                 x-effect="noteDraft = incidentModal?.notes || ''"
+                 class="incident-note-card">
+              <div class="incident-note-header">
+                <span>Notă investigator</span>
+                <span x-text="noteDraft.length + ' / 1000'"></span>
+              </div>
+              <textarea
+                x-model="noteDraft"
+                placeholder="Adaugă observații sau motivul confirmării/respingerii..."
+                rows="2"
+                maxlength="1000"
+                class="incident-note-input">
+              </textarea>
+              <button
+                @click="
+                  noteSaving = true;
+                  fetch('/api/littering/events/' + incidentModal.id + '/notes', {
+                    method: 'PATCH',
+                    headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+                    body: JSON.stringify({notes: noteDraft})
+                  }).then(r => r.ok ? r.json() : Promise.reject(r))
+                    .then(updated => {
+                      incidentModal.notes = noteDraft;
+                      const idx = incidents.findIndex(e => e.id === incidentModal.id);
+                      if (idx !== -1) incidents[idx].notes = noteDraft;
+                      showToast('Notă salvată');
+                    })
+                    .catch(() => showToast('Eroare la salvare notă', 'error'))
+                    .finally(() => noteSaving = false)
+                "
+                :disabled="noteSaving"
+                class="incident-save-note">
+                <i data-lucide="save" class="w-4 h-4"></i>
+                <span x-text="noteSaving ? 'Se salvează...' : 'Salvează nota'"></span>
+              </button>
+            </div>
+          </div>
+
+          <div class="incident-detail-actions">
+            <template x-if="incidentModal?.clip_path">
+              <a :href="'/littering/' + incidentModal.clip_path"
+                 class="incident-action-btn incident-action-btn--neutral" download>
+                <i data-lucide="download" class="w-4 h-4"></i>
+                <span>Descarcă</span>
+              </a>
+            </template>
+
+            <template x-if="!isAdmin">
+              <div class="incident-readonly-note">
+                <i data-lucide="eye" class="w-4 h-4"></i>
+                Doar vizualizare
+              </div>
+            </template>
+
+            <button x-show="isAdmin && incidentModal?.status==='pending'"
+              @click="markIncidentReviewed(incidentModal.id).then(ok => { if (ok) incidentModal.status='reviewed' })"
+              class="incident-action-btn incident-action-btn--confirm">
+              <i data-lucide="check" class="w-4 h-4"></i>
+              <span>Confirmă</span>
+            </button>
+
+            <button x-show="isAdmin && incidentModal?.status!=='forwarded' && incidentModal?.status!=='dismissed'"
+              @click="forwardIncident(incidentModal.id).then(ok => { if (ok) incidentModal.status='forwarded' })"
+              class="incident-action-btn incident-action-btn--archive">
+              <i data-lucide="archive" class="w-4 h-4"></i>
+              <span>Arhivează</span>
+            </button>
+
+            <button x-show="isAdmin && incidentModal?.status!=='dismissed'"
+              @click="dismissIncident(incidentModal.id).then(ok => { if (ok) incidentModal.status='dismissed' })"
+              class="incident-action-btn incident-action-btn--muted">
+              <i data-lucide="x" class="w-4 h-4"></i>
+              <span>Fals pozitiv</span>
+            </button>
+
+            <button x-show="isAdmin"
+              @click="deleteIncident(incidentModal.id).then(ok => { if (ok) incidentModal = null })"
+              class="incident-action-btn incident-action-btn--danger">
+              <i data-lucide="trash-2" class="w-4 h-4"></i>
+              <span>Șterge</span>
             </button>
           </div>
-        </div>
-
-        <!-- Acțiuni -->
-        <div class="flex flex-wrap gap-2 pt-2" style="border-top:1px solid var(--bg-border)">
-          <template x-if="incidentModal?.clip_path">
-            <a :href="'/littering/' + incidentModal.clip_path"
-               class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all" download
-               style="background:var(--bg-raised);color:var(--tx-primary);border:1px solid var(--bg-border)"
-               @mouseenter="$el.style.borderColor='var(--tx-muted)'"
-               @mouseleave="$el.style.borderColor='var(--bg-border)'">
-              <i data-lucide="download" class="w-4 h-4"></i> Descarcă clip
-            </a>
-          </template>
-          <template x-if="!isAdmin">
-            <div class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
-              style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-muted)">
-              <i data-lucide="eye" class="w-3.5 h-3.5"></i> Acces doar vizualizare
-            </div>
-          </template>
-          <button x-show="isAdmin && incidentModal?.status==='pending'"
-            @click="markIncidentReviewed(incidentModal.id); incidentModal.status='reviewed'"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-            style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.25)"
-            @mouseenter="$el.style.background='rgba(16,185,129,.2)'"
-            @mouseleave="$el.style.background='rgba(16,185,129,.1)'">
-            <i data-lucide="check" class="w-4 h-4"></i> Verificat
-          </button>
-          <button x-show="isAdmin && incidentModal?.status!=='forwarded' && incidentModal?.status!=='dismissed'"
-            @click="forwardIncident(incidentModal.id); incidentModal.status='forwarded'"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-            style="background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.25)"
-            @mouseenter="$el.style.background='rgba(59,130,246,.2)'"
-            @mouseleave="$el.style.background='rgba(59,130,246,.1)'">
-            <i data-lucide="send" class="w-4 h-4"></i> Trimite autorității
-          </button>
-          <button x-show="isAdmin && incidentModal?.status!=='dismissed'"
-            @click="dismissIncident(incidentModal.id); incidentModal.status='dismissed'"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-            style="background:var(--bg-raised);color:var(--tx-muted);border:1px solid var(--bg-border)"
-            @mouseenter="$el.style.background='var(--bg-border)'"
-            @mouseleave="$el.style.background='var(--bg-raised)'">
-            <i data-lucide="x" class="w-4 h-4"></i> Respinge
-          </button>
-          <button x-show="isAdmin"
-            @click="deleteIncident(incidentModal.id)"
-            class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ml-auto"
-            style="background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)"
-            @mouseenter="$el.style.background='rgba(239,68,68,.2)'"
-            @mouseleave="$el.style.background='rgba(239,68,68,.1)'">
-            <i data-lucide="trash-2" class="w-4 h-4"></i> Șterge definitiv
-          </button>
-        </div>
+        </aside>
       </div>
     </div>
   </div>

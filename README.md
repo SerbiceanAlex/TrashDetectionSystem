@@ -70,7 +70,7 @@ TrashDetectionSystem/
 ├── results/                    # rezultate si metrici folosite in lucrare
 ├── start_https.py              # pornire locala HTTPS pentru camera telefonului
 ├── requirements.txt
-└── PROJECT_SUCCESS_PATH.md     # status proiect si modelul A7-best in productie
+└── PROJECT_SUCCESS_PATH.md     # status proiect si detectorul final in productie
 ```
 
 Directoarele `datasets/`, `runs/`, `outputs/`, `backend/uploads/`, `backend/videos/` si fisierele `.pt` sunt artefacte locale si nu sunt versionate.
@@ -81,10 +81,70 @@ Directoarele `datasets/`, `runs/`, `outputs/`, `backend/uploads/`, `backend/vide
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-py start_https.py
+Copy-Item .env.example .env
+.\.venv\Scripts\python.exe start_https.py
 ```
 
 Pentru camera telefonului, ruleaza serverul HTTPS si deschide adresa afisata in consola de pe acelasi Wi-Fi.
+Browserul va afisa un avertisment de certificat local/self-signed; pentru demo local se continua cu
+`Advanced` / `Help me understand` -> `Proceed`.
+
+Comenzi utile pentru serverul local:
+
+```powershell
+# Pornire normala pe portul local HTTPS 8443
+.\.venv\Scripts\python.exe start_https.py
+
+# Serverul ruleaza in terminalul curent; Ctrl+C il opreste si logurile raman vizibile.
+
+# Daca portul este deja ocupat de o rulare veche
+.\.venv\Scripts\python.exe start_https.py --restart
+
+# Daca vrei doar sa deschizi serverul deja pornit, fara sa-l atasezi la terminal
+.\.venv\Scripts\python.exe start_https.py --reuse
+
+# Oprire server local
+.\.venv\Scripts\python.exe start_https.py --stop
+
+# Port alternativ, doar daca 8443 este ocupat de alt program
+.\.venv\Scripts\python.exe start_https.py --port 9444
+
+# Fara deschidere automata in browser
+.\.venv\Scripts\python.exe start_https.py --no-open
+
+# Fara reload automat, util pentru un demo mai tacut
+.\.venv\Scripts\python.exe start_https.py --no-reload
+```
+
+Pentru a reduce cererile repetate de Windows Firewall, permite Python/Uvicorn pe retele private
+sau ruleaza o singura data in PowerShell pornit ca Administrator:
+
+```powershell
+New-NetFirewallRule -DisplayName "TrashDet HTTPS Local" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8443,9444 -Profile Private
+```
+
+## Configurare locală și server-ready
+
+Setările care diferă între rularea locală și un server se află în `.env` și sunt citite prin `backend/config.py`.
+Fișierul `.env.example` conține valorile necesare pentru:
+
+```text
+SECRET_KEY
+APP_BASE_URL
+DATABASE_URL
+DETECTOR_WEIGHTS
+CLASSIFIER_WEIGHTS
+PERSON_DETECTOR_WEIGHTS
+MAX_UPLOAD_MB
+LIVE_IMGSZ
+DEFAULT_DET_CONF
+MONITOR_MIN_DET_CONF
+LITTERING_FILE_RETENTION_DAYS
+```
+
+Pentru licență, aplicația rulează local cu SQLite implicit (`backend/trash_detection.db`). Pentru un deploy ulterior pe server, `DATABASE_URL` poate indica o bază PostgreSQL, iar `APP_BASE_URL` trebuie setat la domeniul/URL-ul serverului. Modelele rămân configurabile prin căi relative la rădăcina proiectului.
+
+Retenția probelor video este activă implicit: fișierele din `backend/littering/` mai vechi de `LITTERING_FILE_RETENTION_DAYS` sunt curățate automat, iar metadata incidentelor rămâne în baza de date.
 
 ## Comenzi utile
 
@@ -95,12 +155,24 @@ Pentru camera telefonului, ruleaza serverul HTTPS si deschide adresa afisata in 
 # Demo live camera
 .\.venv\Scripts\python.exe scripts\demos\demo_littering.py --camera 0
 
-# Creare user admin/demo local
-.\.venv\Scripts\python.exe scripts\maintenance\create_admin.py
+# Evaluare video pe clipuri selectate manual
+.\.venv\Scripts\python.exe scripts\evaluation\evaluate_video_events.py --manifest scripts\evaluation\video_manifest_template.csv --frame-skip 1
+
+# Pregatire baza de date demo: admin/operator, locatie, autoritate, OTP cleanup
+.\.venv\Scripts\python.exe scripts\maintenance\prepare_demo_db.py --apply --prune-locations --reset-demo-passwords
 
 # Reset date generate local
 .\.venv\Scripts\python.exe -m scripts.maintenance.reset_data
 ```
+
+Conturi demo locale:
+
+```text
+admin    / Admin1234!    rol: admin
+operator / Operator1234! rol: user/operator
+```
+
+Adminul vede panoul de administrare, utilizatorii, locațiile, incidentele, autoritățile și storage-ul. Operatorul folosește monitorizarea și fluxul de incidente fără acces la administrarea organizației.
 
 ## Focus pentru lucrare
 

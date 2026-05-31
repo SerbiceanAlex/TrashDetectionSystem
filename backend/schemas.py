@@ -222,11 +222,13 @@ class LitteringEventOut(BaseModel):
     det_score: float
     person_present: int = 1
     person_count: int = 1
-    face_blurred: int = 1
+    face_blurred: int = 0
     clip_path: Optional[str] = None
     thumbnail_path: Optional[str] = None
     image_hash: Optional[str] = None
     status: str = "pending"
+    reporter_id: Optional[int] = None
+    reporter_username: Optional[str] = None
     reviewed_by: Optional[int] = None
     reviewed_at: Optional[datetime] = None
     forwarded_at: Optional[datetime] = None

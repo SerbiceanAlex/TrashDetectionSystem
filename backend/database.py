@@ -20,7 +20,7 @@ from sqlalchemy import (
     text as sa_text,
 )
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.orm import DeclarativeBase, relationship, selectinload
 
 from backend.config import settings
 
@@ -227,7 +227,7 @@ class LitteringEvent(Base):
     person_count    = Column(Integer, default=1)
 
     # ── Privacy ──────────────────────────────────────────────────────────────
-    face_blurred    = Column(Integer, default=1)   # always 1 — blur applied before storage
+    face_blurred    = Column(Integer, default=0)   # 0 = evidence is stored unblurred for review
 
     # ── Evidence files ───────────────────────────────────────────────────────
     clip_path       = Column(Text, nullable=True)       # relative path to .mp4 clip
@@ -244,6 +244,7 @@ class LitteringEvent(Base):
     status          = Column(String(16), default="pending", index=True)
     # "pending" | "reviewed" | "forwarded" | "dismissed"
     reviewed_by     = Column(Integer, ForeignKey("users.id"), nullable=True)
+    reporter_id     = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     reviewed_at     = Column(DateTime, nullable=True)
     forwarded_at    = Column(DateTime, nullable=True)
     notes           = Column(Text, nullable=True)
@@ -251,6 +252,11 @@ class LitteringEvent(Base):
 
     # ── Relationships ────────────────────────────────────────────────────────
     reviewer = relationship("User", foreign_keys=[reviewed_by])
+    reporter = relationship("User", foreign_keys=[reporter_id])
+
+    @property
+    def reporter_username(self) -> str | None:
+        return self.reporter.username if self.reporter else None
 
 
 class MonitoredLocation(Base):
@@ -412,6 +418,8 @@ async def create_littering_event(
     owner_person_id: int | None = None,
     distance_at_abandonment: float | None = None,
     detection_method: str = "zone",
+    reporter_id: int | None = None,
+    organization_id: int | None = None,
 ) -> "LitteringEvent":
     evt = LitteringEvent(
         material=material,
@@ -424,12 +432,14 @@ async def create_littering_event(
         clip_path=clip_path,
         thumbnail_path=thumbnail_path,
         image_hash=image_hash,
-        face_blurred=1,
+        face_blurred=0,
         status="pending",
         incident_uid=incident_uid,
         owner_person_id=owner_person_id,
         distance_at_abandonment=round(distance_at_abandonment, 3) if distance_at_abandonment is not None else None,
         detection_method=detection_method,
+        reporter_id=reporter_id,
+        organization_id=organization_id,
     )
     db.add(evt)
     await db.commit()
@@ -444,10 +454,13 @@ async def list_littering_events(
     status: str | None = None,
     material: str | None = None,
     org_id: int | None = None,
+    reporter_id: int | None = None,
 ) -> tuple[list["LitteringEvent"], int]:
-    q = select(LitteringEvent).order_by(LitteringEvent.detected_at.desc())
+    q = select(LitteringEvent).options(selectinload(LitteringEvent.reporter)).order_by(LitteringEvent.detected_at.desc())
     if org_id is not None:
         q = q.where(or_(LitteringEvent.organization_id == org_id, LitteringEvent.organization_id.is_(None)))
+    if reporter_id is not None:
+        q = q.where(LitteringEvent.reporter_id == reporter_id)
     if status:
         q = q.where(LitteringEvent.status == status)
     if material:
@@ -458,7 +471,11 @@ async def list_littering_events(
 
 
 async def get_littering_event_by_id(db: AsyncSession, event_id: int) -> "LitteringEvent | None":
-    result = await db.execute(select(LitteringEvent).where(LitteringEvent.id == event_id))
+    result = await db.execute(
+        select(LitteringEvent)
+        .options(selectinload(LitteringEvent.reporter))
+        .where(LitteringEvent.id == event_id)
+    )
     return result.scalar_one_or_none()
 
 

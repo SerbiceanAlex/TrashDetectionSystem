@@ -1,6 +1,6 @@
 # Licență LaTeX
 
-Titlu: **Sistem inteligent de detecție a aruncării ilegale de deșeuri în spații publice prin analiza video în timp real**
+Titlu: **Sistem inteligent pentru detectarea deșeurilor în spații verzi utilizând procesarea imaginilor video**
 
 ## Regulă principală
 

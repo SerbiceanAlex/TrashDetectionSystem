@@ -2,35 +2,33 @@
 <div x-show="activeTab === 'dashboard'" x-cloak class="animate-fade-up space-y-4">
 
   <!-- Hero banner — ADMIN -->
-  <div x-show="isAdmin" class="rounded-2xl p-5 flex items-center gap-4 flex-wrap"
+  <div x-show="isAdmin" class="rounded-2xl p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
        style="background:linear-gradient(135deg,#064e3b 0%,#065f46 55%,#047857 100%);box-shadow:0 8px 32px rgba(5,150,105,.25)">
-    <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-         style="background:rgba(255,255,255,.15)">
-      <i data-lucide="shield-check" class="w-5 h-5" style="color:#fff"></i>
+    <div class="flex items-start gap-4 min-w-0 w-full sm:w-auto">
+      <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+           style="background:rgba(255,255,255,.15)">
+        <i data-lucide="shield-check" class="w-5 h-5" style="color:#fff"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-base font-bold leading-tight" style="color:#fff">
+          Bună, <span x-text="user?.username ?? ''"></span>
+          <span class="inline-flex text-xs font-normal ml-2 px-2 py-0.5 rounded-full align-middle" style="background:rgba(255,255,255,.2);color:#fff">ADMIN</span>
+        </p>
+        <p class="text-sm mt-1 leading-snug" style="color:rgba(167,243,208,.85)">
+          Panou de control pentru monitorizare si validarea incidentelor.
+        </p>
+      </div>
     </div>
-    <div class="flex-1 min-w-0">
-      <p class="text-base font-bold" style="color:#fff">
-        Bună, <span x-text="user?.username ?? ''"></span>
-        <span class="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.2);color:#fff">ADMIN</span>
-      </p>
-      <p class="text-sm mt-0.5" style="color:rgba(167,243,208,.85)">
-        <span x-text="org?.name ?? 'Organizație'"></span> · Plan
-        <strong x-text="(org?.plan||'trial').toUpperCase()" style="color:#fff"></strong>
-        <template x-if="org?.plan === 'trial'">
-          <span x-text="` · Trial: ${org.trial_days_left ?? 0} zile`"></span>
-        </template>
-      </p>
-    </div>
-    <div class="flex gap-2 flex-wrap">
+    <div class="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:shrink-0">
       <button @click="goTo('scan')"
-        class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap"
+        class="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap"
         style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff"
         @mouseenter="$el.style.background='rgba(255,255,255,.25)'"
         @mouseleave="$el.style.background='rgba(255,255,255,.15)'">
         <i data-lucide="play-circle" class="w-4 h-4"></i> Monitor
       </button>
       <button @click="goTo('admin')"
-        class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap"
+        class="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap"
         style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.8)"
         @mouseenter="$el.style.background='rgba(255,255,255,.2)'"
         @mouseleave="$el.style.background='rgba(255,255,255,.1)'">
@@ -40,23 +38,26 @@
   </div>
 
   <!-- Hero banner — USER (operator) -->
-  <div x-show="!isAdmin" class="rounded-2xl p-5 flex items-center gap-4 flex-wrap"
+  <div x-show="!isAdmin" class="rounded-2xl p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
        style="background:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 55%,#2563eb 100%);box-shadow:0 8px 32px rgba(37,99,235,.25)">
-    <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-         style="background:rgba(255,255,255,.15)">
-      <i data-lucide="eye" class="w-5 h-5" style="color:#fff"></i>
-    </div>
-    <div class="flex-1 min-w-0">
-      <p class="text-base font-bold" style="color:#fff">
-        Bună, <span x-text="user?.username ?? ''"></span>
-        <span class="text-xs font-normal ml-2 px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.2);color:#fff">OPERATOR</span>
-      </p>
-      <p class="text-sm mt-0.5" style="color:rgba(191,219,254,.85)">
-        <span x-text="org?.name ?? 'Organizație'"></span> · Panou monitorizare
-      </p>
+    <div class="flex items-start gap-4 min-w-0 w-full sm:w-auto">
+      <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+           style="background:rgba(255,255,255,.15)">
+        <i data-lucide="eye" class="w-5 h-5" style="color:#fff"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-base font-bold leading-tight" style="color:#fff">
+          Bună, <span x-text="user?.username ?? ''"></span>
+          <span class="inline-flex text-xs font-normal ml-2 px-2 py-0.5 rounded-full align-middle" style="background:rgba(255,255,255,.2);color:#fff">OPERATOR</span>
+        </p>
+        <p class="text-sm mt-1 leading-snug break-words" style="color:rgba(191,219,254,.85)">
+          <span x-text="org?.name ?? 'Organizație'"></span>
+        </p>
+        <p class="text-sm mt-1 leading-snug" style="color:rgba(191,219,254,.85)">Panou monitorizare</p>
+      </div>
     </div>
     <button @click="goTo('incidents')"
-      class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap"
+      class="flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap w-full sm:w-auto sm:shrink-0"
       style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff"
       @mouseenter="$el.style.background='rgba(255,255,255,.25)'"
       @mouseleave="$el.style.background='rgba(255,255,255,.15)'">
@@ -67,111 +68,43 @@
     </button>
   </div>
 
-  <!-- KPI grid: 2 cols mobile, 3 cols tablet+ -->
-  <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+  <!-- KPI grid: un singur rând coerent pe desktop, fara carduri duplicate -->
+  <div class="dashboard-kpis">
+    <button @click="goTo('incidents')" class="dashboard-kpi dashboard-kpi--neutral">
+      <span>Azi</span>
+      <strong x-text="dashB2B?.incidents_today ?? '—'"></strong>
+      <small>incidente detectate</small>
+    </button>
 
-    <!-- Azi -->
-    <div @click="goTo('incidents')"
-      class="p-4 rounded-xl cursor-pointer transition-all duration-200"
-      style="background:var(--bg-surface);border:1px solid var(--bg-border)"
-      @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(16,185,129,.45)';$el.style.transform='translateY(-1px)'"
-      @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
-      <p class="text-[10px] font-bold uppercase tracking-widest mb-2" style="color:var(--tx-muted)">Azi</p>
-      <p class="text-3xl font-extrabold leading-none" style="color:var(--tx-primary)"
-         x-text="dashB2B?.incidents_today ?? '—'"></p>
-      <p class="text-[10px] mt-1.5" style="color:var(--tx-muted)">incidente</p>
-    </div>
+    <button @click="goTo('incidents')" class="dashboard-kpi dashboard-kpi--neutral">
+      <span>7 zile</span>
+      <strong x-text="dashB2B?.incidents_week ?? '—'"></strong>
+      <small>activitate recentă</small>
+    </button>
 
-    <!-- 7 zile -->
-    <div @click="goTo('incidents')"
-      class="p-4 rounded-xl cursor-pointer transition-all duration-200"
-      style="background:var(--bg-surface);border:1px solid var(--bg-border)"
-      @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(16,185,129,.45)';$el.style.transform='translateY(-1px)'"
-      @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
-      <p class="text-[10px] font-bold uppercase tracking-widest mb-2" style="color:var(--tx-muted)">7 zile</p>
-      <p class="text-3xl font-extrabold leading-none" style="color:var(--tx-primary)"
-         x-text="dashB2B?.incidents_week ?? '—'"></p>
-      <p class="text-[10px] mt-1.5" style="color:var(--tx-muted)">incidente</p>
-    </div>
+    <button @click="incidentStatusFilter='pending'; goTo('incidents')" class="dashboard-kpi dashboard-kpi--warning">
+      <span>Așteptare</span>
+      <strong x-text="dashB2B?.pending_review ?? 0"></strong>
+      <small>de verificat</small>
+    </button>
 
-    <!-- Rezolvate -->
-    <div class="p-4 rounded-xl transition-all duration-200"
-         :style="darkMode ? 'background:#064e3b;border:1px solid #065f46' : 'background:#ecfdf5;border:1px solid #a7f3d0'"
-         @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(16,185,129,.45)';$el.style.transform='translateY(-1px)'"
-         @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
-      <p class="text-[10px] font-bold uppercase tracking-widest mb-2" style="color:#059669">Rezolvate</p>
-      <p class="text-3xl font-extrabold leading-none"
-         :style="darkMode ? 'color:#34d399' : 'color:#059669'"
-         x-text="(dashB2B?.resolution_rate ?? 0) + '%'"></p>
-      <p class="text-[10px] mt-1.5" :style="darkMode ? 'color:#34d399;opacity:.7' : 'color:#059669;opacity:.7'">din total</p>
-    </div>
+    <button @click="incidentStatusFilter='reviewed'; goTo('incidents')" class="dashboard-kpi dashboard-kpi--success">
+      <span>Confirmate</span>
+      <strong x-text="(dashB2B?.resolution_rate ?? 0) + '%'"></strong>
+      <small>rată validare</small>
+    </button>
 
-    <!-- Așteptare — admin only -->
-    <div x-show="isAdmin" @click="incidentStatusFilter='pending'; goTo('incidents')"
-      class="p-4 rounded-xl cursor-pointer transition-all duration-200"
-      :style="darkMode ? 'background:#292524;border:1px solid #57534e' : 'background:#fffbeb;border:1px solid #fde68a'"
-      @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(245,158,11,.5)';$el.style.transform='translateY(-1px)'"
-      @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
-      <p class="text-[10px] font-bold uppercase tracking-widest mb-2"
-         :style="darkMode ? 'color:#fbbf24' : 'color:#d97706'">Așteptare</p>
-      <p class="text-3xl font-extrabold leading-none"
-         :style="darkMode ? 'color:#fbbf24' : 'color:#f59e0b'"
-         x-text="dashB2B?.pending_review ?? 0"></p>
-      <p class="text-[10px] mt-1.5"
-         :style="darkMode ? 'color:#fbbf24;opacity:.7' : 'color:#d97706;opacity:.7'">de revizuit</p>
-    </div>
+    <button @click="incidentStatusFilter='forwarded'; goTo('incidents')" class="dashboard-kpi dashboard-kpi--archive">
+      <span>Arhivate</span>
+      <strong x-text="dashB2B?.forwarded ?? 0"></strong>
+      <small>probe salvate</small>
+    </button>
 
-    <!-- Trimise — admin only -->
-    <div x-show="isAdmin" @click="incidentStatusFilter='forwarded'; goTo('incidents')"
-      class="p-4 rounded-xl cursor-pointer transition-all duration-200"
-      :style="darkMode ? 'background:#1e3a5f;border:1px solid #1d4ed8' : 'background:#eff6ff;border:1px solid #bfdbfe'"
-      @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(59,130,246,.5)';$el.style.transform='translateY(-1px)'"
-      @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
-      <p class="text-[10px] font-bold uppercase tracking-widest mb-2"
-         :style="darkMode ? 'color:#60a5fa' : 'color:#2563eb'">Trimise</p>
-      <p class="text-3xl font-extrabold leading-none"
-         :style="darkMode ? 'color:#60a5fa' : 'color:#3b82f6'"
-         x-text="dashB2B?.forwarded ?? 0"></p>
-      <p class="text-[10px] mt-1.5"
-         :style="darkMode ? 'color:#60a5fa;opacity:.7' : 'color:#2563eb;opacity:.7'">la autoritate</p>
-    </div>
-
-    <!-- User: Incidente de revizuit (work queue) -->
-    <div x-show="!isAdmin" @click="incidentStatusFilter='pending'; goTo('incidents')"
-      class="p-4 rounded-xl cursor-pointer transition-all duration-200 col-span-2"
-      :style="(dashB2B?.pending_review??0) > 0
-        ? (darkMode ? 'background:#292524;border:1px solid #f59e0b' : 'background:#fffbeb;border:1px solid #f59e0b')
-        : 'background:var(--bg-surface);border:1px solid var(--bg-border)'"
-      @mouseenter="$el.style.transform='translateY(-1px)'"
-      @mouseleave="$el.style.transform=''">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center"
-          :style="(dashB2B?.pending_review??0) > 0 ? 'background:rgba(245,158,11,.15)' : 'background:var(--bg-raised)'">
-          <i data-lucide="inbox" class="w-5 h-5"
-            :style="(dashB2B?.pending_review??0) > 0 ? 'color:#f59e0b' : 'color:var(--tx-muted)'"></i>
-        </div>
-        <div>
-          <p class="text-sm font-bold" style="color:var(--tx-primary)">
-            <span x-text="(dashB2B?.pending_review??0) > 0 ? `${dashB2B.pending_review} incidente` : 'Nicio acțiune necesară'"></span>
-          </p>
-          <p class="text-[11px]" style="color:var(--tx-muted)">
-            <span x-text="(dashB2B?.pending_review??0) > 0 ? 'de revizuit în coada de lucru' : 'toate incidentele sunt procesate'"></span>
-          </p>
-        </div>
-        <i x-show="(dashB2B?.pending_review??0) > 0" data-lucide="chevron-right" class="w-4 h-4 ml-auto" style="color:var(--tx-muted)"></i>
-      </div>
-    </div>
-
-    <!-- Total -->
-    <div class="p-4 rounded-xl transition-all duration-200"
-         style="background:var(--bg-surface);border:1px solid var(--bg-border)"
-         @mouseenter="$el.style.boxShadow='0 0 0 2px rgba(16,185,129,.35)';$el.style.transform='translateY(-1px)'"
-         @mouseleave="$el.style.boxShadow='';$el.style.transform=''">
-      <p class="text-[10px] font-bold uppercase tracking-widest mb-2" style="color:var(--tx-muted)">Total</p>
-      <p class="text-3xl font-extrabold leading-none" style="color:var(--tx-primary)"
-         x-text="dashB2B?.total_all_time ?? 0"></p>
-      <p class="text-[10px] mt-1.5" style="color:var(--tx-muted)">all time</p>
-    </div>
+    <button @click="goTo('incidents')" class="dashboard-kpi dashboard-kpi--total">
+      <span>Total</span>
+      <strong x-text="dashB2B?.total_all_time ?? 0"></strong>
+      <small x-text="isAdmin ? 'toate incidentele' : 'incidentele mele'"></small>
+    </button>
   </div>
 
   <!-- Grafic activitate -->
@@ -383,7 +316,7 @@
                     : ev.status==='reviewed'
                     ? 'background:rgba(16,185,129,.18);color:'+(darkMode?'#10b981':'#047857')
                     : 'background:rgba(107,114,128,.18);color:'+(darkMode?'#9ca3af':'#64748b')"
-                  x-text="ev.status==='pending'?'Așteptare':ev.status==='forwarded'?'Trimis':ev.status==='reviewed'?'Verificat':'Respins'">
+                  x-text="ev.status==='pending'?'Așteptare':ev.status==='forwarded'?'Arhivat':ev.status==='reviewed'?'Confirmat':'Fals pozitiv'">
                 </span>
                 <span class="text-xs font-semibold capitalize" style="color:var(--tx-primary)"
                   x-text="!ev.material||ev.material==='unknown'?'Necunoscut':ev.material==='paper'?'Hârtie':ev.material==='glass'?'Sticlă':ev.material==='plastic'?'Plastic':ev.material==='metal'?'Metal':ev.material">

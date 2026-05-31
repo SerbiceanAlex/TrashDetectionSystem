@@ -3,6 +3,7 @@
 /* ── Toast system ──────────────────────────────────────────────────────────── */
 const toastQueue = [];
 let _toastAlpine = null;
+const AUTH_TOKEN_KEY = 'eco_token';
 
 function registerToastAlpine(alpineInstance) {
   _toastAlpine = alpineInstance;
@@ -14,9 +15,28 @@ function showToast(message, type = 'success', duration = 3500) {
   }
 }
 
+/* ── Per-tab auth token storage ────────────────────────────────────────────── */
+function getAuthToken() {
+  return sessionStorage.getItem(AUTH_TOKEN_KEY) || '';
+}
+
+function setAuthToken(token) {
+  if (token) {
+    sessionStorage.setItem(AUTH_TOKEN_KEY, token);
+  } else {
+    sessionStorage.removeItem(AUTH_TOKEN_KEY);
+  }
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
+function clearAuthToken() {
+  sessionStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
 /* ── Fetch wrapper with error handling ──────────────────────────────────────── */
 async function fetchAPI(url, options = {}) {
-  const token = localStorage.getItem('eco_token');
+  const token = getAuthToken();
   if (token) {
     options.headers = {
       ...options.headers,

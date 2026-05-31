@@ -1,0 +1,40 @@
+[
+  {
+    "clip": "littering_cctv_2024.mp4",
+    "video_fps": 30.0,
+    "effective_fps": 30.0,
+    "duration_sec": 28.57,
+    "total_frames": 857,
+    "frames_processed": 857,
+    "frame_skip": 1,
+    "conf": 0.3,
+    "person_conf": 0.4,
+    "imgsz": 640,
+    "events_detected": 1,
+    "first_event_time_sec": 19.33,
+    "runtime_sec": 26.31,
+    "runtime_fps": 32.57,
+    "state_CLEAR_pct": 10.04,
+    "state_PERSON_PRESENT_pct": 70.95,
+    "state_MONITORING_pct": 19.02,
+    "transitions_count": 32,
+    "transitions": {
+      "CLEAR->PERSON_PRESENT": 2,
+      "PERSON_PRESENT->MONITORING": 15,
+      "MONITORING->PERSON_PRESENT": 14,
+      "MONITORING->CLEAR": 1
+    },
+    "events": [
+      {
+        "frame_idx": 580,
+        "time_sec": 19.33,
+        "method": "zone",
+        "trash_count": 1,
+        "person_count": 0,
+        "det_score": 0.4547
+      }
+    ],
+    "expected_event": "unknown",
+    "outcome": "unknown"
+  }
+]

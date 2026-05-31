@@ -53,6 +53,7 @@ UAVVaste/
 # Web app runtime artifacts
 backend/trash_detection.db
 backend/trashdet.db
+backend/backups/
 backend/uploads/
 backend/annotated/
 backend/videos/

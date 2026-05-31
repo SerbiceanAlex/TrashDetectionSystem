@@ -16,6 +16,7 @@
 
 \usepackage{setspace}
 \setstretch{1.5}
+\usepackage{etoolbox}
 
 \usepackage{amsmath}
 
@@ -62,16 +63,77 @@
 
 \usepackage{tocloft}
 \setcounter{tocdepth}{1}
-\renewcommand{\contentsname}{Cuprins}
-\renewcommand{\cftchapfont}{\bfseries}
-\renewcommand{\cftchappagefont}{\bfseries}
+\renewcommand{\contentsname}{CUPRINS}
+\renewcommand{\cftchapfont}{\normalfont\bfseries}
+\renewcommand{\cftchappagefont}{\normalfont\bfseries}
+\renewcommand{\cftsecfont}{\normalfont}
+\renewcommand{\cftsecpagefont}{\normalfont}
+\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
+\renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
+% Format "CAPITOLUL X — Title" pentru capitole numerotate in cuprins
+\renewcommand{\cftchappresnum}{CAPITOLUL\space}
+\renewcommand{\cftchapaftersnum}{\space\textemdash\space}
 \setlength{\cftbeforechapskip}{6pt}
-\setlength{\cftbeforesecskip}{2pt}
-\setlength{\cftchapnumwidth}{1.6em}
-\setlength{\cftsecnumwidth}{2.8em}
+\setlength{\cftbeforesecskip}{1pt}
+\setlength{\cftchapnumwidth}{8.5em}
+\setlength{\cftsecnumwidth}{2.6em}
+\setlength{\cftchapindent}{0pt}
+\setlength{\cftsecindent}{8.5em}
+\renewcommand{\cftdotsep}{2.5}
+
+\renewcommand{\bibname}{BIBLIOGRAFIE}
+\AtBeginEnvironment{thebibliography}{%
+  \setstretch{1.0}%
+  \small%
+  \setlength{\itemsep}{10pt}%
+  \setlength{\parsep}{0pt}%
+  \setlength{\parskip}{0pt}%
+}
 
 \usepackage{cite}
 \usepackage[hidelinks]{hyperref}
+
+% ── Code listings ───────────────────────────────────────────────────────────
+\usepackage{xcolor}
+\usepackage{listings}
+
+\definecolor{codebg}{rgb}{0.97,0.97,0.97}
+\definecolor{codeframe}{rgb}{0.55,0.55,0.55}
+\definecolor{codekeyword}{rgb}{0.13,0.29,0.53}
+\definecolor{codestring}{rgb}{0.55,0.13,0.13}
+\definecolor{codecomment}{rgb}{0.40,0.40,0.40}
+\definecolor{codenumber}{rgb}{0.50,0.50,0.50}
+
+\lstdefinestyle{thesiscode}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  framerule=0.4pt,
+  framesep=4pt,
+  xleftmargin=12pt,
+  xrightmargin=4pt,
+  numbers=left,
+  numberstyle=\tiny\color{codenumber},
+  numbersep=8pt,
+  keywordstyle=\color{codekeyword}\bfseries,
+  stringstyle=\color{codestring},
+  commentstyle=\color{codecomment}\itshape,
+  showstringspaces=false,
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  tabsize=4,
+  aboveskip=12pt,
+  belowskip=10pt,
+  captionpos=b,
+  abovecaptionskip=4pt,
+}
+
+\lstset{style=thesiscode}
+\renewcommand{\lstlistingname}{Cod}
+\renewcommand{\lstlistlistingname}{Lista codurilor sursă}
 
 \newcommand{\blankpage}{%
   \thispagestyle{empty}%
@@ -89,16 +151,21 @@
 
 \newcommand{\chapterwithoutnumber}[1]{%
   \chapter*{\MakeUppercase{#1}}%
+  \phantomsection%
   \addcontentsline{toc}{chapter}{#1}%
 }
 
 \makeatletter
 \newcommand{\customtableofcontents}{%
   \thispagestyle{plain}%
+  \begingroup%
+  \setstretch{1.0}%
   \begin{center}
-    {\bfseries\fontsize{14}{16}\selectfont Cuprins\par}
+    {\bfseries\fontsize{14}{16}\selectfont CUPRINS\par}
   \end{center}
-  \vspace{1.1cm}
+  \vspace{0.4cm}
   \@starttoc{toc}%
+  \endgroup%
+  \clearpage%
 }
 \makeatother

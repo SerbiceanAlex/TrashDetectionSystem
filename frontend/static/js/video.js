@@ -22,7 +22,9 @@ function videoApp() {
 
     // ── Init ──────────────────────────────────────────────────────────────
     async initVideo() {
-      await this.loadVideoSessions();
+      if (this.token || getAuthToken()) {
+        await this.loadVideoSessions();
+      }
     },
 
     handleVideoFileSelect(ev) {
@@ -37,6 +39,11 @@ function videoApp() {
 
     async uploadVideo() {
       if (!this.uploadFile) return;
+      if (!this.token && !getAuthToken()) {
+        this.openAuth?.('login');
+        showToast('Autentifică-te pentru a analiza videoclipuri.', 'error');
+        return;
+      }
       this.videoProcessing = true;
       this.videoProcessingMsg = 'Uploading...';
       this.videoProgress = 0;
@@ -44,14 +51,10 @@ function videoApp() {
       try {
         const fd = new FormData();
         fd.append('file', this.uploadFile);
-        const resp = await fetch(`/api/video/upload?det_conf=${this.detConf}`, {
-          method: 'POST', body: fd,
+        const data = await fetchAPI(`/api/video/upload?det_conf=${this.detConf}`, {
+          method: 'POST',
+          body: fd,
         });
-        if (!resp.ok) {
-          const err = await resp.json();
-          throw new Error(err.detail || 'Upload error');
-        }
-        const data = await resp.json();
         this.uploadSessionId = data.session_id;
         this.videoProcessingMsg = 'Processing...';
 
@@ -66,9 +69,7 @@ function videoApp() {
     _pollUploadStatus(sessionId) {
       this.uploadPollTimer = setInterval(async () => {
         try {
-          const resp = await fetch(`/api/video/sessions/${sessionId}`);
-          if (!resp.ok) return;
-          const vs = await resp.json();
+          const vs = await fetchAPI(`/api/video/sessions/${sessionId}`);
 
           // Update progress bar
           if (vs.total_frames_expected > 0) {
@@ -116,14 +117,21 @@ function videoApp() {
 
     // ── Video sessions list ───────────────────────────────────────────────
     async loadVideoSessions() {
+      if (!this.token && !getAuthToken()) {
+        this.videoSessions = [];
+        this.videoSessionsTotal = 0;
+        this.isLoadingVideoSessions = false;
+        return;
+      }
       this.isLoadingVideoSessions = true;
       try {
         const skip = this.videoSessionsPage * 10;
-        const resp = await fetch(`/api/video/sessions?skip=${skip}&limit=10`);
-        if (resp.ok) {
-          const data = await resp.json();
-          this.videoSessions = data.items;
-          this.videoSessionsTotal = data.total;
+        const data = await fetchAPI(`/api/video/sessions?skip=${skip}&limit=10`);
+        this.videoSessions = data.items;
+        this.videoSessionsTotal = data.total;
+      } catch (e) {
+        if (!String(e.message || '').includes('401')) {
+          console.warn('loadVideoSessions', e);
         }
       } finally {
         this.isLoadingVideoSessions = false;
@@ -131,8 +139,11 @@ function videoApp() {
     },
 
     async viewVideoSession(id) {
-      const resp = await fetch(`/api/video/sessions/${id}`);
-      if (resp.ok) this.selectedVideoSession = await resp.json();
+      try {
+        this.selectedVideoSession = await fetchAPI(`/api/video/sessions/${id}`);
+      } catch (e) {
+        showToast('Nu pot încărca sesiunea video: ' + e.message, 'error');
+      }
     },
 
     async deleteVideoSession(id) {
@@ -142,15 +153,17 @@ function videoApp() {
         { confirmText: 'Șterge', icon: 'trash-2' }
       );
       if (!ok) return;
-      const resp = await fetch(`/api/video/sessions/${id}`, { method: 'DELETE' });
-      if (resp.ok) {
-        this.selectedVideoSession = null;
-        await this.loadVideoSessions();
-      }
+      await fetchAPI(`/api/video/sessions/${id}`, {
+        method: 'DELETE',
+      });
+      this.selectedVideoSession = null;
+      await this.loadVideoSessions();
     },
 
     getVideoDownloadUrl(session) {
-      return `/api/video/sessions/${session.id}/download`;
+      const token = getAuthToken();
+      const qs = token ? `?token=${encodeURIComponent(token)}` : '';
+      return `/api/video/sessions/${session.id}/download${qs}`;
     },
 
     parseMaterials(jsonStr) {
@@ -173,22 +186,42 @@ function videoApp() {
     monitorState: 'CLEAR',
     monitorProgress: 0,
     monitorFps: 0,
+    monitorFpsDisplay: 0,
+    monitorFpsRaw: 0,
     monitorPersons: 0,
     monitorTrash: 0,
     monitorAlerts: [],
     monitorPersonConf: 0.35,
-    monitorSendFps: 10,
+    monitorSendFps: 20,
+    monitorCaptureMaxDim: 576,
+    monitorJpegQuality: 0.76,
     monitorFacingMode: 'environment',   // 'environment' = spate, 'user' = față
     _monitorAnimFrame: null,
     _monitorCaptureCanvas: null,
     _lastMonitorMsg: null,
     _monitorLastSendAt: 0,
     _monitorSending: false,
+    _monitorFrameInFlight: false,
+    _monitorFpsLastDisplayAt: 0,
 
     async startMonitor() {
       try {
+        const runtime = this.systemInfo?.runtime || {};
+        const configuredTargetFps = Number(runtime.monitor_target_fps || 20);
+        if (this.monitorSendFps === 20 && configuredTargetFps !== 20) {
+          this.monitorSendFps = configuredTargetFps;
+        }
+        this.monitorSendFps = Math.max(12, Math.min(Number(this.monitorSendFps || configuredTargetFps || 20), 30));
+        this.monitorCaptureMaxDim = Math.max(416, Math.min(Number(runtime.monitor_capture_max_dim || this.monitorCaptureMaxDim || 576), 640));
+        this.monitorJpegQuality = Math.max(0.60, Math.min(Number(runtime.monitor_jpeg_quality || this.monitorJpegQuality || 0.76), 0.90));
+
         this.monitorStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: this.monitorFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            facingMode: this.monitorFacingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30, max: 30 },
+          },
           audio: false,
         });
       } catch (e) {
@@ -212,7 +245,11 @@ function videoApp() {
       await video.play();
 
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      let wsUrl = `${proto}://${location.host}/ws/video/monitor?det_conf=${this.detConf}&person_conf=${this.monitorPersonConf}`;
+      let wsUrl = `${proto}://${location.host}/ws/video/monitor?det_conf=${this.detConf}&person_conf=${this.monitorPersonConf}&analysis_fps=${this.monitorSendFps}`;
+      const authToken = getAuthToken();
+      if (authToken) {
+        wsUrl += `&token=${encodeURIComponent(authToken)}`;
+      }
       if (this.geoLat != null && this.geoLng != null) {
         wsUrl += `&lat=${this.geoLat}&lng=${this.geoLng}`;
       }
@@ -225,11 +262,13 @@ function videoApp() {
         this._monitorCaptureCanvas = document.createElement('canvas');
         this._monitorLastSendAt = 0;
         this._monitorSending = false;
+        this._monitorFrameInFlight = false;
         this._startMonitorCapture(video, canvas);
       };
 
       this.monitorWs.onmessage = (ev) => {
         try {
+          this._monitorFrameInFlight = false;
           const msg = JSON.parse(ev.data);
           if (msg.type === 'alert') {
             this.monitorAlerts.push(msg);
@@ -265,7 +304,9 @@ function videoApp() {
           } else {
             this.monitorState = msg.state || 'CLEAR';
             this.monitorProgress = msg.monitor_progress || 0;
-            this.monitorFps = msg.fps || 0;
+            const targetFps = Number(msg.analysis_fps_target || this.monitorSendFps || 20);
+            const nextFps = Math.min(Math.max(msg.fps || 0, 0), targetFps);
+            this._updateMonitorFps(nextFps, targetFps);
             this.monitorPersons = msg.persons || 0;
             this.monitorTrash = msg.trash || 0;
             // Store msg — overlay is drawn in the RAF loop to avoid accumulation
@@ -313,8 +354,10 @@ function videoApp() {
           this._drawMonitorOverlay(displayCanvas, this._lastMonitorMsg);
         }
 
-        // Capture a bit more detail for small/soft objects (e.g. wrappers on bed)
-        const scale = 768 / Math.max(vw, vh);
+        // Capture: bounded max dimension. Browser video stays fluid; AI analysis is throttled
+        // via monitorSendFps so the laptop does not build a WebSocket backlog.
+        const maxDim = Math.max(416, Math.min(Number(this.monitorCaptureMaxDim || 576), 640));
+        const scale = Math.min(1, maxDim / Math.max(vw, vh));
         cc.width = Math.round(vw * scale);
         cc.height = Math.round(vh * scale);
         const cctx = cc.getContext('2d');
@@ -324,31 +367,67 @@ function videoApp() {
           const now = performance.now();
           const sendIntervalMs = 1000 / Math.max(this.monitorSendFps || 12, 1);
 
-          // Backpressure guard: do not flood WS with more frames than backend can consume.
-          if (!this._monitorSending && (now - this._monitorLastSendAt) >= sendIntervalMs) {
+          // Backpressure guard: one in-flight frame at a time. This prevents a hidden
+          // WebSocket backlog when the laptop is on battery or the tab is throttled.
+          if (!this._monitorSending && !this._monitorFrameInFlight && (now - this._monitorLastSendAt) >= sendIntervalMs) {
             if (this.monitorWs.bufferedAmount < 500000) {
               this._monitorSending = true;
+              this._monitorFrameInFlight = true;
               this._monitorLastSendAt = now;
               cc.toBlob((blob) => {
                 if (!blob) {
                   this._monitorSending = false;
+                  this._monitorFrameInFlight = false;
                   return;
                 }
                 blob.arrayBuffer()
                   .then((buf) => {
                     if (this.monitorWs && this.monitorWs.readyState === WebSocket.OPEN) {
                       this.monitorWs.send(buf);
+                    } else {
+                      this._monitorFrameInFlight = false;
                     }
+                  })
+                  .catch(() => {
+                    this._monitorFrameInFlight = false;
                   })
                   .finally(() => {
                     this._monitorSending = false;
                   });
-              }, 'image/jpeg', 0.78);
+              }, 'image/jpeg', this.monitorJpegQuality || 0.76);
             }
           }
         }
       };
       this._monitorAnimFrame = requestAnimationFrame(loop);
+    },
+
+    _updateMonitorFps(rawFps, targetFps) {
+      const target = Math.max(1, Number(targetFps || this.monitorSendFps || 20));
+      const raw = Math.max(0, Math.min(Number(rawFps || 0), target));
+      this.monitorFpsRaw = raw;
+
+      // Strong smoothing + display hysteresis: the UI should communicate a stable
+      // processing rhythm, not every tiny browser/GPU scheduling jitter.
+      this.monitorFps = this.monitorFps > 0
+        ? (this.monitorFps * 0.92 + raw * 0.08)
+        : raw;
+
+      const now = performance.now();
+      let nextDisplay = Math.round(this.monitorFps);
+      if (this.monitorFps >= target - 1.5) {
+        nextDisplay = Math.round(target);
+      }
+
+      const current = this.monitorFpsDisplay || 0;
+      if (
+        current === 0 ||
+        Math.abs(nextDisplay - current) >= 2 ||
+        (now - this._monitorFpsLastDisplayAt) > 1200
+      ) {
+        this.monitorFpsDisplay = nextDisplay;
+        this._monitorFpsLastDisplayAt = now;
+      }
     },
 
     _drawMonitorOverlay(canvas, msg) {
@@ -420,7 +499,12 @@ function videoApp() {
       // Porneste stream nou cu camera opusă
       try {
         this.monitorStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: this.monitorFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            facingMode: this.monitorFacingMode,
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30, max: 30 },
+          },
           audio: false,
         });
         const video = this.$refs.monitorVideo;
@@ -443,12 +527,16 @@ function videoApp() {
       if (this.monitorStream) { this.monitorStream.getTracks().forEach(t => t.stop()); this.monitorStream = null; }
       this.monitorState = 'CLEAR';
       this.monitorFps = 0;
+      this.monitorFpsDisplay = 0;
+      this.monitorFpsRaw = 0;
       this.monitorPersons = 0;
       this.monitorTrash = 0;
       this.monitorProgress = 0;
       this._lastMonitorMsg = null;
       this._monitorLastSendAt = 0;
       this._monitorSending = false;
+      this._monitorFrameInFlight = false;
+      this._monitorFpsLastDisplayAt = 0;
     },
   };
 }

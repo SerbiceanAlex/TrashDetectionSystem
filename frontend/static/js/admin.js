@@ -53,10 +53,14 @@ function adminApp() {
     incidentLimit: 20,
     incidentStatusFilter: '',
     incidentMaterialFilter: '',
+    incidentReporterFilter: '',
     incidentPending: 0,
     incidentReviewed: 0,
     incidentForwarded: 0,
     incidentTotalAll: 0,
+    incidentForwardingIds: [],
+    incidentSelectedIds: [],
+    incidentBulkDeleting: false,
 
     /* ── Init ─────────────────────────────────────────────────────────── */
     initAdmin() {
@@ -177,108 +181,38 @@ function adminApp() {
     },
 
     _renderAdminCharts() {
-      if (!this.adminCharts) return;
+      // Charts are rendered natively in the template. Keeping this hook lets
+      // older flows call it safely after data refreshes.
+      this._refreshAdminIcons();
+    },
 
-      Object.values(this._adminChartInstances).forEach(c => c.destroy());
-      this._adminChartInstances = {};
+    _chartTotal(rows) {
+      return (rows || []).reduce((sum, r) => sum + Number(r.count || 0), 0);
+    },
 
-      const isDark = document.documentElement.classList.contains('dark');
-      const gridColor = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)';
-      const textColor = isDark ? '#9ca3af' : '#6b7280';
+    _chartMax(rows) {
+      return Math.max(1, ...(rows || []).map(r => Number(r.count || 0)));
+    },
 
-      const rCanvas = document.getElementById('adminChartReports');
-      if (rCanvas) {
-        this._adminChartInstances.reports = new Chart(rCanvas, {
-          type: 'bar',
-          data: {
-            labels: this.adminCharts.reports_timeline.map(r => r.day.slice(5)),
-            datasets: [{
-              label: 'Reports',
-              data: this.adminCharts.reports_timeline.map(r => r.count),
-              backgroundColor: 'rgba(5,150,105,.6)',
-              borderRadius: 4,
-            }],
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { grid: { display: false }, ticks: { color: textColor, font: { size: 10 } } },
-              y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, precision: 0 } },
-            },
-          },
-        });
-      }
+    _chartBarHeight(value, rows) {
+      const pct = (Number(value || 0) / this._chartMax(rows)) * 100;
+      return Math.max(value ? 8 : 2, Math.round(pct));
+    },
 
-      const uCanvas = document.getElementById('adminChartUsers');
-      if (uCanvas) {
-        this._adminChartInstances.users = new Chart(uCanvas, {
-          type: 'line',
-          data: {
-            labels: this.adminCharts.users_timeline.map(r => r.month),
-            datasets: [{
-              label: 'New users',
-              data: this.adminCharts.users_timeline.map(r => r.count),
-              borderColor: '#3b82f6',
-              backgroundColor: 'rgba(59,130,246,.15)',
-              fill: true, tension: .4, pointRadius: 3,
-            }],
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-              x: { grid: { display: false }, ticks: { color: textColor, font: { size: 10 } } },
-              y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: textColor, precision: 0 } },
-            },
-          },
-        });
-      }
+    _resolutionPct() {
+      const rr = this.adminCharts?.resolution_rate || {};
+      const resolved = Number(rr.resolved || 0);
+      const total = resolved + Number(rr.unresolved || 0);
+      return total ? Math.round((resolved / total) * 100) : 0;
+    },
 
-      const mCanvas = document.getElementById('adminChartMaterials');
-      if (mCanvas) {
-        const colors = ['#059669', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#6b7280'];
-        this._adminChartInstances.materials = new Chart(mCanvas, {
-          type: 'doughnut',
-          data: {
-            labels: this.adminCharts.material_distribution.map(m => m.material),
-            datasets: [{
-              data: this.adminCharts.material_distribution.map(m => m.count),
-              backgroundColor: colors.slice(0, this.adminCharts.material_distribution.length),
-              borderWidth: 0,
-            }],
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: {
-              legend: { position: 'bottom', labels: { color: textColor, padding: 12, usePointStyle: true, font: { size: 11 } } },
-            },
-          },
-        });
-      }
-
-      const resCanvas = document.getElementById('adminChartResolution');
-      if (resCanvas) {
-        const rr = this.adminCharts.resolution_rate;
-        this._adminChartInstances.resolution = new Chart(resCanvas, {
-          type: 'doughnut',
-          data: {
-            labels: ['Resolved', 'Unresolved'],
-            datasets: [{
-              data: [rr.resolved, rr.unresolved],
-              backgroundColor: ['#059669', '#ef4444'],
-              borderWidth: 0,
-            }],
-          },
-          options: {
-            responsive: true, maintainAspectRatio: false,
-            cutout: '65%',
-            plugins: {
-              legend: { position: 'bottom', labels: { color: textColor, padding: 12, usePointStyle: true, font: { size: 11 } } },
-            },
-          },
-        });
-      }
+    _materialLabel(material) {
+      return material === 'paper' ? 'Hârtie'
+        : material === 'glass' ? 'Sticlă'
+        : material === 'plastic' ? 'Plastic'
+        : material === 'metal' ? 'Metal'
+        : material === 'other' ? 'Altele'
+        : 'Necunoscut';
     },
 
     /* ── Broadcast notification ────────────────────────────────────────── */
@@ -302,11 +236,58 @@ function adminApp() {
 
     /* ── Export users CSV ─────────────────────────────────────────────── */
     adminExportUsersCSV() {
-      const token = localStorage.getItem('eco_token');
+      const token = getAuthToken();
       const a = document.createElement('a');
       a.href = `/api/admin/export/users?token=${encodeURIComponent(token)}`;
       a.download = 'users_export.csv';
       a.click();
+    },
+
+    async exportIncidentsCSV() {
+      const token = getAuthToken();
+      if (!token) {
+        showToast('Autentifica-te pentru export CSV.', 'error');
+        return;
+      }
+
+      const params = new URLSearchParams({ format: 'csv', period: 'all' });
+      if (this.incidentStatusFilter) params.set('status', this.incidentStatusFilter);
+      if (this.incidentMaterialFilter) params.set('material', this.incidentMaterialFilter);
+
+      try {
+        const response = await fetch(`/api/reports/export?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          let detail = `Eroare export CSV (${response.status})`;
+          try {
+            const err = await response.json();
+            detail = err?.detail || detail;
+          } catch (_) {
+            const text = await response.text();
+            if (text) detail = text;
+          }
+          throw new Error(detail);
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const date = new Date().toISOString().slice(0, 10);
+        const suffix = [
+          this.incidentStatusFilter || 'toate',
+          this.incidentMaterialFilter || null,
+        ].filter(Boolean).join('_');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `incidente_trashdet_${suffix}_${date}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast('Raport CSV descarcat.', 'success');
+      } catch (e) {
+        showToast('Export CSV esuat: ' + e.message, 'error');
+      }
     },
 
     /* ── Authorities CRUD ─────────────────────────────────────────────── */
@@ -438,6 +419,11 @@ function adminApp() {
 
     /* ── Storage stats ────────────────────────────────────────────────── */
     async loadStorage() {
+      if (!this.token || this.user?.role !== 'admin') {
+        this.adminStorage = null;
+        this.adminStorageLoading = false;
+        return;
+      }
       this.adminStorageLoading = true;
       try {
         this.adminStorage = await fetchAPI('/api/admin/storage');
@@ -464,10 +450,15 @@ function adminApp() {
         let url = `/api/littering/events?skip=${skip}&limit=${this.incidentLimit}`;
         if (this.incidentStatusFilter) url += `&status=${encodeURIComponent(this.incidentStatusFilter)}`;
         if (this.incidentMaterialFilter) url += `&material=${encodeURIComponent(this.incidentMaterialFilter)}`;
+        if (this.user?.role === 'admin' && this.incidentReporterFilter) {
+          url += `&reporter_id=${encodeURIComponent(this.incidentReporterFilter)}`;
+        }
 
         const data = await fetchAPI(url);
         this.incidents = data.items;
         this.incidentTotal = data.total;
+        const visibleIds = new Set(this.incidents.map(e => e.id));
+        this.incidentSelectedIds = this.incidentSelectedIds.filter(id => visibleIds.has(id));
 
         try {
           // Incarca totalurile globale asincron pentru KPI cards
@@ -485,7 +476,46 @@ function adminApp() {
       }
     },
 
+    isIncidentSelected(id) {
+      return this.incidentSelectedIds.includes(id);
+    },
+
+    areAllIncidentsOnPageSelected() {
+      return this.incidents.length > 0 && this.incidents.every(e => this.incidentSelectedIds.includes(e.id));
+    },
+
+    toggleIncidentSelection(id) {
+      if (this.isIncidentSelected(id)) {
+        this.incidentSelectedIds = this.incidentSelectedIds.filter(x => x !== id);
+      } else {
+        this.incidentSelectedIds = [...this.incidentSelectedIds, id];
+      }
+      this._refreshAdminIcons();
+    },
+
+    toggleIncidentPageSelection() {
+      const pageIds = this.incidents.map(e => e.id);
+      if (pageIds.length === 0) return;
+      if (this.areAllIncidentsOnPageSelected()) {
+        this.incidentSelectedIds = this.incidentSelectedIds.filter(id => !pageIds.includes(id));
+      } else {
+        this.incidentSelectedIds = Array.from(new Set([...this.incidentSelectedIds, ...pageIds]));
+      }
+      this._refreshAdminIcons();
+    },
+
+    clearIncidentSelection() {
+      this.incidentSelectedIds = [];
+      this._refreshAdminIcons();
+    },
+
     async markIncidentReviewed(id) {
+      const ok = await this.showConfirm(
+        'Confirmă incident',
+        'Confirmi că dovada indică un act real de aruncare ilegală. Incidentul rămâne salvat pentru raport și analiză.',
+        { confirmText: 'Confirmă', confirmColor: '#10b981', iconColor: '#10b981', icon: 'check-circle' }
+      );
+      if (!ok) return false;
       try {
         const updated = await fetchAPI(`/api/littering/events/${id}/status`, {
           method: 'PATCH',
@@ -493,23 +523,31 @@ function adminApp() {
           body: JSON.stringify({ status: 'reviewed' }),
         });
         const idx = this.incidents.findIndex(e => e.id === id);
-        if (idx !== -1) this.incidents[idx] = updated;
-        this.incidentPending = Math.max(0, this.incidentPending - 1);
-        this.incidentReviewed += 1;
-        showToast('Incident marcat ca verificat');
+        if (idx !== -1) {
+          const oldStatus = this.incidents[idx].status;
+          this.incidents[idx] = updated;
+          if (oldStatus === 'pending') this.incidentPending = Math.max(0, this.incidentPending - 1);
+          if (oldStatus === 'forwarded') this.incidentForwarded = Math.max(0, this.incidentForwarded - 1);
+          if (oldStatus !== 'reviewed') this.incidentReviewed += 1;
+        }
+        showToast('Incident confirmat ca aruncare ilegală');
         this._refreshAdminIcons();
+        return true;
       } catch (e) {
         showToast('Eroare: ' + e.message, 'error');
+        return false;
       }
     },
 
     async forwardIncident(id) {
+      if (this.incidentForwardingIds.includes(id)) return false;
       const ok = await this.showConfirm(
-        'Trimite la autoritate',
-        'Evidența acestui incident (clip + metadata + hash SHA-256) va fi marcată ca trimisă autorității responsabile.',
-        { confirmText: 'Trimite', confirmColor: '#2563eb', iconColor: '#2563eb', icon: 'send' }
+        'Arhivează dovada',
+        'Incidentul va fi marcat ca arhivat: clipul, thumbnailul, hash-ul și notele rămân salvate local pentru raport. Nu se trimite email real către autorități în modul demo.',
+        { confirmText: 'Arhivează', confirmColor: '#2563eb', iconColor: '#2563eb', icon: 'archive' }
       );
-      if (!ok) return;
+      if (!ok) return false;
+      this.incidentForwardingIds.push(id);
       try {
         const updated = await fetchAPI(`/api/littering/events/${id}/status`, {
           method: 'PATCH',
@@ -522,22 +560,26 @@ function adminApp() {
           this.incidents[idx] = updated;
           if (oldStatus === 'reviewed') this.incidentReviewed = Math.max(0, this.incidentReviewed - 1);
           if (oldStatus === 'pending') this.incidentPending = Math.max(0, this.incidentPending - 1);
-          this.incidentForwarded += 1;
+          if (oldStatus !== 'forwarded') this.incidentForwarded += 1;
         }
-        showToast('Incident trimis la autoritate');
+        showToast('Dovada a fost arhivată local.');
         this._refreshAdminIcons();
+        return true;
       } catch (e) {
         showToast('Eroare: ' + e.message, 'error');
+        return false;
+      } finally {
+        this.incidentForwardingIds = this.incidentForwardingIds.filter(x => x !== id);
       }
     },
 
     async dismissIncident(id) {
       const ok = await this.showConfirm(
-        'Respinge incident',
-        'Incidentul va fi marcat ca fals pozitiv și arhivat. Acțiunea poate fi revizuită ulterior.',
-        { confirmText: 'Respinge', confirmColor: '#6b7280', iconColor: '#6b7280', icon: 'x-circle' }
+        'Marchează fals pozitiv',
+        'Incidentul va fi păstrat în istoric, dar marcat ca nerelevant pentru evaluarea finală.',
+        { confirmText: 'Fals pozitiv', confirmColor: '#6b7280', iconColor: '#6b7280', icon: 'x-circle' }
       );
-      if (!ok) return;
+      if (!ok) return false;
       try {
         const updated = await fetchAPI(`/api/littering/events/${id}/status`, {
           method: 'PATCH',
@@ -545,11 +587,19 @@ function adminApp() {
           body: JSON.stringify({ status: 'dismissed' }),
         });
         const idx = this.incidents.findIndex(e => e.id === id);
-        if (idx !== -1) this.incidents[idx] = updated;
-        showToast('Incident respins');
+        if (idx !== -1) {
+          const oldStatus = this.incidents[idx].status;
+          this.incidents[idx] = updated;
+          if (oldStatus === 'pending') this.incidentPending = Math.max(0, this.incidentPending - 1);
+          if (oldStatus === 'reviewed') this.incidentReviewed = Math.max(0, this.incidentReviewed - 1);
+          if (oldStatus === 'forwarded') this.incidentForwarded = Math.max(0, this.incidentForwarded - 1);
+        }
+        showToast('Incident marcat ca fals pozitiv');
         this._refreshAdminIcons();
+        return true;
       } catch (e) {
         showToast('Eroare: ' + e.message, 'error');
+        return false;
       }
     },
 
@@ -557,9 +607,9 @@ function adminApp() {
       const ok = await this.showConfirm(
         'Șterge definitiv',
         'Acest incident și videoclipul/imaginile asociate vor fi șterse permanent pentru a elibera spațiu. Acțiunea este ireversibilă.',
-        { confirmText: 'Șterge Definitiv', confirmColor: '#dc2626', iconColor: '#dc2626', icon: 'trash-2' }
+        { confirmText: 'Șterge definitiv', confirmColor: '#dc2626', iconColor: '#dc2626', icon: 'trash-2' }
       );
-      if (!ok) return;
+      if (!ok) return false;
       try {
         await fetchAPI(`/api/littering/events/${id}`, { method: 'DELETE' });
 
@@ -583,8 +633,42 @@ function adminApp() {
 
         showToast('Incident șters definitiv.');
         this._refreshAdminIcons();
+        return true;
       } catch (e) {
         showToast('Eroare: ' + e.message, 'error');
+        return false;
+      }
+    },
+
+    async deleteSelectedIncidents() {
+      const ids = [...this.incidentSelectedIds];
+      if (ids.length === 0 || this.incidentBulkDeleting) return;
+      const ok = await this.showConfirm(
+        'Șterge incidente selectate',
+        `Vor fi șterse definitiv ${ids.length} incident(e), împreună cu clipurile și imaginile asociate. Acțiunea este ireversibilă.`,
+        { confirmText: `Șterge ${ids.length}`, confirmColor: '#dc2626', iconColor: '#dc2626', icon: 'trash-2' }
+      );
+      if (!ok) return;
+      this.incidentBulkDeleting = true;
+      let deleted = 0;
+      let failed = 0;
+      try {
+        for (const id of ids) {
+          try {
+            await fetchAPI(`/api/littering/events/${id}`, { method: 'DELETE' });
+            deleted += 1;
+          } catch (e) {
+            failed += 1;
+            console.warn('deleteSelectedIncidents', id, e);
+          }
+        }
+        this.incidentSelectedIds = [];
+        await this.loadIncidents();
+        if (deleted > 0) showToast(`${deleted} incident(e) șterse definitiv.`, 'success');
+        if (failed > 0) showToast(`${failed} incident(e) nu au putut fi șterse.`, 'error');
+      } finally {
+        this.incidentBulkDeleting = false;
+        this._refreshAdminIcons();
       }
     },
 
@@ -597,18 +681,16 @@ function adminApp() {
         this.loadStorage();
       } else if (tab === 'users') {
         this.loadAdminUsers();
-      } else if (tab === 'authorities') {
-        this.loadAuthorities();
       } else if (tab === 'incidents') {
+        if (this.adminUsers.length === 0) this.loadAdminUsers();
         this.loadIncidents();
-      } else if (tab === 'webhooks') {
-        this.loadWebhooks();
       }
       this._refreshAdminIcons();
     },
 
     /* ── Refresh all admin data ───────────────────────────────────────── */
     async loadAdminAll() {
+      if (!this.token || this.user?.role !== 'admin') return;
       this.adminSubTab = 'overview';
       try {
         await Promise.all([this.loadAdminStats(), this.loadAdminCharts(), this.loadStorage()]);

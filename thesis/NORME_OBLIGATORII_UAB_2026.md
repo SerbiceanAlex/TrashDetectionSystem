@@ -52,4 +52,4 @@ Textul „Anexa nr. 1” și „Anexa nr. 2” din ghid nu se copiază în lucra
 
 Fișierele LaTeX trebuie modificate astfel încât PDF-ul final să respecte ghidul. Dacă aspectul vizual al PDF-ului diferă de anexele din ghid, se corectează șablonul LaTeX, nu se modifică norma.
 
-Ținta practică pentru această lucrare este limita inferioară a ghidului: aproximativ 30-40 pagini de conținut redactat și aproximativ 40-45 pagini în PDF-ul final.
+Ținta practică pentru această lucrare este limita inferioară a ghidului: aproximativ 50-60 pagini de conținut redactat și aproximativ 40-60 pagini în PDF-ul final.

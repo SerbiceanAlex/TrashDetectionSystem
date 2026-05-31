@@ -1,0 +1,158 @@
+[
+  {
+    "clip": "littering_cctv_2024.mp4",
+    "video_fps": 30.0,
+    "effective_fps": 30.0,
+    "duration_sec": 28.57,
+    "total_frames": 857,
+    "frames_processed": 857,
+    "frame_skip": 1,
+    "conf": 0.3,
+    "person_conf": 0.4,
+    "imgsz": 640,
+    "events_detected": 1,
+    "first_event_time_sec": 22.33,
+    "runtime_sec": 32.6,
+    "runtime_fps": 26.29,
+    "state_CLEAR_pct": 9.8,
+    "state_PERSON_PRESENT_pct": 61.61,
+    "state_MONITORING_pct": 28.59,
+    "transitions_count": 28,
+    "transitions": {
+      "CLEAR->PERSON_PRESENT": 2,
+      "PERSON_PRESENT->MONITORING": 13,
+      "MONITORING->PERSON_PRESENT": 12,
+      "MONITORING->CLEAR": 1
+    },
+    "events": [
+      {
+        "frame_idx": 670,
+        "time_sec": 22.33,
+        "method": "zone",
+        "trash_count": 0,
+        "person_count": 0,
+        "det_score": 0.4547
+      }
+    ],
+    "expected_event": "unknown",
+    "outcome": "unknown"
+  },
+  {
+    "clip": "dumping_neighbor_00001.mp4",
+    "video_fps": 29.97,
+    "effective_fps": 29.97,
+    "duration_sec": 151.38,
+    "total_frames": 4537,
+    "frames_processed": 4537,
+    "frame_skip": 1,
+    "conf": 0.3,
+    "person_conf": 0.4,
+    "imgsz": 640,
+    "events_detected": 8,
+    "first_event_time_sec": 13.18,
+    "runtime_sec": 215.21,
+    "runtime_fps": 21.08,
+    "state_CLEAR_pct": 21.09,
+    "state_PERSON_PRESENT_pct": 53.67,
+    "state_MONITORING_pct": 25.24,
+    "transitions_count": 64,
+    "transitions": {
+      "CLEAR->PERSON_PRESENT": 9,
+      "PERSON_PRESENT->MONITORING": 28,
+      "MONITORING->PERSON_PRESENT": 19,
+      "MONITORING->CLEAR": 8
+    },
+    "events": [
+      {
+        "frame_idx": 395,
+        "time_sec": 13.18,
+        "method": "zone",
+        "trash_count": 1,
+        "person_count": 9,
+        "det_score": 0.4322
+      },
+      {
+        "frame_idx": 892,
+        "time_sec": 29.76,
+        "method": "zone",
+        "trash_count": 0,
+        "person_count": 1,
+        "det_score": 0.3073
+      },
+      {
+        "frame_idx": 1540,
+        "time_sec": 51.38,
+        "method": "zone",
+        "trash_count": 1,
+        "person_count": 0,
+        "det_score": 0.7304
+      },
+      {
+        "frame_idx": 2503,
+        "time_sec": 83.52,
+        "method": "zone",
+        "trash_count": 2,
+        "person_count": 0,
+        "det_score": 0.5431
+      },
+      {
+        "frame_idx": 2854,
+        "time_sec": 95.23,
+        "method": "zone",
+        "trash_count": 1,
+        "person_count": 0,
+        "det_score": 0.6286
+      },
+      {
+        "frame_idx": 3186,
+        "time_sec": 106.31,
+        "method": "zone",
+        "trash_count": 0,
+        "person_count": 0,
+        "det_score": 0.4565
+      },
+      {
+        "frame_idx": 3561,
+        "time_sec": 118.82,
+        "method": "zone",
+        "trash_count": 1,
+        "person_count": 0,
+        "det_score": 0.8658
+      },
+      {
+        "frame_idx": 3943,
+        "time_sec": 131.56,
+        "method": "zone",
+        "trash_count": 1,
+        "person_count": 0,
+        "det_score": 0.3072
+      }
+    ],
+    "expected_event": "unknown",
+    "outcome": "unknown"
+  },
+  {
+    "clip": "cctv_parking_away_00001.mp4",
+    "video_fps": 14.09,
+    "effective_fps": 14.09,
+    "duration_sec": 16.97,
+    "total_frames": 239,
+    "frames_processed": 239,
+    "frame_skip": 1,
+    "conf": 0.3,
+    "person_conf": 0.4,
+    "imgsz": 640,
+    "events_detected": 0,
+    "first_event_time_sec": "",
+    "runtime_sec": 13.82,
+    "runtime_fps": 17.29,
+    "state_CLEAR_pct": 100.0,
+    "state_PERSON_PRESENT_pct": 0.0,
+    "state_MONITORING_pct": 0.0,
+    "transitions_count": 0,
+    "transitions": {},
+    "events": [],
+    "expected_event": "unknown",
+    "outcome": "unknown"
+  }
+]

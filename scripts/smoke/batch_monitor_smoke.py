@@ -24,7 +24,9 @@ __test__ = False
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-API = "http://localhost:8000"
+from backend.config import settings
+
+API = settings.APP_BASE_URL.rstrip("/")
 IMAGES_DIR = ROOT / "datasets" / "raw" / "images"
 BOLD = "\033[1m"
 GREEN = "\033[92m"
@@ -49,23 +51,16 @@ def info(msg): print(f"  {YELLOW}→{RESET} {msg}")
 
 def get_token() -> str | None:
     """Login ca admin și returnează JWT token."""
-    try:
-        r = requests.post(f"{API}/api/auth/login",
-                          json={"username": "admin", "password": "admin"},
-                          timeout=5)
-        if r.ok:
-            return r.json().get("access_token")
-    except Exception:
-        pass
-    # încearcă parola implicita alternativă
-    try:
-        r = requests.post(f"{API}/api/auth/login",
-                          json={"username": "admin", "password": "admin123"},
-                          timeout=5)
-        if r.ok:
-            return r.json().get("access_token")
-    except Exception:
-        pass
+    for creds in [
+        {"username": "admin", "password": "Admin1234!"},
+        {"username": "operator", "password": "Operator1234!"},
+    ]:
+        try:
+            r = requests.post(f"{API}/api/auth/login", data=creds, timeout=5)
+            if r.ok:
+                return r.json().get("access_token")
+        except Exception:
+            pass
     return None
 
 
@@ -330,8 +325,8 @@ if __name__ == "__main__":
         if token:
             ok(f"Login admin reușit (JWT obținut)")
         else:
-            info("Login admin eșuat — unele teste vor fi skipped")
-            info("  Dacă parola nu e 'admin' sau 'admin123', editează get_token() din script")
+            info("Login eșuat — unele teste vor fi skipped")
+            info("  Rulează prepare_demo_db.py pentru conturile admin/operator locale")
 
     # ── Rulează testele ──
     test_monitor_state_machine()  # Nu necesită server

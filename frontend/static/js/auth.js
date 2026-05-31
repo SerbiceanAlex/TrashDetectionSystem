@@ -4,7 +4,7 @@ function authApp() {
   return {
     /* ── State ─────────────────────────────────────────────────────────── */
     user: null,
-    token: localStorage.getItem('eco_token'),
+    token: getAuthToken(),
     isLoggedIn: false,
     
     // Auth modals
@@ -71,7 +71,7 @@ function authApp() {
 
         if (data.access_token) {
           this.token = data.access_token;
-          localStorage.setItem('eco_token', this.token);
+          setAuthToken(this.token);
           await this.fetchMe();
           this.showAuthModal = false;
           showToast(`Bine ai revenit, ${this.user.username}!`);
@@ -130,7 +130,7 @@ function authApp() {
       this.token = null;
       this.user = null;
       this.isLoggedIn = false;
-      localStorage.removeItem('eco_token');
+      clearAuthToken();
       showToast('Te-ai delogat cu succes.');
       window.dispatchEvent(new CustomEvent('eco:authChanged'));
     },

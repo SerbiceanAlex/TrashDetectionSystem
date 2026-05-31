@@ -28,10 +28,11 @@ REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 from backend.littering_detector import DetectorState, LitteringDetector
+from backend.config import settings
 
 
-DEFAULT_DETECTOR = REPO / "models" / "detector" / "production" / "best.pt"
-DEFAULT_PERSON = REPO / "models" / "pretrained" / "yolov8n.pt"
+DEFAULT_DETECTOR = settings.detector_path
+DEFAULT_PERSON = settings.person_detector_path
 
 COL_TRASH = (0, 60, 255)
 COL_PERSON = (255, 140, 0)
