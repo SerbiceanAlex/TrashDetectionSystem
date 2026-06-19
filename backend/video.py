@@ -359,19 +359,7 @@ async def process_uploaded_video(
                 )
             return
 
-        async with db.AsyncSessionLocal() as session:
-            await db.finish_video_session(
-                session,
-                session_id,
-                total_frames=result["total_frames"],
-                total_objects=result["total_objects"],
-                littering_count=result.get("littering_count", 0),
-                avg_fps=result["avg_fps"],
-                avg_inference_ms=result["avg_inference_ms"],
-                duration_sec=result["duration_sec"],
-                materials_summary=result["materials_summary"],
-                annotated_video_path=result["annotated_video_path"],
-            )
+        saved_event_count = 0
 
         # ── Save littering events detected in the uploaded video ─────────────
         async with db.AsyncSessionLocal() as owner_session:
@@ -385,7 +373,7 @@ async def process_uploaded_video(
                 thumb_rel = None
                 if event.thumbnail is not None:
                     # Use a temporary id until the real id is created by the DB flush.
-                    import tempfile, uuid
+                    import uuid
                     tmp_id = int(uuid.uuid4().int % 1_000_000)
                     thumb_rel = await asyncio.to_thread(
                         _save_thumbnail, event.thumbnail, tmp_id
@@ -436,8 +424,23 @@ async def process_uploaded_video(
                     "Littering event #%d saved from uploaded video (t=%.1fs, material=%s)",
                     db_event.id, ts_sec, event.material,
                 )
+                saved_event_count += 1
             except Exception:
                 logger.exception("Failed to save littering event from uploaded video")
+
+        async with db.AsyncSessionLocal() as session:
+            await db.finish_video_session(
+                session,
+                session_id,
+                total_frames=result["total_frames"],
+                total_objects=result["total_objects"],
+                littering_count=saved_event_count,
+                avg_fps=result["avg_fps"],
+                avg_inference_ms=result["avg_inference_ms"],
+                duration_sec=result["duration_sec"],
+                materials_summary=result["materials_summary"],
+                annotated_video_path=result["annotated_video_path"],
+            )
 
     except Exception as exc:
         import traceback

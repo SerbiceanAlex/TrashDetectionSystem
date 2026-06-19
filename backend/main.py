@@ -1425,7 +1425,7 @@ async def reports_export(
 async def upload_video(
     file: UploadFile = File(...),
     det_conf: float = Query(default=settings.DEFAULT_DET_CONF, ge=0.05, le=0.95),
-    current_user: db.User | None = Depends(get_current_user_optional),
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
     allowed = {
@@ -1458,9 +1458,8 @@ async def upload_video(
 
     vs = await db.create_video_session(session, source_type="upload", filename=fname)
     vs.video_path = str(save_path)
-    if current_user:
-        vs.user_id = current_user.id
-        vs.organization_id = current_user.organization_id or 1
+    vs.user_id = current_user.id
+    vs.organization_id = current_user.organization_id or 1
     await session.commit()
 
     # Process in background — fire-and-forget with error logging

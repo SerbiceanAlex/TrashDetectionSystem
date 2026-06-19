@@ -350,6 +350,15 @@ async def test_video_sessions_list_for_admin(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_video_upload_requires_auth(client: AsyncClient):
+    resp = await client.post(
+        "/api/video/upload",
+        files={"file": ("clip.mp4", b"not-a-real-video", "video/mp4")},
+    )
+    assert resp.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
 async def test_detect_no_file(client: AsyncClient):
     resp = await client.post("/api/detect")
     assert resp.status_code in (401, 422)

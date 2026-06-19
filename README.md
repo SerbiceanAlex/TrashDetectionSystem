@@ -64,7 +64,7 @@ TrashDetectionSystem/
 ├── datasets/                   # dataseturi locale pentru antrenare/evaluare
 ├── notebooks/
 │   ├── training/               # experimente și antrenări
-│   └── evaluation/             # evaluări, comparații, figuri pentru licență
+│   └── evaluation/             # evaluări, comparații și figuri tehnice
 ├── scripts/
 │   ├── data/                   # pregătire dataseturi, split, validare, export cropuri
 │   ├── training/               # scripturi de antrenare
@@ -73,11 +73,7 @@ TrashDetectionSystem/
 │   ├── maintenance/            # reset DB, creare conturi locale
 │   └── smoke/                  # teste manuale rapide pe server pornit
 ├── tests/                      # teste automate pytest
-├── thesis/                     # lucrarea LaTeX, surse, configurare și PDF final
-│   ├── capitole/               # capitolele lucrării
-│   ├── sources/extracted/      # texte extrase din ghiduri și șabloane primite
-│   └── main.pdf                # PDF generat local
-├── outputs/                    # figuri generate pentru licență și prezentare
+├── outputs/                    # figuri și artefacte generate local
 ├── results/                    # rezultate și metrici folosite în lucrare
 ├── start_https.py              # pornire locală HTTPS pentru camera telefonului
 └── requirements.txt
@@ -187,12 +183,12 @@ operator / Operator1234! rol: utilizator
 
 Adminul vede panoul de administrare, utilizatorii, locațiile, incidentele, autoritățile și stocarea locală. Utilizatorul folosește monitorizarea și fluxul de incidente fără acces la administrarea organizației.
 
-## Focus pentru lucrare
+## Focus până la prezentare
 
-În redactare, aplicația web este tratată ca suport practic pentru sistemul ML. Partea principală a lucrării rămâne:
+Lucrarea de licență a fost mutată în afara workspace-ului aplicației. Din acest punct, proiectul rămâne concentrat pe stabilizarea demonstrației reale:
 
-1. pregătirea dataseturilor și antrenarea modelelor;
-2. evaluarea detectorului final și a clasificatorului B2;
-3. logica Behavioral Engine și criteriile temporale;
-4. experimentele pe clipuri reale și analiza erorilor;
-5. limite, GDPR și direcții viitoare.
+1. monitorizare live cu telefonul și cameră locală;
+2. detecție pe scenarii filmate real, nu doar pe clipuri de pe internet;
+3. upload video cu incidente generate corect;
+4. panou admin/utilizator clar și verificabil;
+5. scenariu de prezentare reproductibil pentru comisie.
