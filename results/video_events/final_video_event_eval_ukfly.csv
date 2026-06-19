@@ -1,0 +1,3 @@
+clip,expected_event,outcome,events_detected,first_event_time_sec,frames_processed,video_fps,effective_fps,duration_sec,runtime_fps,conf,person_conf,imgsz,frame_skip,state_CLEAR_pct,state_PERSON_PRESENT_pct,state_MONITORING_pct,transitions_count
+uk_fly_00001.mp4,positive,FN,0,,468,30.0,15.0,31.2,29.94,0.3,0.4,640,2,4.7,58.76,36.54,10
+uk_fly_00002.mp4,positive,TP,1,38.16,580,25.0,12.5,46.36,29.46,0.3,0.4,640,2,3.1,38.1,58.79,91

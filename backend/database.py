@@ -135,6 +135,7 @@ class VideoSession(Base):
     duration_sec = Column(Float, default=0.0)
     total_frames = Column(Integer, default=0)
     total_objects = Column(Integer, default=0)
+    littering_count = Column(Integer, default=0)
     avg_fps = Column(Float, default=0.0)
     avg_inference_ms = Column(Float, default=0.0)
     materials_summary = Column(Text, nullable=True)         # JSON string
@@ -164,37 +165,6 @@ class Notification(Base):
     session = relationship("DetectionSession", foreign_keys=[session_id])
 
 
-class AuthorityContact(Base):
-    """External authority/municipality contact for report forwarding."""
-
-    __tablename__ = "authority_contacts"
-
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False)
-    email = Column(String(200), nullable=False)
-    area_description = Column(Text, nullable=True)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-
-class WebhookConfig(Base):
-    """Webhook endpoint config — fires on report lifecycle events."""
-
-    __tablename__ = "webhook_configs"
-
-    id = Column(Integer, primary_key=True, index=True)
-    url = Column(Text, nullable=False)
-    secret = Column(String(128), nullable=False)
-    events = Column(Text, default="verified")
-    active = Column(Boolean, default=True)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-
-
-
-
 class LitteringEvent(Base):
     """
     Records a detected illegal-dumping event.
@@ -206,7 +176,7 @@ class LitteringEvent(Base):
     Lifecycle (status field):
         pending   → event detected, awaiting admin review
         reviewed  → admin has opened the record
-        forwarded → evidence packet emailed to authority contact
+        forwarded → evidence archived locally for reporting
         dismissed → admin marked as false positive
     """
 
@@ -360,6 +330,7 @@ async def finish_video_session(
     *,
     total_frames: int,
     total_objects: int,
+    littering_count: int,
     avg_fps: float,
     avg_inference_ms: float,
     duration_sec: float,
@@ -373,6 +344,7 @@ async def finish_video_session(
     vs.end_time = datetime.now(timezone.utc)
     vs.total_frames = total_frames
     vs.total_objects = total_objects
+    vs.littering_count = littering_count
     vs.avg_fps = round(avg_fps, 1)
     vs.avg_inference_ms = round(avg_inference_ms, 1)
     vs.duration_sec = round(duration_sec, 1)

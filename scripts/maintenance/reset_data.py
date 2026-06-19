@@ -11,11 +11,12 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DIRS_TO_CLEAN = [
+LEGACY_DIRS_TO_CLEAN = [
     ROOT / "backend" / "uploads",
     ROOT / "backend" / "annotated",
     ROOT / "backend" / "cleaned",
     ROOT / "backend" / "videos",
+    ROOT / "backend" / "littering",
     ROOT / "backend" / "thumbnails",
     ROOT / "backend" / "avatars",
 ]
@@ -28,8 +29,6 @@ async def reset_database():
         "detection_records",
         "video_sessions",
         "detection_sessions",
-        "webhook_configs",
-        "authority_contacts",
         "littering_events",
     ]
     async with engine.begin() as conn:
@@ -50,8 +49,11 @@ async def reset_database():
 
 
 def reset_files():
+    from backend.config import settings
+
     total_deleted = 0
-    for d in DIRS_TO_CLEAN:
+    dirs_to_clean = [*settings.runtime_dirs, *LEGACY_DIRS_TO_CLEAN]
+    for d in dirs_to_clean:
         if not d.exists():
             continue
         count = 0

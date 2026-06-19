@@ -17,14 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import database as db
 from backend import inference as infer
-from backend.auth import send_incident_alert
 from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
-APP_DIR = Path(__file__).parent
-VIDEOS_DIR = APP_DIR / "videos"
-VIDEOS_DIR.mkdir(exist_ok=True)
+VIDEOS_DIR = settings.videos_dir
+VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ── WebSocket: live webcam stream ──────────────────────────────────────────
@@ -106,6 +104,7 @@ async def handle_live_ws(websocket: WebSocket, det_conf: float, session: AsyncSe
             session_id,
             total_frames=total_frames,
             total_objects=total_objects,
+            littering_count=0,
             avg_fps=avg_fps,
             avg_inference_ms=avg_ms,
             duration_sec=duration,
@@ -355,7 +354,7 @@ async def process_uploaded_video(
             async with db.AsyncSessionLocal() as session:
                 await db.finish_video_session(
                     session, session_id,
-                    total_frames=0, total_objects=0, avg_fps=0, avg_inference_ms=0,
+                    total_frames=0, total_objects=0, littering_count=0, avg_fps=0, avg_inference_ms=0,
                     duration_sec=0, materials_summary="{}", status="failed",
                 )
             return
@@ -366,6 +365,7 @@ async def process_uploaded_video(
                 session_id,
                 total_frames=result["total_frames"],
                 total_objects=result["total_objects"],
+                littering_count=result.get("littering_count", 0),
                 avg_fps=result["avg_fps"],
                 avg_inference_ms=result["avg_inference_ms"],
                 duration_sec=result["duration_sec"],
@@ -384,7 +384,7 @@ async def process_uploaded_video(
                 # Save thumbnail to disk (blocking I/O → offload to thread)
                 thumb_rel = None
                 if event.thumbnail is not None:
-                    # Use a temporary id placeholder; real id comes from DB flush
+                    # Use a temporary id until the real id is created by the DB flush.
                     import tempfile, uuid
                     tmp_id = int(uuid.uuid4().int % 1_000_000)
                     thumb_rel = await asyncio.to_thread(
@@ -446,7 +446,7 @@ async def process_uploaded_video(
             async with db.AsyncSessionLocal() as session:
                 await db.finish_video_session(
                     session, session_id,
-                    total_frames=0, total_objects=0, avg_fps=0, avg_inference_ms=0,
+                    total_frames=0, total_objects=0, littering_count=0, avg_fps=0, avg_inference_ms=0,
                     duration_sec=0, materials_summary="{}", status="failed",
                 )
         except Exception:
@@ -456,8 +456,8 @@ async def process_uploaded_video(
 # ── WebSocket: littering monitor mode ──────────────────────────────────────
 
 # Directory where event clips and thumbnails are stored
-LITTERING_DIR = APP_DIR / "littering"
-LITTERING_DIR.mkdir(exist_ok=True)
+LITTERING_DIR = settings.littering_dir
+LITTERING_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _reencode_h264(src: Path) -> Path:
@@ -541,16 +541,9 @@ def _save_clip(frames: list, fps: float, event_id: int, trigger_box: tuple[int, 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 128, 0), 2, cv2.LINE_AA,
                 )
 
-            if trigger_box:
-                tx1, ty1, tx2, ty2 = [int(v) for v in trigger_box]
-                tx1, ty1 = max(0, tx1), max(0, ty1)
-                tx2, ty2 = min(w - 1, tx2), min(h - 1, ty2)
-                if tx2 > tx1 and ty2 > ty1:
-                    cv2.rectangle(f, (tx1, ty1), (tx2, ty2), (0, 165, 255), 3)
-                    cv2.putText(
-                        f, "declansator incident", (tx1, min(max(ty1 - 10, 22), h - 8)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.62, (0, 165, 255), 2, cv2.LINE_AA,
-                    )
+            # Box-ul "declansator incident" nu se mai desenează: la distanțe mai
+            # mari de 2-3 m poziția lui devine imprecisă și induce în eroare la
+            # verificarea dovezii. Rămân detecțiile curente (verde) și persoanele.
 
             cv2.putText(
                 f, f"TrashDet incident #{event_id:06d}", (12, h - 16),
@@ -601,7 +594,11 @@ _MIN_TRASH_AREA_FRAC = 0.00015  # ignore tiny noise boxes
 _MAX_TRASH_AREA_FRAC = 0.18     # ignore huge background regions (e.g. bed/floor)
 _TRASH_TRACK_IMGSZ = settings.MONITOR_TRASH_IMGSZ
 _PERSON_FILTER_SHRINK = 0.72     # shrink person boxes for overlap filtering only
-_HANDHELD_MAX_PERSON_RATIO = 0.12  # keep small objects overlapping a person (in hand)
+# Obiect suprapus cu persoana e păstrat dacă aria lui e sub acest raport din
+# aria persoanei. 0.35 acoperă cazul "sticlă ținută în mână aproape de cameră"
+# (box-ul persoanei e mic când doar fața/bustul e în cadru), dar suprimă în
+# continuare detecțiile mari de tip "corp/haine văzute ca deșeu".
+_HANDHELD_MAX_PERSON_RATIO = 0.35
 _TRASH_STABLE_SEEN = 4             # require 4 consecutive detections — reduces duplicate/ghost boxes
 _TRASH_GRACE_MISSES = 4            # keep last box for a few missed frames (visual stability)
 _MONITOR_PREWARMED = False
@@ -725,36 +722,6 @@ def _shrink_box(box: tuple[int, int, int, int], factor: float) -> tuple[int, int
     return (nx1, ny1, nx2, ny2)
 
 
-async def _send_location_alert(session, event_id, material, detected_at, address, lat, lng):
-    """Găsește locația monitorizată cea mai apropiată și trimite alertă email."""
-    try:
-        ML = db.MonitoredLocation
-        locs = (await session.execute(
-            db.select(ML).where(ML.is_active == 1, ML.alert_email.isnot(None))
-        )).scalars().all()
-
-        if not locs:
-            return
-
-        # Dacă avem GPS, găsim locația cea mai apropiată
-        target_email = None
-        if lat and lng:
-            min_dist = float('inf')
-            for loc in locs:
-                if loc.latitude and loc.longitude:
-                    dist = ((loc.latitude - lat) ** 2 + (loc.longitude - lng) ** 2) ** 0.5
-                    if dist < min_dist:
-                        min_dist = dist
-                        target_email = loc.alert_email
-        if not target_email:
-            target_email = locs[0].alert_email  # fallback: primul
-
-        if target_email:
-            await send_incident_alert(target_email, event_id, material, detected_at, address)
-    except Exception as e:
-        logger.warning("Alert email failed: %s", e)
-
-
 async def handle_monitor_ws(
     websocket: WebSocket,
     det_conf: float,
@@ -824,6 +791,23 @@ async def handle_monitor_ws(
     _cached_person_boxes: list = []   # reuse between frames for person skip
 
     resolved_address: str | None = None
+    # Clipul de dovadă se scrie DUPĂ fereastra post-incident (~3s): la momentul
+    # alertei, event.clip_frames conține doar cadrele pre-incident, iar masina
+    # de stări adaugă cadrele post-incident în iterațiile următoare.
+    _pending_clip: tuple | None = None   # (event, event_id)
+
+    async def _flush_pending_clip(evt, evt_id: int) -> None:
+        clip_rel = await asyncio.to_thread(
+            _save_clip, evt.clip_frames, detector.fps, evt_id, evt.trash_box
+        )
+        if clip_rel:
+            # Sesiune proaspătă: flush-ul poate rula și la închiderea conexiunii,
+            # când sesiunea injectată a WebSocket-ului nu mai e utilizabilă.
+            async with db.AsyncSessionLocal() as s:
+                evt_obj = await db.get_littering_event_by_id(s, evt_id)
+                if evt_obj:
+                    evt_obj.clip_path = clip_rel
+                    await s.commit()
 
     try:
         while True:
@@ -954,6 +938,12 @@ async def handle_monitor_ws(
             # Stage 3: state machine update
             event = detector.update(frame, detector_trash_dets, smoothed_person_boxes)
 
+            # Fereastra post-incident s-a umplut — scrie clipul complet (pre+post)
+            if _pending_clip is not None and not detector._capture_post:
+                evt_to_save, evt_id_to_save = _pending_clip
+                _pending_clip = None
+                await _flush_pending_clip(evt_to_save, evt_id_to_save)
+
             # ── Event detected ────────────────────────────────────────────
             if event is not None:
                 # Classify the material of the trigger object via full pipeline
@@ -994,12 +984,15 @@ async def handle_monitor_ws(
                 )
                 event_id = db_event.id
 
-                # Save clip (pre+post frames from state machine buffer)
-                clip_rel = None
-                if event.clip_frames:
-                    clip_rel = await asyncio.to_thread(
-                        _save_clip, event.clip_frames, detector.fps, event_id, event.trash_box
-                    )
+                # Un incident anterior încă așteaptă fereastra post — scrie-l
+                # acum cu cadrele disponibile, altfel clipul lui s-ar pierde.
+                if _pending_clip is not None:
+                    prev_evt, prev_id = _pending_clip
+                    _pending_clip = None
+                    await _flush_pending_clip(prev_evt, prev_id)
+
+                # Clipul se salvează după fereastra post-incident (vezi _pending_clip)
+                _pending_clip = (event, event_id)
 
                 # Save thumbnail
                 thumb_rel = None
@@ -1009,16 +1002,13 @@ async def handle_monitor_ws(
                     )
 
                 # Update DB with file paths
-                if clip_rel or thumb_rel:
+                if thumb_rel:
                     await db.update_littering_event_status(
                         session, event_id, status="pending"
                     )
                     evt_obj = await db.get_littering_event_by_id(session, event_id)
                     if evt_obj:
-                        if clip_rel:
-                            evt_obj.clip_path = clip_rel
-                        if thumb_rel:
-                            evt_obj.thumbnail_path = thumb_rel
+                        evt_obj.thumbnail_path = thumb_rel
                         await session.commit()
 
                 logger.info(
@@ -1032,18 +1022,10 @@ async def handle_monitor_ws(
                     "event_id": event_id,
                     "material": event.material,
                     "det_score": round(event.det_score, 3),
-                    "thumbnail_url": f"/littering/event_{event_id:06d}_thumb.jpg" if thumb_rel else None,
+                    "thumbnail_url": f"/api/littering/events/{event_id}/thumbnail" if thumb_rel else None,
                     "detected_at": db_event.detected_at.isoformat(),
                     "address": resolved_address,
                 }))
-
-                # Optional instant email alert; disabled by default for the local thesis demo.
-                if settings.ENABLE_INCIDENT_EMAILS:
-                    asyncio.create_task(_send_location_alert(
-                        session, event_id, event.material,
-                        db_event.detected_at.isoformat(), resolved_address,
-                        latitude, longitude
-                    ))
 
             else:
                 # ── Normal status frame ───────────────────────────────────
@@ -1075,4 +1057,12 @@ async def handle_monitor_ws(
     except Exception:
         logger.exception("Unexpected error in monitor WebSocket")
     finally:
+        # Conexiunea s-a închis înainte de finalul ferestrei post-incident —
+        # salvează clipul cu cadrele disponibile, ca dovada să nu se piardă.
+        if _pending_clip is not None:
+            evt_to_save, evt_id_to_save = _pending_clip
+            try:
+                await _flush_pending_clip(evt_to_save, evt_id_to_save)
+            except Exception:
+                logger.exception("Failed to flush pending evidence clip on close")
         detector.reset()

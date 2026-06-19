@@ -43,7 +43,7 @@ async def test_register_duplicate_username(client: AsyncClient):
         "password": "TestPass1!",
     })
     assert resp.status_code == 400
-    assert "already registered" in resp.json()["detail"].lower()
+    assert "utilizator" in resp.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -55,7 +55,7 @@ async def test_register_duplicate_email(client: AsyncClient):
         "password": "TestPass1!",
     })
     assert resp.status_code == 400
-    assert "already registered" in resp.json()["detail"].lower()
+    assert "email" in resp.json()["detail"].lower()
 
 
 # ── Password policy ──────────────────────────────────────────────────────────

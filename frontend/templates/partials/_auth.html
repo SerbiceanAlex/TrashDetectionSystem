@@ -1,9 +1,14 @@
 <!-- Auth screen: login, register -->
 <div x-show="!isLoggedIn" class="auth-screen">
+  <button @click="toggleDark()" class="auth-theme-toggle" :title="darkMode ? 'Mod luminos' : 'Mod întunecat'">
+    <i x-show="!darkMode" data-lucide="moon" class="icon icon--sm"></i>
+    <i x-show="darkMode" x-cloak data-lucide="sun" class="icon icon--sm"></i>
+    <span x-text="darkMode ? 'Light' : 'Dark'"></span>
+  </button>
 
-  <!-- LEFT: Brand visual (desktop only) -->
+  <!-- LEFT: Product visual (desktop only) -->
   <div class="auth-visual">
-    <div class="auth-visual__bg-glow"></div>
+    <div class="auth-visual__grid"></div>
 
     <div class="td-logo td-logo--auth">
       <div class="td-logo__frame">
@@ -21,14 +26,10 @@
       <div class="td-logo__wordmark">Trash<span>Det</span></div>
     </div>
 
-    <h2 class="auth-visual__title">Detecție automată a aruncării ilegale de deșeuri.</h2>
-    <p class="auth-visual__desc">Sistem B2B de monitorizare video cu AI — conectează camere IP, detectează incidente în timp real și generează dovezi pentru autorități.</p>
-
-    <div class="auth-visual__pills">
-      <span class="auth-pill">YOLOv8 · ByteTrack</span>
-      <span class="auth-pill">FastAPI · SQLite</span>
-      <span class="auth-pill">Cameră IP · RTSP</span>
-      <span class="auth-pill">GDPR · Face blur</span>
+    <div class="auth-visual__copy">
+      <p class="auth-visual__eyebrow">Sistem inteligent de monitorizare</p>
+      <h2 class="auth-visual__title">TrashDet pentru spații urbane mai curate.</h2>
+      <p class="auth-visual__desc">Aplicația analizează fluxuri video și centralizează incidentele într-un panou local simplu, rapid și ușor de urmărit.</p>
     </div>
   </div>
 

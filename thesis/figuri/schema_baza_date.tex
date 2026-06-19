@@ -1,0 +1,84 @@
+\begin{figure}[H]
+\centering
+\resizebox{0.98\textwidth}{!}{%
+\begin{tikzpicture}[
+  entity/.style={
+    draw,
+    rounded corners=2pt,
+    align=left,
+    text width=4.05cm,
+    font=\scriptsize,
+    inner sep=4pt,
+    minimum height=18mm
+  },
+  rel/.style={-{Stealth[length=2.2mm]}, thick, rounded corners=2pt, shorten >=1pt},
+  rellabel/.style={font=\scriptsize, fill=white, inner sep=1pt}
+]
+
+\node[entity] (org) at (0,6.2) {
+  \textbf{Organization}\\
+  id, name, plan\\
+  max\_cameras\\
+  max\_incidents\_month
+};
+
+\node[entity] (user) at (0,3.1) {
+  \textbf{User}\\
+  id, username, email\\
+  role, points\\
+  organization\_id
+};
+
+\node[entity] (location) at (6.4,3.1) {
+  \textbf{MonitoredLocation}\\
+  id, name, address\\
+  rtsp\_url\\
+  created\_by\\
+  organization\_id
+};
+
+\node[entity] (det) at (-6.4,0) {
+  \textbf{DetectionSession}\\
+  id, filename\\
+  total\_objects\\
+  reporter\_id\\
+  organization\_id
+};
+
+\node[entity] (video) at (0,0) {
+  \textbf{VideoSession}\\
+  id, source\_type\\
+  status, progress\\
+  user\_id\\
+  organization\_id
+};
+
+\node[entity] (event) at (6.4,0) {
+  \textbf{LitteringEvent}\\
+  id, detected\_at\\
+  material, status\\
+  clip\_path\\
+  thumbnail\_path
+};
+
+\node[entity] (record) at (-6.4,-3.25) {
+  \textbf{DetectionRecord}\\
+  id, session\_id\\
+  material\\
+  det\_score, cls\_score\\
+  box coordinates
+};
+
+\draw[rel] (org.south) -- node[rellabel, left]{1:N} (user.north);
+\draw[rel] (org.east) -| node[rellabel, pos=0.20, above]{1:N} (location.north);
+\draw[rel] (user.west) -| node[rellabel, pos=0.20, above]{1:N} (det.north);
+\draw[rel] (det.south) -- node[rellabel, left]{1:N} (record.north);
+\draw[rel] (user.south) -- node[rellabel, right]{1:N} (video.north);
+\coordinate (userEventBend) at ($(user.east)+(0.95,0)$);
+\draw[rel] (user.east) -- node[rellabel, above]{1:N} (userEventBend) |- (event.west);
+
+\end{tikzpicture}%
+}
+\caption{Schema logică simplificată a bazei de date utilizate în aplicație}
+\label{fig:schema-baza-date}
+\end{figure}

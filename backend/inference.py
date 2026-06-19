@@ -319,7 +319,7 @@ def draw_persons_overlay(
 ) -> np.ndarray:
     """
     Draw person bounding boxes (orange) on a frame.
-    Used for the monitor WebSocket feed so the operator can see tracked persons.
+    Used for the monitor WebSocket feed so the user can see tracked persons.
     """
     out = frame
     for (x1, y1, x2, y2) in person_boxes:

@@ -51,12 +51,21 @@ UAVVaste/
 *.pt
 
 # Web app runtime artifacts
+data/trash_detection.db
+data/backups/
+data/runtime/
+!data/README.md
+
+# Legacy runtime locations, kept ignored if old local files reappear
 backend/trash_detection.db
 backend/trashdet.db
 backend/backups/
 backend/uploads/
 backend/annotated/
+backend/cleaned/
 backend/videos/
+backend/littering/
+backend/thumbnails/
 backend/avatars/
 backend/photos/
 

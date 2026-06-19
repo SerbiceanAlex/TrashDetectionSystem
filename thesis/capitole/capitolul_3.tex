@@ -1,9 +1,143 @@
-\chapter{Analiza și Proiectarea Sistemului}
+\chapter{Date, Antrenarea Modelelor și Metodologia Experimentală}
 
-\section{Specificarea cerințelor funcționale și non-funcționale}
+\section{Sursele de date și selecția exemplelor}
 
-\section{Arhitectura aplicației pe trei niveluri}
+Calitatea unui sistem de viziune artificială depinde în mare măsură de datele pe care este antrenat. În cazul lucrării de față, scopul nu este doar recunoașterea unor obiecte de tip deșeu în imagini izolate, ci identificarea unor situații relevante pentru monitorizarea spațiilor verzi și a zonelor publice. Din acest motiv, selecția datelor a urmărit apropierea cât mai bună de scenariul aplicativ: obiecte abandonate pe sol, ambalaje vizibile în exterior, persoane aflate în apropierea obiectelor și fundaluri variate, specifice unor zone deschise.
 
-\section{Modelarea datelor și a fluxurilor de utilizare}
+Pentru detectorul de deșeuri a fost folosit setul local \texttt{parks\_detect\_final}, organizat în format compatibil cu YOLO. Setul conține o singură clasă de interes, numită \texttt{trash}, deoarece detectorul are rolul de a localiza obiectul de tip deșeu, nu de a decide materialul acestuia. Estimarea materialului este realizată separat de clasificator, pe regiunea decupată din imagine. Această separare reduce complexitatea detectorului și permite analiza mai clară a erorilor.
 
-\section{Proiectarea pipeline-ului ML și a algoritmului temporal}
+Setul final pentru detector a fost obținut prin filtrarea unor surse locale de imagini și prin eliminarea exemplelor considerate zgomotoase sau irelevante. Au fost păstrate imaginile etichetate din surse orientate către spații publice, iar sursele cu etichete slabe sau neclare au fost excluse. Această decizie este importantă deoarece un volum mare de date nu garantează automat un model mai bun. În practică, imagini etichetate greșit, obiecte foarte ambigue sau contexte care nu au legătură cu domeniul urmărit pot reduce stabilitatea modelului.
+
+\begin{table}[!htbp]
+\centering
+\footnotesize
+\begin{tabular}{|>{\centering\arraybackslash}p{3.2cm}|>{\centering\arraybackslash}p{3.2cm}|>{\centering\arraybackslash}p{3.2cm}|>{\centering\arraybackslash}p{3.2cm}|}
+\hline
+\textbf{Subset} & \textbf{Imagini} & \textbf{Fișiere de etichete} & \textbf{Rol în lucrare} \\
+\hline
+Train & 6213 & 6213 & Ajustarea parametrilor modelului în timpul antrenării. \\
+\hline
+Validare & 775 & 775 & Monitorizarea procesului de antrenare și alegerea checkpoint-ului. \\
+\hline
+Test & 780 & 780 & Evaluarea finală a detectorului pe exemple nevăzute. \\
+\hline
+\end{tabular}
+\caption{Structura setului de date pentru detectorul de deșeuri}
+\end{table}
+
+Pentru clasificarea materialului a fost folosit setul local \texttt{trashnet\_cls}, organizat pe directoare de clase. Acesta conține cinci categorii: \texttt{glass}, \texttt{metal}, \texttt{other}, \texttt{paper} și \texttt{plastic}.
+
+\begin{table}[!htbp]
+\centering
+\footnotesize
+\begin{tabular}{|>{\raggedright\arraybackslash}p{3.2cm}|>{\centering\arraybackslash}p{2.5cm}|>{\centering\arraybackslash}p{2.5cm}|>{\centering\arraybackslash}p{2.5cm}|>{\centering\arraybackslash}p{2.5cm}|}
+\hline
+\textbf{Clasă material} & \textbf{Train} & \textbf{Validare} & \textbf{Test} & \textbf{Total} \\
+\hline
+glass & 400 & 50 & 51 & 501 \\
+\hline
+metal & 328 & 41 & 41 & 410 \\
+\hline
+other & 109 & 13 & 15 & 137 \\
+\hline
+paper & 797 & 99 & 101 & 997 \\
+\hline
+plastic & 385 & 48 & 49 & 482 \\
+\hline
+\textbf{Total} & \textbf{2019} & \textbf{251} & \textbf{257} & \textbf{2527} \\
+\hline
+\end{tabular}
+\caption{Structura setului de date pentru clasificatorul de material}
+\end{table}
+
+Pe lângă imaginile folosite pentru antrenare, aplicația este verificată și prin clipuri video. Aceste clipuri au un rol diferit față de seturile de imagini: ele nu sunt folosite pentru antrenarea detectorului, ci pentru evaluarea fluxului complet al aplicației. În acest caz, se urmărește dacă obiectul apare în timp, dacă există o persoană în apropiere, dacă sistemul evită alertele duplicate și dacă incidentul salvat conține suficiente dovezi locale pentru verificarea manuală.
+
+\section{Curățarea, etichetarea și organizarea seturilor}
+
+Pregătirea datelor a urmărit trei obiective: eliminarea exemplelor necorespunzătoare, păstrarea unei împărțiri clare între antrenare, validare și testare și folosirea unui format compatibil cu pipeline-ul YOLO. Pentru detector, fiecare imagine are asociat un fișier de etichetă în care sunt memorate clasa obiectului și coordonatele normalizate ale casetei de delimitare. Deoarece detectorul are o singură clasă, valoarea clasei este \texttt{0}, asociată etichetei \texttt{trash}.
+
+Împărțirea setului pentru detector a fost realizată în proporție 80/10/10, cu seed fixat la valoarea 42. Folosirea unui seed fix permite reproducerea structurii setului și reduce riscul ca rezultatele să depindă de o împărțire accidental avantajoasă. Setul de test a fost păstrat separat pentru evaluare, astfel încât modelul să fie verificat pe imagini care nu au fost folosite la ajustarea parametrilor.
+
+Curățarea datelor a inclus verificarea existenței fișierelor de etichete, excluderea imaginilor fără adnotări utile și eliminarea surselor cu calitate scăzută. Concret, au fost păstrate sursele locale \texttt{parks\_detect}, \texttt{illegal\_dumping} și \texttt{person\_trash}, relevante pentru spații publice, scenarii de aruncare ilegală și relația vizuală persoană--obiect, iar sursa \texttt{litter\_aiengineer} a fost exclusă din setul final din cauza etichetelor prea zgomotoase. Într-un proiect de detecție, etichetele greșite pot avea efecte mai grave decât imaginile lipsă, deoarece modelul învață relația dintre obiect și caseta de delimitare. Dacă o casetă este plasată greșit sau dacă un obiect relevant nu este etichetat, modelul poate fi încurajat să producă predicții instabile.
+
+Pentru clasificatorul de material, organizarea pe directoare de clase simplifică procesul de antrenare. Fiecare director reprezintă o etichetă, iar modelul învață să asocieze imaginea cu una dintre categoriile disponibile. Această abordare este potrivită pentru un clasificator aplicat pe crop-uri, deoarece obiectul de interes este deja localizat de detector. În aplicație, clasificatorul primește regiunea decupată din caseta de detecție și returnează categoria cu scorul cel mai mare.
+
+\section{Antrenarea detectorului de deșeuri}
+
+Detectorul de deșeuri este componenta care localizează obiectele relevante în cadrele video. Pentru această sarcină a fost folosită arhitectura YOLOv8s, prin transfer learning. Alegerea unei arhitecturi de dimensiune medie este un compromis între capacitatea de detecție și viteza necesară în aplicația video. Un model prea mic poate rata obiecte greu vizibile, iar un model prea mare poate îngreuna rularea locală în timp rezonabil.
+
+Antrenarea prin transfer learning pornește de la un checkpoint existent și ajustează modelul pe setul final de deșeuri. Această strategie este potrivită pentru lucrare deoarece modelul poate reutiliza caracteristici vizuale generale, învățate anterior, și le poate adapta la domeniul urmărit. În loc să învețe de la zero forme, margini și texturi, modelul se concentrează pe diferențierea obiectelor relevante în contexte apropiate de spații publice.
+
+\begin{table}[!htbp]
+\centering
+\footnotesize
+\begin{tabular}{|>{\raggedright\arraybackslash}p{5.2cm}|>{\raggedright\arraybackslash}p{8.3cm}|}
+\hline
+\textbf{Parametru} & \textbf{Valoare utilizată pentru detectorul final} \\
+\hline
+Arhitectură & YOLOv8s \\
+\hline
+Set de date & \texttt{parks\_detect\_final} \\
+\hline
+Dimensiune imagine & 640 pixeli \\
+\hline
+Batch & 8 \\
+\hline
+Număr maxim de epoci & 150 \\
+\hline
+Early stopping & patience = 25 \\
+\hline
+Rata inițială de învățare & 0.0002 \\
+\hline
+Checkpoint promovat & \texttt{models/detector/production/best.pt} \\
+\hline
+\end{tabular}
+\caption{Configurația de antrenare pentru detectorul final}
+\end{table}
+
+După antrenare, checkpoint-ul validat a fost promovat în directorul de producție al aplicației. Backend-ul nu citește direct din directoarele de experimente, ci din modelul stabil menționat în tabel.
+
+\section{Antrenarea clasificatorului de material}
+
+Pentru estimarea materialului, clasificatorul este bazat pe YOLOv8n-cls, o variantă potrivită pentru clasificarea imaginilor de dimensiuni mai mici. Modelul activ este păstrat în directorul dedicat clasificatorului B2.
+
+Fluxul de clasificare este aplicat după detecție. Mai întâi, detectorul produce caseta de delimitare. Apoi, aplicația decupează regiunea corespunzătoare obiectului și transmite crop-ul către clasificator. Rezultatul este o etichetă de material și un scor de încredere. Această abordare are avantajul că modelul de material nu trebuie să analizeze întreaga scenă, ci doar zona în care detectorul a găsit un obiect relevant.
+
+\begin{table}[!htbp]
+\centering
+\footnotesize
+\begin{tabular}{|>{\raggedright\arraybackslash}p{5.2cm}|>{\raggedright\arraybackslash}p{8.3cm}|}
+\hline
+\textbf{Element} & \textbf{Descriere} \\
+\hline
+Model de bază & YOLOv8n-cls \\
+\hline
+Set de date & \texttt{trashnet\_cls} \\
+\hline
+Clase & glass, metal, other, paper, plastic \\
+\hline
+Dimensiune imagine & 224 pixeli \\
+\hline
+Batch utilizat & 32 \\
+\hline
+Număr maxim de epoci utilizat & 50 \\
+\hline
+Early stopping & patience = 20 \\
+\hline
+Checkpoint activ & \texttt{models/classify/B2/best.pt} \\
+\hline
+\end{tabular}
+\caption{Configurația clasificatorului de material}
+\end{table}
+
+Într-o scenă reală, materialul poate fi dificil de estimat: o pungă transparentă poate semăna cu sticla, o hârtie murdară poate fi confundată cu alt material, iar obiectele parțial acoperite pot produce crop-uri incomplete. Aceste limite sunt analizate cantitativ în capitolul de testare, pe matricea de confuzie a claselor.
+
+\section{Metodologia de evaluare experimentală}
+
+Evaluarea experimentală este organizată pe trei niveluri. Primul nivel este evaluarea detectorului de deșeuri pe subsetul de test al setului \texttt{parks\_detect\_final}. Aici sunt urmărite metricile specifice detecției obiectelor: precizie, recall, scor F1, mAP@50 și mAP@50--95. Aceste metrici arată atât calitatea localizării obiectelor, cât și echilibrul dintre detecțiile corecte și erorile produse.
+
+Al doilea nivel este evaluarea clasificatorului de material pe subsetul de test al setului \texttt{trashnet\_cls}. Pentru această componentă sunt urmărite acuratețea, precizia, recall-ul și scorul F1 pe clase. Este importantă analiza pe fiecare clasă, nu doar valoarea globală, deoarece distribuția exemplelor nu este perfect uniformă. O clasă cu mai puține exemple, precum \texttt{other}, poate influența interpretarea rezultatelor și poate necesita verificare suplimentară.
+
+Al treilea nivel este evaluarea fluxului video și a algoritmului temporal. Această evaluare nu se reduce la o singură imagine, ci urmărește comportamentul sistemului pe secvențe: apariția obiectului, prezența persoanei, persistența obiectului după deplasare, evitarea alertelor duplicate și salvarea dovezilor locale. Pentru această etapă pot fi folosite clipuri video controlate, filmate special pentru lucrare, precum și clipuri de verificare folosite în timpul dezvoltării.
+
+Acest capitol nu urmărește raportarea rezultatelor, ci explică datele, pregătirea și metodologia experimentală. Interpretarea detectorului, a clasificatorului și a fluxului video este tratată în capitolul dedicat testării.

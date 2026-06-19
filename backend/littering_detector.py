@@ -57,7 +57,7 @@ import numpy as np
 # Constants
 # ─────────────────────────────────────────────────────────────────────────────
 
-PERSON_HEIGHT_M       = 1.70   # assumed average adult height (metres)
+PERSON_HEIGHT_M       = 1.70   # assumed average person height (metres)
 SEPARATION_DIST_M     = 1.50   # person distance that triggers SEPARATING state
 ABANDON_DIST_M        = 3.00   # person distance that triggers ABANDONED event
 JITTER_THRESHOLD_PX   = 15.0   # max trash centre movement (px) to count as static
@@ -253,27 +253,36 @@ class LitteringDetector:
 
         # MODE A — zone-based
         if self.state == DetectorState.CLEAR:
+            # Baseline-ul scenei: obiectele vizibile cât timp NU există persoane
+            # sunt preexistente și nu trebuie să declanșeze niciodată un incident.
+            # NU se adaugă nimic la baseline cât timp persoana e prezentă —
+            # un obiect apărut atunci (scos din mână, lăsat jos) rămâne candidat.
+            self._known_trash_ids = set(current_trash_ids)
             if person_boxes:
                 self._enter_person_present(person_boxes, current_trash_ids)
 
         elif self.state == DetectorState.PERSON_PRESENT:
             if person_boxes:
                 self._update_person_zones(person_boxes)
-                self._known_trash_ids.update(current_trash_ids)
             else:
                 self._enter_monitoring()
 
         elif self.state == DetectorState.MONITORING:
             # If event candidate is pending, handle confirmation window first
             if self._event_candidate is not None:
+                # Cancel only when a person returns to the evidence zone or to the
+                # candidate object (likely picked it back up / re-entered the area).
+                # A random passer-by elsewhere in the frame does not cancel.
+                if self._person_returned_to_candidate(self._event_candidate, person_boxes):
+                    self._event_candidate = None
+                    self._event_candidate_remaining = 0
+                    self._enter_person_present(person_boxes, current_trash_ids)
+                    return None
                 self._event_candidate_remaining -= 1
                 if self._event_candidate_remaining <= 0:
                     # Confirmation window elapsed — fire the event for real.
-                    # We do not cancel merely because a person is visible again;
-                    # person detectors can flicker or detect another passer-by.
                     confirmed = self._event_candidate
                     self._event_candidate = None
-                    self._known_trash_ids.update(current_trash_ids)
                     self._enter_clear()
                     self._start_post_capture(confirmed)
                     return confirmed
@@ -291,7 +300,6 @@ class LitteringDetector:
                         # Start confirmation window — do NOT fire yet; wait to see if person returns
                         self._event_candidate = candidate
                         self._event_candidate_remaining = self._confirm_frames
-                self._known_trash_ids.update(current_trash_ids)
 
         return None
 
@@ -384,6 +392,11 @@ class LitteringDetector:
 
             tracker = self._rel_trackers.get(tid)
             if tracker is None:
+                # Obiect preexistent (vizibil în scenă fără persoană) — nu se
+                # atașează niciodată unei persoane; altfel ar produce fals
+                # pozitiv „abandon" când persoana doar trece pe lângă el.
+                if tid in self._known_trash_ids:
+                    continue
                 if dist_m < SEPARATION_DIST_M:
                     self._rel_trackers[tid] = TrashRelTracker(
                         trash_id=tid,
@@ -501,12 +514,14 @@ class LitteringDetector:
     def _enter_person_present(
         self, person_boxes: list, current_trash_ids: set
     ) -> None:
+        # NOTE: baseline-ul (_known_trash_ids) NU se actualizează aici —
+        # obiectele vizibile în timpul prezenței persoanei (inclusiv cele din
+        # mână) trebuie să rămână candidate pentru fereastra de monitorizare.
         self.state = DetectorState.PERSON_PRESENT
         self._person_zones = [
             PersonZone(x1, y1, x2, y2, self.frame_idx)
             for (x1, y1, x2, y2) in person_boxes
         ]
-        self._known_trash_ids.update(current_trash_ids)
 
     def _update_person_zones(self, person_boxes: list) -> None:
         self._person_zones = [
@@ -532,27 +547,34 @@ class LitteringDetector:
         trash_detections: list[dict],
         frame: np.ndarray,
     ) -> Optional[LitteringEvent]:
-        # Fire on the FIRST new trash object found anywhere in the frame.
-        # Proximity score: how close was the trash to the last person zone?
-        # Inspired by Anti-Littering-System (github.com/ananya868) — spatial
-        # relationship between person and object at moment of detection.
-        best_zone = self._person_zones[0] if self._person_zones else None
+        # Fire only when a NEW trash object appears INSIDE the zone where the
+        # person was last seen (expanded). A new track elsewhere in the frame
+        # (vehicle, background object, tracker re-id) is NOT an incident.
+        if not self._person_zones:
+            return None
+
+        zone_expand = max(self.zone_expand, 0.35)
         for det in trash_detections:
             if det["track_id"] not in new_trash_ids:
                 continue
-            zone = best_zone or PersonZone(0, 0, frame.shape[1], frame.shape[0], self.frame_idx)
 
-            # Proximity score: 1.0 = trash centre inside person zone, 0.0 = far away
             tx = (det["box"][0] + det["box"][2]) / 2
             ty = (det["box"][1] + det["box"][3]) / 2
-            if best_zone:
-                zw = max(zone.x2 - zone.x1, 1)
-                zh = max(zone.y2 - zone.y1, 1)
-                px = max(0.0, 1.0 - abs(tx - (zone.x1 + zone.x2) / 2) / (zw * 1.5))
-                py = max(0.0, 1.0 - abs(ty - (zone.y1 + zone.y2) / 2) / (zh * 1.5))
-                proximity_score = round(px * py, 3)
-            else:
-                proximity_score = 0.5  # unknown
+
+            zone = next(
+                (z for z in self._person_zones
+                 if _point_in_box(tx, ty, z.expanded(zone_expand))),
+                None,
+            )
+            if zone is None:
+                continue  # new object far from the person zone — ignore
+
+            # Proximity score: 1.0 = trash centre at zone centre, 0.0 = far away
+            zw = max(zone.x2 - zone.x1, 1)
+            zh = max(zone.y2 - zone.y1, 1)
+            px = max(0.0, 1.0 - abs(tx - (zone.x1 + zone.x2) / 2) / (zw * 1.5))
+            py = max(0.0, 1.0 - abs(ty - (zone.y1 + zone.y2) / 2) / (zh * 1.5))
+            proximity_score = round(px * py, 3)
 
             thumbnail = _make_thumbnail(frame, det["box"], zone)
             return LitteringEvent(
@@ -628,11 +650,8 @@ def _make_thumbnail(
     thumb = frame.copy()
 
     # No face blur — visual evidence intentionally identifies the perpetrator
-
-    _draw_dashed_rect(thumb, (zone.x1, zone.y1), (zone.x2, zone.y2),
-                      (0, 165, 255), 2, dash_len=12)
-    cv2.putText(thumb, "Person zone", (zone.x1, max(zone.y1 - 6, 10)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 1, cv2.LINE_AA)
+    # Zona persoanei nu se mai desenează pe dovadă: la distanțe mai mari de
+    # 2-3 m devine imprecisă și induce în eroare la verificare.
 
     tx1, ty1, tx2, ty2 = trash_box
     cv2.rectangle(thumb, (tx1, ty1), (tx2, ty2), (0, 0, 255), 2)

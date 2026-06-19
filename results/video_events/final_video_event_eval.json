@@ -1,0 +1,154 @@
+{
+  "summary": {
+    "clips_total": 35,
+    "clips_valid": 14,
+    "positives": 8,
+    "negatives": 6,
+    "excluded": 21,
+    "exclusion_criterion": "camera fixa si inregistrare continua obligatorii; excluse: compilatii/segmente TV cu taieturi de scena si filmari cu camera in miscare",
+    "frame_skip": 2,
+    "conf": 0.3,
+    "person_conf": 0.4,
+    "imgsz": 640,
+    "TP": 5,
+    "FP": 1,
+    "TN": 5,
+    "FN": 3,
+    "precision": 0.8333,
+    "recall": 0.625,
+    "f1": 0.7143,
+    "mean_runtime_fps": 13.2,
+    "algorithm": "final (baseline obiecte preexistente + zona obligatorie + anulare la revenirea persoanei)"
+  },
+  "clips": [
+    {
+      "clip": "cctv_parking_away_00001.mp4",
+      "expected_event": "negative",
+      "outcome": "TN",
+      "events_detected": 0,
+      "first_event_time_sec": null,
+      "runtime_fps": 21.6
+    },
+    {
+      "clip": "cctv_parking_away_00002.mp4",
+      "expected_event": "negative",
+      "outcome": "TN",
+      "events_detected": 0,
+      "first_event_time_sec": null,
+      "runtime_fps": 22.0
+    },
+    {
+      "clip": "litter_cctv_short_00002.mp4",
+      "expected_event": "positive",
+      "outcome": "TP",
+      "events_detected": 1,
+      "first_event_time_sec": 52.35,
+      "runtime_fps": 7.8
+    },
+    {
+      "clip": "littering_car_toss.mp4",
+      "expected_event": "positive",
+      "outcome": "FN",
+      "events_detected": 0,
+      "first_event_time_sec": null,
+      "runtime_fps": 22.7
+    },
+    {
+      "clip": "man_throws_street_00001.mp4",
+      "expected_event": "positive",
+      "outcome": "FN",
+      "events_detected": 0,
+      "first_event_time_sec": null,
+      "runtime_fps": 12.9
+    },
+    {
+      "clip": "man_throws_street_00002.mp4",
+      "expected_event": "positive",
+      "outcome": "TP",
+      "events_detected": 1,
+      "first_event_time_sec": 55.72,
+      "runtime_fps": 8.9
+    },
+    {
+      "clip": "park01_download_01.mp4",
+      "expected_event": "negative",
+      "outcome": "TN",
+      "events_detected": 0,
+      "first_event_time_sec": null,
+      "runtime_fps": 2.5
+    },
+    {
+      "clip": "park01_download_02.mp4",
+      "expected_event": "negative",
+      "outcome": "TN",
+      "events_detected": 0,
+      "first_event_time_sec": null,
+      "runtime_fps": 3.5
+    },
+    {
+      "clip": "park01_download_03.mp4",
+      "expected_event": "negative",
+      "outcome": "TN",
+      "events_detected": 0,
+      "first_event_time_sec": null,
+      "runtime_fps": 1.1
+    },
+    {
+      "clip": "park01_download_04.mp4",
+      "expected_event": "negative",
+      "outcome": "FP",
+      "events_detected": 1,
+      "first_event_time_sec": 5.04,
+      "runtime_fps": 1.9
+    },
+    {
+      "clip": "person_litter_full_00001.mp4",
+      "expected_event": "positive",
+      "outcome": "TP",
+      "events_detected": 1,
+      "first_event_time_sec": 24.77,
+      "runtime_fps": 6.8
+    },
+    {
+      "clip": "throwing_garbage_street.mp4",
+      "expected_event": "positive",
+      "outcome": "TP",
+      "events_detected": 1,
+      "first_event_time_sec": 29.8,
+      "runtime_fps": 13.2
+    },
+    {
+      "clip": "uk_fly_00001.mp4",
+      "expected_event": "positive",
+      "outcome": "FN",
+      "events_detected": 0,
+      "first_event_time_sec": null,
+      "runtime_fps": 29.9
+    },
+    {
+      "clip": "uk_fly_00002.mp4",
+      "expected_event": "positive",
+      "outcome": "TP",
+      "events_detected": 1,
+      "first_event_time_sec": 38.16,
+      "runtime_fps": 29.5
+    }
+  ],
+  "excluded_reasons": {
+    "dumping_neighbor_00001.mp4": "segment TV cu reporter si taieturi de scena",
+    "dumping_neighbor_00002.mp4": "segment TV cu grafica si taieturi de scena",
+    "dumping_neighbor_00003.mp4": "segment TV cu interviu si taieturi de scena",
+    "illegal_dumping_cctv.mp4": "segment TV cu title-carduri si taieturi",
+    "kinetics_throw_00001.mp4": "segment TV (interviu) cu taieturi",
+    "kinetics_throw_00002.mp4": "camera in miscare (handheld)",
+    "litter_cctv_drop_00001.mp4": "montaj cu taieturi de scena",
+    "litter_cctv_drop_00002.mp4": "camera in miscare (dashcam)",
+    "litter_cctv_drop_00003.mp4": "camera in miscare (handheld/zoom)",
+    "litter_cctv_short_00001.mp4": "camera in miscare (handheld)",
+    "litter_cctv_short_00003.mp4": "camera in miscare puternica",
+    "littering_cctv_2024.mp4": "segment TV cu taieturi de scena",
+    "littering_surveillance.mp4": "segment TV cu title-carduri",
+    "littering_uk.mp4": "segment TV cu reporter si taieturi",
+    "gunoi_ro_strada.mp4": "reportaj TV cu interviu si camera in miscare"
+  }
+}

@@ -24,9 +24,12 @@ Ghidul oficial UAB 2026 este sursa principală și se respectă înaintea orică
 
 Ghidul oficial de licență are prioritate. Șablonul de proiect de cercetare este util doar ca inspirație pentru abstract/metodologie, dar folosește APA și structură generică de cercetare. Pentru lucrarea de licență la Informatică folosim citare IEEE, conform ghidului oficial.
 
-Fișierul `detalii de scriere.doc` pare orientat către un proiect/articol scurt de 4-10 pagini, deci nu îl folosim ca șablon principal pentru licență.
+Fișierele sau textele de tip proiect/articol scurt, inclusiv cele care cer abstract, cuvinte cheie, APA, text la un rând sau 4-10 pagini, nu se folosesc drept șablon principal pentru lucrarea de licență. Ele pot ajuta doar la formularea concisă a motivației, metodelor, rezultatelor și concluziilor.
 
 Analiza detaliată este în `ANALIZA_FISIERE.md`.
+
+Textele extrase din ghiduri și șabloane sunt păstrate în `sources/extracted/`.
+Ele sunt materiale de referință pentru redactare, nu capitole finale ale lucrării.
 
 ## Buget recomandat
 
@@ -35,13 +38,27 @@ Analiza detaliată este în `ANALIZA_FISIERE.md`.
 Astfel respectăm ghidul oficial, care recomandă 40-70 pagini, dar ne orientăm spre limita inferioară.
 
 - Introducere: 3-4 pagini;
-- Capitolul 1: 6-7 pagini;
-- Capitolul 2: 6-7 pagini;
-- Capitolul 3: 6-7 pagini;
-- Capitolul 4: 4-5 pagini;
-- Capitolul 5: 6-7 pagini;
+- Capitolul 1, Contextul problemei și cerințele domeniului: 5-6 pagini;
+- Capitolul 2, Fundamente teoretice și tehnologii utilizate: 6-7 pagini;
+- Capitolul 3, Date, antrenarea modelelor și metodologia experimentală: 6-7 pagini;
+- Capitolul 4, Proiectarea și implementarea sistemului: 7-8 pagini;
+- Capitolul 5, Testare, rezultate și interpretare: 6-7 pagini;
 - Concluzii: 2-3 pagini;
 - Bibliografie: 1-2 pagini.
+
+## Structura curentă a lucrării
+
+Structura LaTeX este stabilită astfel:
+
+1. Copertă conform Anexei 1 din ghid;
+2. pagină albă;
+3. pagină de titlu conform Anexei 2 din ghid;
+4. pagină albă;
+5. cuprins;
+6. introducere nenumerotată;
+7. cinci capitole numerotate;
+8. concluzii nenumerotate;
+9. bibliografie nenumerotată în stil IEEE.
 
 ## Compilare
 

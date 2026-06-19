@@ -110,6 +110,7 @@ class VideoSessionOut(BaseModel):
     duration_sec: float = 0.0
     total_frames: int = 0
     total_objects: int = 0
+    littering_count: int = 0
     avg_fps: float = 0.0
     avg_inference_ms: float = 0.0
     materials_summary: Optional[str] = None
@@ -162,50 +163,6 @@ class OkResponse(BaseModel):
 
 class DetailResponse(BaseModel):
     detail: str
-
-
-# Authority contacts and webhooks
-
-class AuthorityContactCreate(BaseModel):
-    name: str
-    email: str
-    area_description: str = ""
-
-
-class AuthorityContactOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    name: str
-    email: str
-    area_description: Optional[str] = None
-    created_by: int
-    created_at: datetime
-
-
-class WebhookCreate(BaseModel):
-    url: str
-    secret: str = ""
-    events: str = "verified"
-    active: bool = True
-
-
-class WebhookUpdate(BaseModel):
-    url: Optional[str] = None
-    events: Optional[str] = None
-    active: Optional[bool] = None
-
-
-class WebhookOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    url: str
-    secret: str
-    events: str
-    active: bool
-    created_by: int
-    created_at: datetime
 
 
 # Littering incidents

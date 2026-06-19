@@ -34,6 +34,16 @@ function clearAuthToken() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
 }
 
+function eventMediaUrl(eventOrId, kind = 'thumbnail') {
+  const id = typeof eventOrId === 'object'
+    ? (eventOrId?.id ?? eventOrId?.event_id)
+    : eventOrId;
+  const token = getAuthToken();
+  if (!id || !token) return '';
+  const mediaKind = kind === 'clip' ? 'clip' : 'thumbnail';
+  return `/api/littering/events/${encodeURIComponent(id)}/${mediaKind}?token=${encodeURIComponent(token)}`;
+}
+
 /* ── Fetch wrapper with error handling ──────────────────────────────────────── */
 async function fetchAPI(url, options = {}) {
   const token = getAuthToken();

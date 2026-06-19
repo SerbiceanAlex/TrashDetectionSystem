@@ -11,7 +11,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Validate a YOLO detection dataset")
     parser.add_argument(
         "--data",
-        default="datasets/parks_detect/parks_detect.yaml",
+        default="datasets/parks_detect_final/dataset.yaml",
         help="Path to the YOLO dataset YAML file",
     )
     return parser.parse_args()

@@ -24,12 +24,12 @@ def parse_args():
     )
     parser.add_argument(
         "--out-dir",
-        default="datasets/parks_cls_unsorted/all",
+        default="datasets/material_crops_unsorted/all",
         help="Output directory where unlabeled crop images will be written",
     )
     parser.add_argument(
         "--manifest",
-        default="datasets/parks_cls_unsorted/crops_manifest.csv",
+        default="datasets/material_crops_unsorted/crops_manifest.csv",
         help="CSV manifest describing each generated crop",
     )
     parser.add_argument(

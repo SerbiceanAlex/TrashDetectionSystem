@@ -5,7 +5,7 @@ from ultralytics import YOLO
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DATASET = REPO_ROOT / "datasets" / "parks_cls"
+DEFAULT_DATASET = REPO_ROOT / "datasets" / "trashnet_cls"
 DEFAULT_PROJECT_DIR = REPO_ROOT / "runs" / "classify"
 
 
@@ -20,7 +20,7 @@ def parse_args():
     parser.add_argument("--workers", type=int, default=8, help="Number of dataloader workers")
     parser.add_argument("--patience", type=int, default=20, help="Early stopping patience")
     parser.add_argument("--project", default=str(DEFAULT_PROJECT_DIR), help="Directory for training runs")
-    parser.add_argument("--name", default="parks-trash-material-cls", help="Run name")
+    parser.add_argument("--name", default="trashnet-material-cls", help="Run name")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--cache", action="store_true", help="Cache images for faster training")
     parser.add_argument("--resume", action="store_true", help="Resume the latest interrupted run")

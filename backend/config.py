@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # ── Paths ────────────────────────────────────────────────────────────────
     REPO_ROOT: Path = Path(__file__).parent.parent
+    STORAGE_ROOT: str = "data/runtime"
     DETECTOR_WEIGHTS: str = "models/detector/production/best.pt"
     CLASSIFIER_WEIGHTS: str = "models/classify/B2/best.pt"
     PERSON_DETECTOR_WEIGHTS: str = "models/pretrained/yolov8n.pt"
@@ -27,15 +28,6 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "CHANGE-ME-generate-with-python-c-import-secrets-secrets.token_hex(32)"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
-
-    # ── SMTP (optional: incident alerts and authority forwarding) ────────────
-    SMTP_HOST: str = ""
-    SMTP_PORT: int = 587
-    SMTP_USER: str = ""
-    SMTP_PASS: str = ""
-    SMTP_FROM: str = "noreply@trashdet.local"
-    ENABLE_INCIDENT_EMAILS: bool = False
-    ENABLE_AUTHORITY_EMAILS: bool = False
 
     # ── Rate limiting ────────────────────────────────────────────────────────
     MAX_LOGIN_ATTEMPTS: int = 5
@@ -67,11 +59,16 @@ class Settings(BaseSettings):
     LIVE_IMGSZ: int = 640
     DEFAULT_DET_CONF: float = 0.30
     MONITOR_MIN_DET_CONF: float = 0.35
-    MONITOR_TARGET_FPS: int = 25
-    MONITOR_CAPTURE_MAX_DIM: int = 512
-    MONITOR_JPEG_QUALITY: float = 0.72
-    MONITOR_TRASH_IMGSZ: int = 512
-    MONITOR_PERSON_IMGSZ: int = 512
+    # Țintă realistă: fiecare cadru face encode pe telefon → WiFi → YOLO → răspuns.
+    # 15 FPS de analiză e sustenabil pe RTX 3050 cu telefon prin LAN; camera
+    # rulează oricum la 30fps nativ pentru un preview fluid.
+    MONITOR_TARGET_FPS: int = 15
+    MONITOR_CAMERA_WIDTH: int = 1280
+    MONITOR_CAMERA_HEIGHT: int = 720
+    MONITOR_CAPTURE_MAX_DIM: int = 640
+    MONITOR_JPEG_QUALITY: float = 0.75
+    MONITOR_TRASH_IMGSZ: int = 640
+    MONITOR_PERSON_IMGSZ: int = 416
 
     @property
     def detector_path(self) -> Path:
@@ -89,12 +86,52 @@ class Settings(BaseSettings):
     def db_url(self) -> str:
         if self.DATABASE_URL:
             return self.DATABASE_URL
-        db_path = self.REPO_ROOT / "backend" / "trash_detection.db"
+        db_path = self.REPO_ROOT / "data" / "trash_detection.db"
         return f"sqlite+aiosqlite:///{db_path}"
 
     @property
     def max_upload_bytes(self) -> int:
         return self.MAX_UPLOAD_MB * 1024 * 1024
+
+    @property
+    def storage_root(self) -> Path:
+        root = Path(self.STORAGE_ROOT)
+        return root if root.is_absolute() else self.REPO_ROOT / root
+
+    @property
+    def uploads_dir(self) -> Path:
+        return self.storage_root / "uploads"
+
+    @property
+    def annotated_dir(self) -> Path:
+        return self.storage_root / "annotated"
+
+    @property
+    def videos_dir(self) -> Path:
+        return self.storage_root / "videos"
+
+    @property
+    def littering_dir(self) -> Path:
+        return self.storage_root / "littering"
+
+    @property
+    def cleaned_dir(self) -> Path:
+        return self.storage_root / "cleaned"
+
+    @property
+    def thumbnails_dir(self) -> Path:
+        return self.storage_root / "thumbnails"
+
+    @property
+    def runtime_dirs(self) -> list[Path]:
+        return [
+            self.uploads_dir,
+            self.annotated_dir,
+            self.cleaned_dir,
+            self.videos_dir,
+            self.littering_dir,
+            self.thumbnails_dir,
+        ]
 
 
 settings = Settings()

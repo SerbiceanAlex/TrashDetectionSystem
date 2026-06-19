@@ -81,7 +81,9 @@ function videoApp() {
             clearInterval(this.uploadPollTimer);
             this.videoProgress = 100;
             const evCount = vs.littering_count || 0;
-            this.videoProcessingMsg = `Gata! ${vs.total_frames} cadre analizate · ${vs.total_objects} obiecte detectate`;
+            this.videoProcessingMsg = evCount > 0
+              ? `Gata! ${vs.total_frames} cadre analizate · ${evCount} incident(e) generate`
+              : `Gata! ${vs.total_frames} cadre analizate · niciun incident confirmat`;
             this.selectedVideoSession = vs;
             this.loadVideoSessions();
             
@@ -192,10 +194,11 @@ function videoApp() {
     monitorTrash: 0,
     monitorAlerts: [],
     monitorPersonConf: 0.35,
-    monitorSendFps: 25,
-    monitorCaptureMaxDim: 512,
-    monitorRenderMaxDim: 960,
-    monitorJpegQuality: 0.72,
+    monitorSendFps: 15,
+    monitorCameraWidth: 1280,
+    monitorCameraHeight: 720,
+    monitorCaptureMaxDim: 640,
+    monitorJpegQuality: 0.75,
     monitorFacingMode: 'environment',   // 'environment' = spate, 'user' = față
     _monitorAnimFrame: null,
     _monitorCaptureCanvas: null,
@@ -203,26 +206,25 @@ function videoApp() {
     _monitorLastSendAt: 0,
     _monitorSending: false,
     _monitorFrameInFlight: false,
+    _monitorFramesInFlight: 0,
+    _monitorMaxInFlight: 3,
     _monitorFpsLastDisplayAt: 0,
 
     async startMonitor() {
       try {
         const runtime = this.systemInfo?.runtime || {};
-        const configuredTargetFps = Number(runtime.monitor_target_fps || 25);
-        if (this.monitorSendFps === 25 && configuredTargetFps !== 25) {
+        const configuredTargetFps = Number(runtime.monitor_target_fps || 15);
+        if (this.monitorSendFps === 15 && configuredTargetFps !== 15) {
           this.monitorSendFps = configuredTargetFps;
         }
-        this.monitorSendFps = Math.max(12, Math.min(Number(this.monitorSendFps || configuredTargetFps || 25), 30));
-        this.monitorCaptureMaxDim = Math.max(416, Math.min(Number(runtime.monitor_capture_max_dim || this.monitorCaptureMaxDim || 512), 640));
-        this.monitorJpegQuality = Math.max(0.60, Math.min(Number(runtime.monitor_jpeg_quality || this.monitorJpegQuality || 0.72), 0.90));
+        this.monitorSendFps = Math.max(10, Math.min(Number(this.monitorSendFps || configuredTargetFps || 15), 30));
+        this.monitorCameraWidth = Math.max(640, Math.min(Number(runtime.monitor_camera_width || this.monitorCameraWidth || 1280), 1920));
+        this.monitorCameraHeight = Math.max(360, Math.min(Number(runtime.monitor_camera_height || this.monitorCameraHeight || 720), 1080));
+        this.monitorCaptureMaxDim = Math.max(416, Math.min(Number(runtime.monitor_capture_max_dim || this.monitorCaptureMaxDim || 640), 768));
+        this.monitorJpegQuality = Math.max(0.60, Math.min(Number(runtime.monitor_jpeg_quality || this.monitorJpegQuality || 0.75), 0.90));
 
         this.monitorStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: this.monitorFacingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30, max: 30 },
-          },
+          video: this._monitorVideoConstraints(),
           audio: false,
         });
       } catch (e) {
@@ -264,12 +266,13 @@ function videoApp() {
         this._monitorLastSendAt = 0;
         this._monitorSending = false;
         this._monitorFrameInFlight = false;
+        this._monitorFramesInFlight = 0;
         this._startMonitorCapture(video, canvas);
       };
 
       this.monitorWs.onmessage = (ev) => {
         try {
-          this._monitorFrameInFlight = false;
+          this._releaseMonitorFrame();
           const msg = JSON.parse(ev.data);
           if (msg.type === 'alert') {
             this.monitorAlerts.push(msg);
@@ -330,7 +333,21 @@ function videoApp() {
       };
     },
 
-    _startMonitorCapture(video, displayCanvas) {
+    _monitorVideoConstraints() {
+      // Cere o rezoluție bună fără plafoane dure (`max`) — pe mobil un cap dur
+      // forțează camera pe un mod de captură mic și moale (sursa blur-ului).
+      // Camera rulează la 30fps nativ; trimiterea către AI e limitată separat.
+      const width = Math.max(640, Math.min(Number(this.monitorCameraWidth || 1280), 1920));
+      const height = Math.max(360, Math.min(Number(this.monitorCameraHeight || 720), 1080));
+      return {
+        facingMode: this.monitorFacingMode,
+        width: { ideal: width },
+        height: { ideal: height },
+        frameRate: { ideal: 30 },
+      };
+    },
+
+    _startMonitorCapture(video, overlayCanvas) {
       const cc = this._monitorCaptureCanvas;
 
       const loop = () => {
@@ -342,30 +359,26 @@ function videoApp() {
         const vw = video.videoWidth, vh = video.videoHeight;
         if (!vw) return;
 
-        // Draw video to display canvas — this implicitly clears previous overlays
-        const cssW = displayCanvas.offsetWidth || vw;
-        const cssH = displayCanvas.offsetHeight || vh;
-        const renderMaxDim = Math.max(640, Math.min(Number(this.monitorRenderMaxDim || 960), 1280));
-        const renderScale = Math.min(1, renderMaxDim / Math.max(cssW, cssH));
-        const dw = Math.round(cssW * renderScale);
-        const dh = Math.round(cssH * renderScale);
-        if (displayCanvas.width !== dw) displayCanvas.width = dw;
-        if (displayCanvas.height !== dh) displayCanvas.height = dh;
-        const ctx = displayCanvas.getContext('2d');
-        ctx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
-        ctx.drawImage(video, 0, 0, displayCanvas.width, displayCanvas.height);
-        // Draw bounding boxes fresh on each frame from last WS message
+        // Preview-ul este elementul <video> nativ (clar, fără re-desenare).
+        // Canvas-ul transparent are exact dimensiunile cadrului video, astfel
+        // încât object-fit:cover taie video-ul și overlay-ul identic.
+        if (overlayCanvas.width !== vw) overlayCanvas.width = vw;
+        if (overlayCanvas.height !== vh) overlayCanvas.height = vh;
+        const ctx = overlayCanvas.getContext('2d');
+        ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
         if (this._lastMonitorMsg) {
-          this._drawMonitorOverlay(displayCanvas, this._lastMonitorMsg);
+          this._drawMonitorOverlay(overlayCanvas, this._lastMonitorMsg);
         }
 
         if (this.monitorWs && this.monitorWs.readyState === WebSocket.OPEN) {
           const now = performance.now();
           const sendIntervalMs = 1000 / Math.max(this.monitorSendFps || 12, 1);
 
-          // Backpressure guard: one in-flight frame at a time. This prevents a hidden
-          // WebSocket backlog when the laptop is on battery or the tab is throttled.
-          if (!this._monitorSending && !this._monitorFrameInFlight && (now - this._monitorLastSendAt) >= sendIntervalMs) {
+          // Keep a tiny pipeline of frames in flight. Waiting for a full
+          // browser-network-server round trip caps phones around 10-12 FPS,
+          // even when the GPU can process faster.
+          const maxInFlight = Math.max(1, Math.min(Number(this._monitorMaxInFlight || 2), 3));
+          if (!this._monitorSending && this._monitorFramesInFlight < maxInFlight && (now - this._monitorLastSendAt) >= sendIntervalMs) {
             if (this.monitorWs.bufferedAmount < 500000) {
               // Build the JPEG only when a frame is actually due. The preview
               // canvas still renders every animation frame, but encoding is
@@ -378,12 +391,13 @@ function videoApp() {
               cctx.drawImage(video, 0, 0, cc.width, cc.height);
 
               this._monitorSending = true;
-              this._monitorFrameInFlight = true;
+              this._monitorFramesInFlight += 1;
+              this._monitorFrameInFlight = this._monitorFramesInFlight > 0;
               this._monitorLastSendAt = now;
               cc.toBlob((blob) => {
                 if (!blob) {
                   this._monitorSending = false;
-                  this._monitorFrameInFlight = false;
+                  this._releaseMonitorFrame();
                   return;
                 }
                 blob.arrayBuffer()
@@ -391,11 +405,11 @@ function videoApp() {
                     if (this.monitorWs && this.monitorWs.readyState === WebSocket.OPEN) {
                       this.monitorWs.send(buf);
                     } else {
-                      this._monitorFrameInFlight = false;
+                      this._releaseMonitorFrame();
                     }
                   })
                   .catch(() => {
-                    this._monitorFrameInFlight = false;
+                    this._releaseMonitorFrame();
                   })
                   .finally(() => {
                     this._monitorSending = false;
@@ -408,30 +422,25 @@ function videoApp() {
       this._monitorAnimFrame = requestAnimationFrame(loop);
     },
 
+    _releaseMonitorFrame() {
+      this._monitorFramesInFlight = Math.max(0, Number(this._monitorFramesInFlight || 0) - 1);
+      this._monitorFrameInFlight = this._monitorFramesInFlight > 0;
+    },
+
     _updateMonitorFps(rawFps, targetFps) {
-      const target = Math.max(1, Number(targetFps || this.monitorSendFps || 25));
+      const target = Math.max(1, Number(targetFps || this.monitorSendFps || 15));
       const raw = Math.max(0, Math.min(Number(rawFps || 0), target));
       this.monitorFpsRaw = raw;
 
-      // Strong smoothing + display hysteresis: the UI should communicate a stable
-      // processing rhythm, not every tiny browser/GPU scheduling jitter.
+      // Netezire ușoară contra jitter-ului, dar valoarea afișată este cea REALĂ
+      // (măsurată de server) — nu se rotunjește artificial la țintă.
       this.monitorFps = this.monitorFps > 0
-        ? (this.monitorFps * 0.92 + raw * 0.08)
+        ? (this.monitorFps * 0.8 + raw * 0.2)
         : raw;
 
       const now = performance.now();
-      let nextDisplay = Math.round(this.monitorFps);
-      if (this.monitorFps >= target - 1.5) {
-        nextDisplay = Math.round(target);
-      }
-
-      const current = this.monitorFpsDisplay || 0;
-      if (
-        current === 0 ||
-        Math.abs(nextDisplay - current) >= 2 ||
-        (now - this._monitorFpsLastDisplayAt) > 1200
-      ) {
-        this.monitorFpsDisplay = nextDisplay;
+      if (this._monitorFpsLastDisplayAt === 0 || (now - this._monitorFpsLastDisplayAt) > 500) {
+        this.monitorFpsDisplay = Math.round(this.monitorFps);
         this._monitorFpsLastDisplayAt = now;
       }
     },
@@ -441,52 +450,37 @@ function videoApp() {
       const ctx = canvas.getContext('2d');
       const scaleX = canvas.width / (msg.frame_w || 640);
       const scaleY = canvas.height / (msg.frame_h || 480);
+      // Canvas-ul are acum rezoluția nativă a camerei (~1280px), nu ~800px —
+      // grosimile și fonturile se scalează ca să rămână lizibile.
+      const ui = Math.max(1, canvas.width / 640);
 
-      // Draw monitored zone (dashed orange) when in MONITORING state — shows WHERE to drop object
-      if (msg.state === 'MONITORING' && msg.last_person_zones && msg.last_person_zones.length > 0) {
-        const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 300);  // pulsating opacity
-        ctx.strokeStyle = `rgba(251,146,60,${0.6 + 0.4 * pulse})`;
-        ctx.lineWidth = 3;
-        ctx.setLineDash([12, 6]);
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillStyle = `rgba(251,146,60,${0.7 + 0.3 * pulse})`;
-        for (const z of msg.last_person_zones) {
-          const [x1, y1, x2, y2] = z;
-          // Draw expanded zone (35% expansion matches zone_expand=0.35)
-          const expand = 0.35;
-          const dw = (x2 - x1) * expand, dh = (y2 - y1) * expand;
-          const zx1 = (x1 - dw) * scaleX, zy1 = (y1 - dh) * scaleY;
-          const zw  = (x2 - x1 + 2 * dw) * scaleX, zh = (y2 - y1 + 2 * dh) * scaleY;
-          ctx.strokeRect(zx1, zy1, zw, zh);
-          ctx.fillText('⬇ Aruncă aici', zx1 + 4, zy1 + 16);
-        }
-        ctx.setLineDash([]);
-      }
+      // Zona monitorizată NU se mai desenează: la distanțe mai mari de 2-3 m
+      // poziția ei devine imprecisă și induce utilizatorul în eroare.
 
       // Draw person boxes (orange solid)
       if (msg.person_boxes) {
         ctx.strokeStyle = 'rgba(251,191,36,0.9)';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2 * ui;
         ctx.setLineDash([]);
-        ctx.font = '11px sans-serif';
+        ctx.font = `${Math.round(11 * ui)}px sans-serif`;
         ctx.fillStyle = 'rgba(251,191,36,0.9)';
         for (const b of msg.person_boxes) {
           const [x1, y1, x2, y2] = b;
           ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
-          ctx.fillText('person', x1 * scaleX + 2, y1 * scaleY - 3);
+          ctx.fillText('person', x1 * scaleX + 2 * ui, y1 * scaleY - 3 * ui);
         }
       }
 
       // Draw trash boxes (red)
       if (msg.trash_boxes) {
         ctx.strokeStyle = 'rgba(239,68,68,0.9)';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2 * ui;
         ctx.fillStyle = 'rgba(239,68,68,0.9)';
-        ctx.font = '11px sans-serif';
+        ctx.font = `${Math.round(11 * ui)}px sans-serif`;
         for (const d of msg.trash_boxes) {
           const [x1, y1, x2, y2] = d.box;
           ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
-          ctx.fillText('#' + d.track_id, x1 * scaleX + 2, y1 * scaleY - 3);
+          ctx.fillText('#' + d.track_id, x1 * scaleX + 2 * ui, y1 * scaleY - 3 * ui);
         }
       }
     },
@@ -505,12 +499,7 @@ function videoApp() {
       // Porneste stream nou cu camera opusă
       try {
         this.monitorStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: this.monitorFacingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30, max: 30 },
-          },
+          video: this._monitorVideoConstraints(),
           audio: false,
         });
         const video = this.$refs.monitorVideo;
@@ -542,6 +531,7 @@ function videoApp() {
       this._monitorLastSendAt = 0;
       this._monitorSending = false;
       this._monitorFrameInFlight = false;
+      this._monitorFramesInFlight = 0;
       this._monitorFpsLastDisplayAt = 0;
     },
   };

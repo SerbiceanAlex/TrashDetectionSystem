@@ -19,27 +19,17 @@ function adminApp() {
     inviteResult: null,
 
     // Sub-tab navigation inside admin panel
-    adminSubTab: 'overview',  // 'overview' | 'users' | 'authorities' | 'incidents' | 'webhooks'
+    adminSubTab: 'overview',  // 'overview' | 'users' | 'incidents'
 
     // Charts
-    adminCharts: null,
+    adminCharts: {
+      reports_timeline: [],
+      users_timeline: [],
+      material_distribution: [],
+      resolution_rate: {},
+    },
     adminChartsLoading: false,
     _adminChartInstances: {},
-
-    // Broadcast
-    adminBroadcastMsg: '',
-    adminBroadcastSending: false,
-
-    // Authorities
-    adminAuthorities: [],
-    adminAuthoritiesLoading: false,
-    adminNewAuthority: { name: '', email: '', area_description: '' },
-
-    // Webhooks
-    adminWebhooks: [],
-    adminWebhooksLoading: false,
-    adminNewWebhook: { url: '', secret: '', events: 'report.verified,report.cleaned' },
-    adminWebhookTesting: null,
 
     // Storage
     adminStorage: null,
@@ -112,7 +102,7 @@ function adminApp() {
         });
         const u = this.adminUsers.find(x => x.id === userId);
         if (u) u.role = newRole;
-        showToast(`Role changed → ${newRole}`);
+        showToast(`Rol schimbat: ${this.roleLabel(newRole)}`);
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -132,7 +122,7 @@ function adminApp() {
 
     async sendInvite() {
       if (!this.inviteForm.username.trim() || !this.inviteForm.email.trim()) {
-        return showToast('Username și email obligatorii', 'error');
+        return showToast('Nume utilizator și email obligatorii', 'error');
       }
       this.inviteSending = true;
       try {
@@ -156,7 +146,7 @@ function adminApp() {
       try {
         await fetchAPI(`/api/admin/users/${this.adminConfirmUser.id}`, { method: 'DELETE' });
         this.adminUsers = this.adminUsers.filter(u => u.id !== this.adminConfirmUser.id);
-        showToast(`User "${this.adminConfirmUser.username}" has been deleted.`);
+        showToast(`Utilizatorul "${this.adminConfirmUser.username}" a fost șters.`);
       } catch (e) {
         showToast(e.message, 'error');
       } finally {
@@ -215,25 +205,6 @@ function adminApp() {
         : 'Necunoscut';
     },
 
-    /* ── Broadcast notification ────────────────────────────────────────── */
-    async adminSendBroadcast() {
-      if (!this.adminBroadcastMsg.trim()) return;
-      this.adminBroadcastSending = true;
-      try {
-        const res = await fetchAPI('/api/admin/broadcast', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: this.adminBroadcastMsg.trim() }),
-        });
-        showToast(`Notification sent to ${res.sent_to} users`);
-        this.adminBroadcastMsg = '';
-      } catch (e) {
-        showToast(e.message, 'error');
-      } finally {
-        this.adminBroadcastSending = false;
-      }
-    },
-
     /* ── Export users CSV ─────────────────────────────────────────────── */
     adminExportUsersCSV() {
       const token = getAuthToken();
@@ -287,133 +258,6 @@ function adminApp() {
         showToast('Raport CSV descarcat.', 'success');
       } catch (e) {
         showToast('Export CSV esuat: ' + e.message, 'error');
-      }
-    },
-
-    /* ── Authorities CRUD ─────────────────────────────────────────────── */
-    async loadAuthorities() {
-      this.adminAuthoritiesLoading = true;
-      try {
-        this.adminAuthorities = await fetchAPI('/api/admin/authorities');
-      } catch (e) {
-        showToast(e.message, 'error');
-      } finally {
-        this.adminAuthoritiesLoading = false;
-        this._refreshAdminIcons();
-      }
-    },
-
-    async addAuthority() {
-      const { name, email, area_description } = this.adminNewAuthority;
-      if (!name.trim() || !email.trim()) return showToast('Numele și emailul sunt obligatorii', 'error');
-      try {
-        const auth = await fetchAPI('/api/admin/authorities', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: name.trim(), email: email.trim(), area_description: area_description.trim() }),
-        });
-        this.adminAuthorities.push(auth);
-        this.adminNewAuthority = { name: '', email: '', area_description: '' };
-        showToast('Contact autoritate adăugat');
-        this._refreshAdminIcons();
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
-    },
-
-    async deleteAuthority(id) {
-      const ok = await this.showConfirm(
-        'Șterge contact autoritate',
-        'Contactul va fi șters permanent. Incidentele trimise anterior rămân înregistrate.',
-        { confirmText: 'Șterge', icon: 'trash-2' }
-      );
-      if (!ok) return;
-      try {
-        await fetchAPI(`/api/admin/authorities/${id}`, { method: 'DELETE' });
-        this.adminAuthorities = this.adminAuthorities.filter(a => a.id !== id);
-        showToast('Contact șters');
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
-    },
-
-    /* ── Webhooks CRUD ────────────────────────────────────────────────── */
-    async loadWebhooks() {
-      this.adminWebhooksLoading = true;
-      try {
-        this.adminWebhooks = await fetchAPI('/api/admin/webhooks');
-      } catch (e) {
-        showToast(e.message, 'error');
-      } finally {
-        this.adminWebhooksLoading = false;
-        this._refreshAdminIcons();
-      }
-    },
-
-    async addWebhook() {
-      const { url, secret, events } = this.adminNewWebhook;
-      if (!url.trim()) return showToast('URL-ul endpoint-ului este obligatoriu', 'error');
-      try {
-        const wh = await fetchAPI('/api/admin/webhooks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: url.trim(),
-            secret: secret.trim() || null,
-            events: events.split(',').map(e => e.trim()).filter(Boolean),
-            active: true,
-          }),
-        });
-        this.adminWebhooks.push(wh);
-        this.adminNewWebhook = { url: '', secret: '', events: 'report.verified,report.cleaned' };
-        showToast('Webhook adăugat');
-        this._refreshAdminIcons();
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
-    },
-
-    async toggleWebhook(id) {
-      const wh = this.adminWebhooks.find(w => w.id === id);
-      if (!wh) return;
-      try {
-        const updated = await fetchAPI(`/api/admin/webhooks/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ active: !wh.active }),
-        });
-        Object.assign(wh, updated);
-        this._refreshAdminIcons();
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
-    },
-
-    async deleteWebhook(id) {
-      const ok = await this.showConfirm(
-        'Șterge webhook',
-        'Webhook-ul va fi dezactivat și șters permanent.',
-        { confirmText: 'Șterge', icon: 'trash-2' }
-      );
-      if (!ok) return;
-      try {
-        await fetchAPI(`/api/admin/webhooks/${id}`, { method: 'DELETE' });
-        this.adminWebhooks = this.adminWebhooks.filter(w => w.id !== id);
-        showToast('Webhook șters');
-      } catch (e) {
-        showToast(e.message, 'error');
-      }
-    },
-
-    async testWebhook(id) {
-      this.adminWebhookTesting = id;
-      try {
-        const res = await fetchAPI(`/api/admin/webhooks/${id}/test`, { method: 'POST' });
-        showToast(res.status === 'ok' ? `Test OK (${res.status_code})` : `Test failed: ${res.error}`, res.status === 'ok' ? 'success' : 'error');
-      } catch (e) {
-        showToast(e.message, 'error');
-      } finally {
-        this.adminWebhookTesting = null;
       }
     },
 
@@ -531,6 +375,7 @@ function adminApp() {
           if (oldStatus !== 'reviewed') this.incidentReviewed += 1;
         }
         showToast('Incident confirmat ca aruncare ilegală');
+        await this.loadStorage();
         this._refreshAdminIcons();
         return true;
       } catch (e) {
@@ -543,7 +388,7 @@ function adminApp() {
       if (this.incidentForwardingIds.includes(id)) return false;
       const ok = await this.showConfirm(
         'Arhivează dovada',
-        'Incidentul va fi marcat ca arhivat: clipul, thumbnailul, hash-ul și notele rămân salvate local pentru raport. Nu se trimite email real către autorități în modul demo.',
+        'Incidentul va fi marcat ca arhivat: clipul, thumbnailul, hash-ul și notele rămân salvate local pentru raport. Nu se trimite email real către autorități în această versiune locală.',
         { confirmText: 'Arhivează', confirmColor: '#2563eb', iconColor: '#2563eb', icon: 'archive' }
       );
       if (!ok) return false;
@@ -563,6 +408,7 @@ function adminApp() {
           if (oldStatus !== 'forwarded') this.incidentForwarded += 1;
         }
         showToast('Dovada a fost arhivată local.');
+        await this.loadStorage();
         this._refreshAdminIcons();
         return true;
       } catch (e) {
@@ -595,6 +441,7 @@ function adminApp() {
           if (oldStatus === 'forwarded') this.incidentForwarded = Math.max(0, this.incidentForwarded - 1);
         }
         showToast('Incident marcat ca fals pozitiv');
+        await this.loadStorage();
         this._refreshAdminIcons();
         return true;
       } catch (e) {
@@ -632,6 +479,7 @@ function adminApp() {
         }
 
         showToast('Incident șters definitiv.');
+        await this.loadStorage();
         this._refreshAdminIcons();
         return true;
       } catch (e) {
@@ -664,6 +512,7 @@ function adminApp() {
         }
         this.incidentSelectedIds = [];
         await this.loadIncidents();
+        await this.loadStorage();
         if (deleted > 0) showToast(`${deleted} incident(e) șterse definitiv.`, 'success');
         if (failed > 0) showToast(`${failed} incident(e) nu au putut fi șterse.`, 'error');
       } finally {

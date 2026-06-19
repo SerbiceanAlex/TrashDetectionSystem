@@ -1,0 +1,56 @@
+\begin{figure}[H]
+\centering
+\resizebox{0.94\textwidth}{!}{%
+\begin{tikzpicture}[
+  layer/.style={
+    draw,
+    rounded corners=4pt,
+    align=center,
+    minimum height=14mm,
+    text width=4.4cm,
+    font=\small,
+    inner sep=5pt
+  },
+  module/.style={
+    draw,
+    rounded corners=4pt,
+    align=center,
+    minimum height=14mm,
+    text width=4.1cm,
+    font=\small,
+    inner sep=5pt
+  },
+  store/.style={
+    draw,
+    cylinder,
+    shape border rotate=90,
+    aspect=0.24,
+    align=center,
+    minimum height=18mm,
+    text width=3.3cm,
+    font=\small,
+    inner sep=5pt
+  },
+  arrow/.style={-{Stealth[length=2.5mm]}, thick}
+]
+
+\node[layer] (ui) at (-5.3,2.7) {Interfață web\\monitorizare\\incidente\\administrare};
+\node[layer] (api) at (0,2.7) {Backend FastAPI\\HTTP, WebSocket, JWT};
+\node[layer] (ml) at (5.3,2.7) {Pipeline ML\\detecție\\clasificare\\persoane};
+\node[module] (logic) at (0,0.35) {Logică aplicație\\tracking\\validare incident};
+\node[store] (db) at (-4.15,-2.45) {SQLite\\metadate};
+\node[module] (storage) at (2.95,-2.45) {Stocare locală\\clipuri și thumbnailuri};
+
+\draw[arrow] (ui) -- (api);
+\draw[arrow] (api) -- (ml);
+\draw[arrow] (ml) -- (logic);
+\draw[arrow] (api) -- (logic);
+\draw[arrow] (logic.south west) -- (db.north east);
+\draw[arrow] (logic.south east) -- (storage.north);
+\draw[arrow] (storage.west) -- (db.east);
+
+\end{tikzpicture}%
+}
+\caption{Arhitectura generală a sistemului}
+\label{fig:arhitectura-generala}
+\end{figure}

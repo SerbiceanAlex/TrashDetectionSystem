@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Start TrashDet over HTTPS on the local network.
 
-This is the comfortable launcher for the thesis/demo setup:
+This is the comfortable launcher for the local thesis setup:
 
     .venv\\Scripts\\python.exe start_https.py
     .venv\\Scripts\\python.exe start_https.py --restart
@@ -309,7 +309,7 @@ def main() -> int:
         if listening_pids(args.port):
             if not args.auto_port:
                 print(f"{C.RED}[ERROR]{C.RESET} Port {args.port} is still occupied after restart attempt.")
-                print(f"        Best local-demo fallback:")
+                print(f"        Best local fallback:")
                 print(f"        {C.CYAN}.venv\\Scripts\\python.exe start_https.py --port 9444{C.RESET}")
                 return 1
             old_port = args.port

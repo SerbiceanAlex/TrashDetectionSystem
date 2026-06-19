@@ -15,7 +15,7 @@
           <span class="inline-flex text-xs font-normal ml-2 px-2 py-0.5 rounded-full align-middle" style="background:rgba(255,255,255,.2);color:#fff">ADMIN</span>
         </p>
         <p class="text-sm mt-1 leading-snug" style="color:rgba(167,243,208,.85)">
-          Panou de control pentru monitorizare si validarea incidentelor.
+          Panou de control pentru monitorizare și validarea incidentelor.
         </p>
       </div>
     </div>
@@ -37,7 +37,7 @@
     </div>
   </div>
 
-  <!-- Hero banner — USER (operator) -->
+  <!-- Hero banner — UTILIZATOR -->
   <div x-show="!isAdmin" class="rounded-2xl p-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
        style="background:linear-gradient(135deg,#1e3a5f 0%,#1d4ed8 55%,#2563eb 100%);box-shadow:0 8px 32px rgba(37,99,235,.25)">
     <div class="flex items-start gap-4 min-w-0 w-full sm:w-auto">
@@ -48,7 +48,7 @@
       <div class="flex-1 min-w-0">
         <p class="text-base font-bold leading-tight" style="color:#fff">
           Bună, <span x-text="user?.username ?? ''"></span>
-          <span class="inline-flex text-xs font-normal ml-2 px-2 py-0.5 rounded-full align-middle" style="background:rgba(255,255,255,.2);color:#fff">OPERATOR</span>
+          <span class="inline-flex text-xs font-normal ml-2 px-2 py-0.5 rounded-full align-middle" style="background:rgba(255,255,255,.2);color:#fff">UTILIZATOR</span>
         </p>
         <p class="text-sm mt-1 leading-snug break-words" style="color:rgba(191,219,254,.85)">
           <span x-text="org?.name ?? 'Organizație'"></span>
@@ -63,12 +63,12 @@
       @mouseleave="$el.style.background='rgba(255,255,255,.15)'">
       <i data-lucide="alert-triangle" class="w-4 h-4"></i>
       Incidente
-      <span x-show="(dashB2B?.pending_review??0) > 0" class="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
+      <span x-show="(dashB2B?.pending_review ?? 0) > 0" class="w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center"
         style="background:#ef4444;color:#fff" x-text="dashB2B?.pending_review"></span>
     </button>
   </div>
 
-  <!-- KPI grid: un singur rând coerent pe desktop, fara carduri duplicate -->
+  <!-- KPI grid: un singur rând coerent pe desktop, fără carduri duplicate -->
   <div class="dashboard-kpis">
     <button @click="goTo('incidents')" class="dashboard-kpi dashboard-kpi--neutral">
       <span>Azi</span>
@@ -128,7 +128,8 @@
             x-text="opt.l"
             class="px-3.5 py-1.5 text-xs font-semibold transition-all duration-150 whitespace-nowrap"
             :style="chartPeriod === opt.v
-              ? 'background:#059669;color:#fff;box-shadow:none'
+              ?
+               'background:#059669;color:#fff;box-shadow:none'
               : 'background:transparent;color:var(--tx-secondary);border-right:1px solid var(--bg-border)'">
           </button>
         </template>
@@ -207,14 +208,15 @@
             <div class="flex-1 text-center">
               <span class="text-[9px] leading-tight block"
                 :style="p.day===new Date().toISOString().slice(0,10)
-                  ? 'color:#059669;font-weight:700'
+                  ?
+                   'color:#059669;font-weight:700'
                   : 'color:var(--tx-muted)'"
                 x-text="(function(){
                   const d = new Date(p.day+'T12:00:00');
                   const dn = d.getDate();
                   if (chartPeriod !== '30d') return d.toLocaleDateString('ro-RO',{day:'2-digit',month:'short'});
-                  return (dn===1||dn===6||dn===11||dn===16||dn===21||dn===26)
-                    ? d.toLocaleDateString('ro-RO',{day:'2-digit',month:'short'}) : '';
+                   return (dn===1||dn===6||dn===11||dn===16||dn===21||dn===26)
+                      ? d.toLocaleDateString('ro-RO',{day:'2-digit',month:'short'}) : '';
                 })()">
               </span>
             </div>
@@ -295,7 +297,7 @@
             <div class="w-12 h-10 rounded-lg overflow-hidden shrink-0"
                  style="border:1px solid var(--bg-border);background:var(--bg-raised)">
               <template x-if="ev.thumbnail_path">
-                <img :src="'/littering/'+ev.thumbnail_path"
+                <img :src="eventMediaUrl(ev, 'thumbnail')"
                      class="w-full h-full object-cover"/>
               </template>
               <template x-if="!ev.thumbnail_path">
@@ -310,11 +312,14 @@
               <div class="flex items-center gap-1.5 flex-wrap">
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
                   :style="ev.status==='pending'
-                    ? 'background:rgba(245,158,11,.18);color:'+(darkMode?'#fbbf24':'#d97706')
+                    ?
+                     'background:rgba(245,158,11,.18);color:'+(darkMode?'#fbbf24':'#d97706')
                     : ev.status==='forwarded'
-                    ? 'background:rgba(59,130,246,.18);color:'+(darkMode?'#60a5fa':'#1d4ed8')
+                      ?
+                     'background:rgba(59,130,246,.18);color:'+(darkMode?'#60a5fa':'#1d4ed8')
                     : ev.status==='reviewed'
-                    ? 'background:rgba(16,185,129,.18);color:'+(darkMode?'#10b981':'#047857')
+                      ?
+                     'background:rgba(16,185,129,.18);color:'+(darkMode?'#10b981':'#047857')
                     : 'background:rgba(107,114,128,.18);color:'+(darkMode?'#9ca3af':'#64748b')"
                   x-text="ev.status==='pending'?'Așteptare':ev.status==='forwarded'?'Arhivat':ev.status==='reviewed'?'Confirmat':'Fals pozitiv'">
                 </span>

@@ -77,7 +77,7 @@ function authApp() {
           showToast(`Bine ai revenit, ${this.user.username}!`);
           window.dispatchEvent(new CustomEvent('eco:authChanged'));
         } else {
-          throw new Error('Raspuns invalid de la server');
+          throw new Error('Răspuns invalid de la server');
         }
       } catch (e) {
         showToast(e.message, 'error');
@@ -103,7 +103,7 @@ function authApp() {
           body: JSON.stringify(this.registerData)
         });
 
-        showToast('Cont creat cu succes! Te poți loga acum.');
+        showToast('Cont creat cu succes! Te poți autentifica acum.');
         this.authMode = 'login';
         this.loginData.username = this.registerData.username;
         this.showPasswordRules = false;
@@ -130,8 +130,12 @@ function authApp() {
       this.token = null;
       this.user = null;
       this.isLoggedIn = false;
+      this.loginData = { username: '', password: '' };
+      this.registerData = { username: '', email: '', password: '' };
+      this.passwordScore = 0;
+      this.showPasswordRules = false;
       clearAuthToken();
-      showToast('Te-ai delogat cu succes.');
+      showToast('Te-ai deconectat cu succes.');
       window.dispatchEvent(new CustomEvent('eco:authChanged'));
     },
 

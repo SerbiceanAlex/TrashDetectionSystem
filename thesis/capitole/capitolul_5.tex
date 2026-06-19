@@ -1,11 +1,275 @@
-\chapter{Testare, Rezultate și Comparație}
+\chapter{Testare, Rezultate și Interpretare}
 
-\section{Metodologia experimentală și strategia de testare}
+Acest capitol prezintă modul în care sistemul este verificat și interpretat ca ansamblu integrat. Testarea nu se limitează la performanța modelului de detecție, deoarece aplicația propusă are mai multe componente care trebuie să funcționeze împreună: detectorul de deșeuri, clasificatorul de material, algoritmul temporal, backendul, baza de date, stocarea locală și interfața web.
 
-\section{Rezultatele componentelor: detector și clasificator}
+Pentru a evita o interpretare incompletă, evaluarea este organizată pe trei niveluri. Primul nivel urmărește performanța modelelor pe seturile de test. Al doilea nivel verifică fluxul video și semnalarea incidentelor în scenarii controlate sau în clipuri de verificare. Al treilea nivel validează comportamentul aplicației web din perspectiva utilizatorului responsabil și a administratorului. Accentul este pus pe coerența metodologiei, pe integrarea componentelor și pe criteriile prin care rezultatele pot fi reproduse și extinse.
 
-\section{Evaluarea algoritmului temporal pe clipuri video}
+\section{Strategia de testare a sistemului}
 
-\section{Comparație cu sisteme similare din literatură}
+Strategia de testare urmează metodologia pe trei niveluri descrisă în capitolul anterior: evaluarea detectorului pe subsetul de test, evaluarea clasificatorului de material pe clase și evaluarea fluxului video cu algoritmul temporal, completate de validarea funcțională a aplicației web. O detecție corectă în imagine nu este suficientă dacă incidentul nu este salvat în baza de date, dacă dovada locală lipsește sau dacă administratorul nu poate modifica statusul. Din acest motiv, testarea urmărește atât performanța algoritmică, cât și stabilitatea operațională.
 
-\section{Provocări tehnice și direcții viitoare de dezvoltare}
+Pentru fiecare test se notează contextul de rulare: modelul folosit, setul de date, pragurile de încredere, sursa video și observațiile relevante, deoarece rezultatele pot depinde de pragul detectorului, de lumină, de unghiul camerei, de dimensiunea obiectului și de durata secvenței analizate.
+
+\section{Evaluarea detectorului de deșeuri}
+
+Detectorul de deșeuri este evaluat pe subsetul de test al setului \texttt{parks\_detect\_final}. Acest subset nu este folosit la antrenare, ceea ce permite o estimare mai corectă a capacității modelului de a generaliza pe imagini noi. Deoarece detectorul are o singură clasă, \texttt{trash}, accentul cade pe localizarea obiectului și pe echilibrul dintre detecțiile corecte și cele false.
+
+Modelul activ al aplicației este păstrat în directorul de producție al detectorului, în fișierul \texttt{best.pt}. Pentru reproducerea evaluării, acesta se rulează pe subsetul de test definit în fișierul \texttt{dataset.yaml} al setului \texttt{parks\_detect\_final}. Semnificația metricilor folosite (precizie, recall, F1, mAP@50 și mAP@50--95) a fost prezentată în capitolul de fundamente teoretice, astfel încât aici accentul cade direct pe valorile obținute și pe interpretarea lor.
+
+Rezultatele obținute pe subsetul de test sunt prezentate în Tabelul~\ref{tab:valori-detector}. Evaluarea a fost realizată pe 780 de imagini din setul \texttt{parks\_detect\_final}, folosind modelul promovat în directorul de producție al detectorului. Pentru a lega valorile numerice de comportamentul vizual al modelului, rezultatele sunt prezentate în două forme complementare: tabelul sintetizează metricile, iar Figura~\ref{fig:predictii-detector-final} oferă exemple de localizare pe imagini din subsetul de test.
+
+\begin{table}[H]
+\centering
+\begingroup
+\small
+\setstretch{1.0}
+\renewcommand{\arraystretch}{1.08}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{5.4cm}|>{\centering\arraybackslash}p{3.2cm}|>{\raggedright\arraybackslash}p{5cm}|}
+\hline
+\textbf{Indicator} & \textbf{Valoare} & \textbf{Interpretare în lucrare} \\
+\hline
+Precizie & 0,9234 & Majoritatea detecțiilor raportate sunt corecte. \\
+\hline
+Recall & 0,8229 & Modelul poate rata unele obiecte mici, parțial acoperite sau slab vizibile. \\
+\hline
+F1 & 0,8703 & Există echilibru bun între precizie și recall. \\
+\hline
+mAP@50 & 0,9102 & Localizarea este stabilă la prag IoU de 0,50. \\
+\hline
+mAP@50--95 & 0,6834 & Casetele rămân rezonabile și la praguri mai stricte. \\
+\hline
+\end{tabular}
+\endgroup
+\caption{Rezultatele detectorului de deșeuri pe subsetul de test}
+\label{tab:valori-detector}
+\end{table}
+
+Figura~\ref{fig:predictii-detector-final} prezintă predicții obținute cu modelul final promovat în aplicație. Exemplele sunt selectate din imagini cu contexte apropiate de tema lucrării, precum vegetație, alei, nisip, garduri și margini de carosabil, pentru a evita folosirea unor capturi izolate care nu reprezintă scenariul de monitorizare urbană.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{figuri/imagini/exemple_predictii_detector_final.png}
+\caption{Exemple de predicții generate de detectorul final pe imagini din subsetul de test}
+\label{fig:predictii-detector-final}
+\end{figure}
+
+Pe baza acestor rezultate, precizia și recall-ul trebuie analizate împreună. O precizie mare, dar cu recall mic, ar însemna că modelul raportează puține alerte false, însă poate rata multe obiecte reale. Un recall mare, dar cu precizie scăzută, ar produce multe detecții false și ar încărca inutil fluxul de validare. Pentru aplicația de față este important un echilibru, deoarece incidentul final este verificat de om, dar numărul alertelor inutile trebuie menținut redus.
+
+Pe lângă valorile numerice, interpretarea detectorului trebuie să includă exemple reprezentative: imagini cu detecții corecte, imagini cu obiecte ratate și cazuri în care fundalul poate fi confundat cu un deșeu. Aceste exemple sunt necesare deoarece valorile numerice nu explică singure cauza erorilor.
+
+\section{Evaluarea clasificatorului de material}
+
+Clasificatorul de material completează detectorul. După ce obiectul este localizat, regiunea detectată este decupată și transmisă clasificatorului, care estimează categoria materialului. Modelul activ este păstrat în \texttt{models/classify/B2/best.pt}, iar evaluarea se face pe subsetul de test al setului \texttt{trashnet\_cls}.
+
+Pentru această componentă, acuratețea globală trebuie completată cu analiza pe clase. Dacă o clasă este mai rară sau are exemple vizual asemănătoare cu altă clasă, acuratețea globală poate ascunde erori importante. De exemplu, hârtia și plasticul pot fi confundate în imagini cu lumină slabă, iar sticla transparentă poate deveni dificilă pe fundal luminos.
+
+Evaluarea pe subsetul de test include 257 de imagini, împărțite în cele cinci clase ale setului \texttt{trashnet\_cls}. Rezultatele sintetice sunt prezentate în Tabelul~\ref{tab:valori-clasificator}. Valoarea mai mică pentru clasa \texttt{other} este explicabilă prin numărul redus de exemple și prin caracterul ambiguu al acestei clase.
+
+\begin{table}[!htbp]
+\centering
+\begingroup
+\small
+\setstretch{1.0}
+\renewcommand{\arraystretch}{1.08}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{2.25cm}|>{\centering\arraybackslash}p{1.7cm}|>{\centering\arraybackslash}p{2.45cm}|>{\centering\arraybackslash}p{2.45cm}|>{\centering\arraybackslash}p{2.45cm}|}
+\hline
+\textbf{Clasă} & \textbf{Suport} & \textbf{Precizie} & \textbf{Recall} & \textbf{F1} \\
+\hline
+glass & 51 & 0,9000 & 0,8824 & 0,8911 \\
+\hline
+metal & 41 & 0,8636 & 0,9268 & 0,8941 \\
+\hline
+other & 15 & 0,7333 & 0,7333 & 0,7333 \\
+\hline
+paper & 101 & 0,9515 & 0,9703 & 0,9608 \\
+\hline
+plastic & 49 & 0,9556 & 0,8776 & 0,9149 \\
+\hline
+\textbf{Global} & \textbf{257} & \textbf{0,8808} & \textbf{0,8781} & \textbf{0,8788} \\
+\hline
+\end{tabular}
+\endgroup
+\caption{Rezultatele clasificatorului de material pe subsetul de test}
+\label{tab:valori-clasificator}
+\end{table}
+
+\begin{table}[!htbp]
+\centering
+\begingroup
+\footnotesize
+\setstretch{1.0}
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{2.25cm}|>{\centering\arraybackslash}p{2.35cm}|>{\centering\arraybackslash}p{2.35cm}|>{\centering\arraybackslash}p{2.35cm}|>{\centering\arraybackslash}p{2.35cm}|>{\centering\arraybackslash}p{2.35cm}|}
+\hline
+\textbf{Clasă reală / prezisă} & \textbf{glass} & \textbf{metal} & \textbf{other} & \textbf{paper} & \textbf{plastic} \\
+\hline
+glass & 45 (88\%) & 4 (8\%) & 0 (0\%) & 0 (0\%) & 2 (4\%) \\
+\hline
+metal & 2 (5\%) & 38 (93\%) & 1 (2\%) & 0 (0\%) & 0 (0\%) \\
+\hline
+other & 0 (0\%) & 0 (0\%) & 11 (73\%) & 4 (27\%) & 0 (0\%) \\
+\hline
+paper & 0 (0\%) & 2 (2\%) & 1 (1\%) & 98 (97\%) & 0 (0\%) \\
+\hline
+plastic & 3 (6\%) & 0 (0\%) & 2 (4\%) & 1 (2\%) & 43 (88\%) \\
+\hline
+\end{tabular}
+\endgroup
+\caption{Matricea de confuzie a clasificatorului de material pe subsetul de test}
+\label{tab:matrice-confuzie-clasificator}
+\end{table}
+
+Valorile din Tabelul~\ref{tab:matrice-confuzie-clasificator} includ numărul de imagini și procentul raportat la clasa reală. Diagonala principală indică predicțiile corecte, iar valorile din afara diagonalei arată confuziile dintre materiale. Cea mai vizibilă confuzie apare la clasa \texttt{other}, unde 27\% dintre exemple sunt încadrate ca \texttt{paper}, ceea ce confirmă caracterul ambiguu al acestei categorii.
+
+O clasificare greșită a materialului nu invalidează incidentul, deoarece materialul este folosit ca metadată pentru filtrare și raportare, însă confuziile identificate mai sus indică unde estimarea trebuie privită cu prudență.
+
+\section{Evaluarea fluxului video și a algoritmului temporal}
+
+Evaluarea fluxului video este partea cea mai importantă pentru obiectivul practic al lucrării. Sistemul nu trebuie să detecteze doar un obiect, ci să observe apariția acestuia într-un context temporal. Din acest motiv, testele video includ atât scenarii cu incident real, cât și scenarii fără incident, pentru a observa dacă aplicația evită alertele nejustificate.
+
+Scenariile propuse pentru testare sunt prezentate în Tabelul~\ref{tab:scenarii-video}. Ele pot fi rulate controlat, cu mai multe materiale și mai multe distanțe față de cameră, iar clipurile folosite în dezvoltare pot servi ca verificare preliminară a fluxului.
+
+\begin{table}[!htbp]
+\centering
+\begingroup
+\small
+\setstretch{1.0}
+\renewcommand{\arraystretch}{1.08}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{3.15cm}|>{\raggedright\arraybackslash}p{6.25cm}|>{\raggedright\arraybackslash}p{4.1cm}|}
+\hline
+\textbf{Scenariu} & \textbf{Scopul testului} & \textbf{Rezultat urmărit} \\
+\hline
+Aruncare efectivă & Persoana aruncă obiectul, iar obiectul rămâne în cadru după plecare. & Incident creat cu dovadă locală. \\
+\hline
+Obiect existent & Obiectul este deja în scenă înainte de pornirea monitorizării. & Fără incident nou. \\
+\hline
+Trecere fără aruncare & Persoana traversează zona, dar nu lasă niciun obiect. & Fără alertă. \\
+\hline
+Obiect ridicat din nou & Persoana lasă temporar obiectul, apoi îl ia înapoi. & Evitarea alertei finale. \\
+\hline
+Ocluzie parțială & Obiectul este vizibil incomplet sau trece prin zone aglomerate. & Observarea limitelor detectorului și trackingului. \\
+\hline
+\end{tabular}
+\endgroup
+\caption{Scenarii video pentru evaluarea algoritmului temporal}
+\label{tab:scenarii-video}
+\end{table}
+
+Pentru fiecare clip se notează: durata, materialul obiectului, unghiul camerei, momentul aproximativ al aruncării, dacă alerta a fost creată, momentul primei alerte și dacă au apărut duplicate. În cazul unui incident detectat, se verifică și existența thumbnailului, a clipului scurt și a metadatelor salvate în baza de date.
+
+\subsection{Test controlat cu aplicația în monitorizare live}
+
+Scenariul de aruncare efectivă a fost executat controlat cu aplicația pornită în modul de monitorizare live, folosind camera unui telefon conectat prin HTTPS la serverul local. Persoana de test a intrat în cadru cu un obiect de tip deșeu, l-a lăsat pe sol și a părăsit zona monitorizată. Sistemul a parcurs stările \texttt{PERSON\_PRESENT} și \texttt{MONITORING}, a identificat apariția obiectului nou în zona asociată persoanei și a creat automat incidentul, împreună cu thumbnailul adnotat, clipul de dovadă cu cadrele dinainte și de după incident și estimarea materialului obiectului.
+
+Testul confirmă fluxul complet de la captura camerei până la dovada locală: incidentul apare în lista de incidente cu status \texttt{pending}, iar clipul salvat conține adnotările generate de sistem (obiectele detectate, persoana și regiunea declanșatoare). Același comportament a fost verificat și pentru scenariile negative: un obiect aflat deja în scenă la pornirea monitorizării nu generează alertă, iar simpla trecere a unei persoane prin cadru nu deschide un incident.
+
+\subsection{Evaluarea pe setul de clipuri etichetate}
+
+Pentru evaluarea sistematică a algoritmului temporal a fost colectat un set de 35 de clipuri de verificare, etichetate manual într-un manifest cu rezultatul așteptat. Deoarece sistemul este proiectat pentru o cameră fixă de monitorizare, fiecare clip a fost verificat individual față de acest scenariu de operare: au fost păstrate în scor doar înregistrările continue, filmate cu cameră statică. Au rezultat 14 clipuri valide --- 8 pozitive (conțin un act de aruncare sau abandonare) și 6 negative (parcuri, treceri de persoane, plecarea unui vehicul) --- iar 21 de clipuri au fost excluse motivat: compilații și segmente de televiziune cu tăieturi de scenă sau grafică suprapusă, respectiv filmări cu camera în mișcare (ținută în mână sau montată pe vehicul), incompatibile cu ipoteza camerei statice. Evaluarea a rulat pipeline-ul complet al aplicației, cu prag de detecție 0,30, prag de persoană 0,40, dimensiune de inferență 640 și analiză la fiecare al doilea cadru. Rezultatele la nivel de incident sunt sintetizate în Tabelul~\ref{tab:rezultate-video}.
+
+\begin{table}[H]
+\centering
+\begingroup
+\small
+\setstretch{1.0}
+\renewcommand{\arraystretch}{1.08}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{7.2cm}|>{\centering\arraybackslash}p{3.4cm}|}
+\hline
+\textbf{Indicator (nivel de incident)} & \textbf{Valoare} \\
+\hline
+Clipuri pozitive cu incident semnalat (TP) & 5 din 8 \\
+\hline
+Clipuri pozitive fără alertă (FN) & 3 din 8 \\
+\hline
+Clipuri negative fără alertă (TN) & 5 din 6 \\
+\hline
+Clipuri negative cu alertă falsă (FP) & 1 din 6 \\
+\hline
+Precizie & 0,833 \\
+\hline
+Recall & 0,625 \\
+\hline
+Scor F1 & 0,714 \\
+\hline
+Viteză medie de procesare & $\approx$13 cadre/s (RTX 3050, 4GB) \\
+\hline
+\end{tabular}
+\endgroup
+\caption{Rezultatele detecției incidentelor pe setul de clipuri etichetate}
+\label{tab:rezultate-video}
+\end{table}
+
+Rezultatele arată un compromis asumat: precizia ridicată (0,833) înseamnă că alertele emise sunt în mare majoritate justificate, iar costul este un recall moderat (0,625) pe scenele dificile. Cele trei clipuri pozitive ratate au o cauză comună: obiectul aruncat este foarte mic raportat la cadru (de exemplu, un obiect aruncat dintr-o mașină în trecere sau o scenă nocturnă), sub pragul de detecție și de stabilitate a trackingului cerute de profilul de rulare. Acest comportament concordă cu observațiile din testele live, unde detecția este fiabilă până la aproximativ 2--3 metri de cameră și scade odată cu distanța. Singura alertă falsă provine dintr-o situație vizuală cu adevărat ambiguă: un clip cu voluntari care strâng saci de gunoi într-un parc --- tipar vizual aproape identic cu abandonarea (persoană lângă obiect de tip deșeu, urmată de plecare).
+
+Rezultatul așteptat nu este lipsa totală a erorilor, ci un comportament coerent. Un sistem realist poate rata un obiect foarte mic sau poate produce o alertă falsă într-o scenă dificilă. Important este ca aceste erori să fie identificate, explicate și legate de o cauză tehnică: detector, clasificator, tracking, praguri sau calitatea filmării.
+
+\section{Validarea funcțională a aplicației web}
+
+Pe lângă testarea modelelor, aplicația trebuie verificată ca sistem informatic complet. Validarea funcțională urmărește dacă utilizatorii pot lucra cu platforma fără pași ambigui și dacă datele sunt păstrate corect. Cazurile principale de testare sunt prezentate în Tabelul~\ref{tab:testare-web}.
+
+\begin{table}[!htbp]
+\centering
+\begingroup
+\small
+\setstretch{1.0}
+\renewcommand{\arraystretch}{1.08}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{3.15cm}|>{\raggedright\arraybackslash}p{6.45cm}|>{\raggedright\arraybackslash}p{3.9cm}|}
+\hline
+\textbf{Funcționalitate} & \textbf{Comportament verificat} & \textbf{Criteriu de acceptare} \\
+\hline
+Autentificare & Logare, token, separarea rolurilor și accesul la paginile permise. & Acces permis doar după autentificare. \\
+\hline
+Upload video & Încărcarea fișierului, procesarea și descărcarea rezultatului adnotat. & Fișier procesat fără pierderea rezultatului. \\
+\hline
+Monitorizare live & Trimiterea cadrelor prin WebSocket și afișarea detecțiilor. & Cadre analizate și afișate în interfață. \\
+\hline
+Incidente & Deschiderea incidentului, vizualizarea dovezilor și modificarea notelor. & Detaliile se salvează în baza de date. \\
+\hline
+Administrare & Schimbarea statusului, arhivarea, respingerea și ștergerea definitivă. & Statusul se modifică fără duplicarea fișierelor. \\
+\hline
+Stocare locală & Verificarea faptului că statusul nu dublează fișierele, iar ștergerea elimină dovezile. & Spațiul se eliberează doar la ștergere/retenție. \\
+\hline
+\end{tabular}
+\endgroup
+\caption{Cazuri principale de testare funcțională a aplicației web}
+\label{tab:testare-web}
+\end{table}
+
+În validarea funcțională, cele două roluri sunt verificate separat. Utilizatorul responsabil trebuie să poată porni monitorizarea, încărca videoclipuri și consulta incidentele la care are acces. Administratorul trebuie să poată gestiona utilizatorii, să modifice statusul incidentelor, să adauge note, să șteargă definitiv dovezile și să consulte stocarea locală.
+
+Figura~\ref{fig:lista-incidente} prezintă panoul de incidente după sesiunile de testare live: fiecare incident detectat are dovadă video, material estimat cu scor de încredere și status de validare, iar filtrarea se poate face după status și material. Incidentele generate în testele controlate au fost verificate individual și confirmate de administrator, ceea ce validează fluxul complet detecție--dovadă--decizie umană.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{capturi_aplicatie/10_lista_incidente.png}
+\caption{Panoul de incidente după testele live: dovezi video, material estimat, scoruri de încredere, statusuri de validare și filtre}
+\label{fig:lista-incidente}
+\end{figure}
+
+\section{Analiza erorilor și interpretarea rezultatelor}
+
+Analiza erorilor pe clipurile de verificare a condus la două îmbunătățiri structurale ale algoritmului temporal. În prima versiune, orice obiect nou apărut oriunde în cadru, în fereastra de monitorizare, era tratat ca incident; pe un clip dificil, cu mai multe persoane și vehicule, acest comportament producea opt alerte în aproximativ două minute și jumătate, multe declanșate de vehicule sau de reidentificări ale trackerului. Versiunea finală impune condiția ca obiectul nou să apară în interiorul zonei extinse în care persoana a fost văzută ultima dată, iar fereastra de confirmare anulează candidatul dacă persoana revine în zona dovezii (situația în care obiectul este ridicat înapoi). Aceste două condiții au eliminat complet alertele false produse anterior de vehicule și de obiecte mari de fundal (un autoturism, respectiv un container erau raportate ca „obiect nou”), fără a pierde incidentul real din testul controlat. Pe setul etichetat, alertele false rămase provin exclusiv din scene în care tiparul vizual persoană--deșeu--plecare există efectiv, dar fără intenție de abandonare (de exemplu, colectarea voluntară a deșeurilor).
+
+Dincolo de aceste corecții, analiza erorilor se realizează prin legarea fiecărei probleme de componenta care a produs-o. Dacă obiectul nu apare în lista de detecții, eroarea aparține detectorului sau calității imaginii. Dacă obiectul este detectat, dar materialul este greșit, eroarea aparține clasificatorului. Dacă obiectul este detectat corect, dar incidentul nu este creat, problema este în logica temporală sau în condițiile de confirmare. Dacă incidentul este creat, dar nu poate fi modificat în interfață, problema aparține aplicației web sau permisiunilor.
+
+Această separare este utilă deoarece sistemul este compus din mai multe etape. O valoare bună a detectorului nu garantează automat un flux video bun, iar o interfață funcțională nu compensează un model care ratează obiectele. Evaluarea finală trebuie, prin urmare, să combine metrici cantitative cu observații calitative.
+
+Comparativ cu o abordare bazată doar pe detecția statică a obiectelor, soluția implementată introduce două niveluri suplimentare: clasificarea materialului și analiza temporală a scenei. Această alegere face sistemul mai potrivit pentru scenarii de monitorizare, deoarece incidentul este legat de evoluția scenei, nu doar de prezența unui obiect într-o imagine. În același timp, soluția rămâne dependentă de calitatea datelor și de stabilitatea trackingului, ceea ce trebuie menționat ca limitare.
+
+\section{Direcții viitoare de dezvoltare}
+
+Sistemul poate fi îmbunătățit în mai multe direcții. Prima direcție este extinderea setului de date cu filmări reale din mai multe zone, anotimpuri și condiții de lumină. A doua direcție este calibrarea distanțelor în funcție de poziția camerei, pentru ca relația persoană--obiect să fie estimată mai stabil. A treia direcție este folosirea unor mecanisme mai robuste de tracking, mai ales pentru scene aglomerate sau obiecte parțial ascunse.
+
+O altă direcție este integrarea notificărilor externe, de exemplu trimiterea unui raport către un responsabil după confirmarea manuală a incidentului. De asemenea, aplicația poate fi extinsă pentru mai multe camere active simultan, cu statistici pe locații și perioade. Pentru utilizare operațională, ar fi necesară și o analiză mai detaliată a protecției datelor, inclusiv reguli clare pentru anonimizare, retenție și acces la dovezi.
+
+O direcție cu potențial ridicat este reantrenarea periodică a detectorului folosind chiar incidentele validate în aplicație. Fluxul de lucru existent produce în mod natural date etichetate: fiecare incident confirmat de administrator conține cadre reale din mediul monitorizat, cu obiectul abandonat vizibil, iar incidentele respinse ca fals pozitive indică exact tiparele vizuale care induc modelul în eroare. Colectarea acestor exemple într-un set de reantrenare ar adapta treptat detectorul la condițiile specifice fiecărei locații --- iluminare, fundal, tipuri de deșeuri frecvente --- și ar reduce în timp atât ratările, cât și alertele false, fără efort suplimentar de etichetare manuală.
+
+În privința instalării operaționale, varianta naturală de evoluție este un server dedicat cu placă video, conectat la camere fixe prin fluxuri RTSP, cu praguri de detecție calibrate separat pentru fiecare cameră în funcție de distanța și unghiul de montare. Limita de detecție observată în teste, de aproximativ 2--3 metri pentru camera de telefon, s-ar putea extinde semnificativ cu camere de supraveghere cu rezoluție mai mare și cu decuparea inteligentă a zonelor de interes din cadru înainte de inferență.
+
+Capitolul stabilește cadrul de evaluare necesar pentru verificarea sistemului și pentru reluarea testelor în condiții reproductibile. Rezultatele trebuie interpretate ca validare de concept și ca verificare a fluxului informatic, nu ca evaluare operațională pe scară largă. Toate valorile raportate provin din rulări care pot fi reproduse cu scripturile de evaluare păstrate în proiect: evaluarea detectorului și a clasificatorului pe subseturile de test, respectiv evaluarea fluxului video pe setul de clipuri etichetate în manifest. Această trasabilitate, împreună cu separarea dintre modelele de producție și experimentele de lucru, permite reluarea oricărui experiment din lucrare pe aceeași configurație sau pe una echivalentă. În ansamblu, rezultatele capitolului susțin obiectivul central al lucrării: transformarea unei detecții vizuale brute într-un incident verificabil, însoțit de dovezi locale și integrat într-un flux de lucru cu validare umană.
+
+O observație metodologică finală privește dimensiunea setului de evaluare video. Numărul de clipuri publice care respectă simultan condițiile scenariului --- cameră fixă, înregistrare continuă, act de aruncare vizibil --- este limitat, iar acest lucru restrânge setul valid de evaluare. Concluziile cantitative trebuie citite în această lumină: ele indică tendințe clare și cauze de eroare identificabile, nu intervale statistice strânse. Extinderea setului cu filmări proprii, realizate controlat în mai multe locații și condiții de iluminare, este pasul natural pentru consolidarea acestor rezultate.

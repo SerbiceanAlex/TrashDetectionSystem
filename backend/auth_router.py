@@ -76,11 +76,11 @@ async def register_user(
     # Check if username or email exists
     result_u = await session.execute(select(db.User).where(db.User.username == user_in.username))
     if result_u.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=400, detail="Username already registered")
+        raise HTTPException(status_code=400, detail="Numele de utilizator este deja înregistrat.")
         
     result_e = await session.execute(select(db.User).where(db.User.email == user_in.email))
     if result_e.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Emailul este deja înregistrat.")
 
     hashed_pw = auth.get_password_hash(user_in.password)
 

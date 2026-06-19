@@ -44,7 +44,7 @@ function ecoApp() {
       return (this.dashB2B?.material_distribution || []).reduce((s, m) => s + m.count, 0);
     },
 
-    /* ── Nav tabs — minimal demo (Dashboard + Monitor + Incidente) ──── */
+    /* ── Core navigation tabs (Dashboard + Monitor + Incidente) ──── */
     tabs: [
       {
         id: 'dashboard', label: 'Dashboard', short: 'Dashboard',
@@ -111,9 +111,13 @@ function ecoApp() {
 
       window.addEventListener('eco:authChanged', async () => {
         if (this.isLoggedIn) {
+          // După autentificare, utilizatorul ajunge întotdeauna pe dashboard —
+          // nu rămâne pe tab-ul (posibil gol) pe care era înainte de login.
+          this.activeTab = 'dashboard';
           await this.loadOrg();
           await this.loadDashboard();
           this._setupAdminTab();
+          this.$nextTick(() => this.refreshIcons());
           if (typeof this.loadVideoSessions === 'function') this.loadVideoSessions();
           this.loadNotifications();
           if (!this._notifInterval) {
@@ -170,11 +174,11 @@ function ecoApp() {
           open: true,
           title,
           message,
-          icon:         opts.icon         ?? 'alert-triangle',
-          iconColor:    opts.iconColor     ?? '#ef4444',
-          confirmText:  opts.confirmText   ?? 'Confirmă',
-          confirmColor: opts.confirmColor  ?? '#ef4444',
-          cancelText:   opts.cancelText    ?? 'Anulează',
+          icon:         opts.icon ?? 'alert-triangle',
+          iconColor:    opts.iconColor ?? '#ef4444',
+          confirmText:  opts.confirmText ?? 'Confirmă',
+          confirmColor: opts.confirmColor ?? '#ef4444',
+          cancelText:   opts.cancelText ?? 'Anulează',
           resolve,
         };
         this.$nextTick(() => { if (window.lucide) lucide.createIcons(); });
@@ -278,10 +282,7 @@ function ecoApp() {
     },
 
     get planFeatures() {
-      const plan = this.org?.plan || 'trial';
-      return {
-        webhooks: ['pro', 'enterprise'].includes(plan),
-      };
+      return {};
     },
 
     activatePlan(plan = 'pro') {
@@ -338,7 +339,13 @@ function ecoApp() {
     /* ── Admin check ─────────────────────────────────────────────────── */
     get isAdmin() { return this.user?.role === 'admin'; },
 
-    /* ── Tab-uri vizibile pe rol: operator simplu vs administrator ──── */
+    roleLabel(role) {
+      if (role === 'admin') return 'Administrator';
+      if (role === 'user') return 'Utilizator';
+      return role || '';
+    },
+
+    /* ── Tab-uri vizibile pe rol: utilizator simplu vs administrator ── */
     get visibleTabs() {
       return this.isAdmin ? [...this.tabs, this.adminTab] : this.tabs;
     },

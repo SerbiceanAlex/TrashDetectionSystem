@@ -15,13 +15,13 @@ DEFAULT_OUTPUT_DIR = REPO_ROOT / "runs" / "classify_eval"
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate a trained trash material classifier on a dataset split")
     parser.add_argument("--model", required=True, help="Classifier checkpoint path")
-    parser.add_argument("--data", default="datasets/parks_cls", help="Classification dataset root")
+    parser.add_argument("--data", default="datasets/trashnet_cls", help="Classification dataset root")
     parser.add_argument("--split", choices=("train", "val", "test"), default="test", help="Dataset split to evaluate")
     parser.add_argument("--imgsz", type=int, default=224, help="Inference image size")
     parser.add_argument("--device", default=None, help="Device to use: cpu, 0, 0,1, ...")
     parser.add_argument("--workers", type=int, default=0, help="Number of dataloader workers (0=safe on Windows)")
     parser.add_argument("--project", default=str(DEFAULT_OUTPUT_DIR), help="Directory for evaluation artifacts")
-    parser.add_argument("--name", default="parks-trash-material-cls", help="Evaluation run name")
+    parser.add_argument("--name", default="trashnet-material-cls", help="Evaluation run name")
     parser.add_argument(
         "--classes",
         nargs="+",

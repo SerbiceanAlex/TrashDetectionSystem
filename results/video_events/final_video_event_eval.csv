@@ -1,0 +1,15 @@
+clip,expected_event,outcome,events_detected,first_event_time_sec,runtime_fps
+cctv_parking_away_00001.mp4,negative,TN,0,,21.6
+cctv_parking_away_00002.mp4,negative,TN,0,,22.0
+litter_cctv_short_00002.mp4,positive,TP,1,52.35,7.8
+littering_car_toss.mp4,positive,FN,0,,22.7
+man_throws_street_00001.mp4,positive,FN,0,,12.9
+man_throws_street_00002.mp4,positive,TP,1,55.72,8.9
+park01_download_01.mp4,negative,TN,0,,2.5
+park01_download_02.mp4,negative,TN,0,,3.5
+park01_download_03.mp4,negative,TN,0,,1.1
+park01_download_04.mp4,negative,FP,1,5.04,1.9
+person_litter_full_00001.mp4,positive,TP,1,24.77,6.8
+throwing_garbage_street.mp4,positive,TP,1,29.8,13.2
+uk_fly_00001.mp4,positive,FN,0,,29.9
+uk_fly_00002.mp4,positive,TP,1,38.16,29.5

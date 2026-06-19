@@ -14,10 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Application code
 COPY backend/ backend/
 COPY frontend/ frontend/
-COPY src/ src/
 
 # Create runtime directories
-RUN mkdir -p backend/uploads backend/annotated backend/videos
+RUN mkdir -p data/runtime/uploads data/runtime/annotated data/runtime/videos data/runtime/littering
 
 # Port
 EXPOSE 8000

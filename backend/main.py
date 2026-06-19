@@ -34,20 +34,60 @@ from backend.storage_retention import cleanup_littering_evidence, storage_cleanu
 from backend import video as vid
 from backend.billing_router import router as billing_router
 
-APP_DIR = Path(__file__).parent
-UPLOADS_DIR = APP_DIR / "uploads"
-ANNOTATED_DIR = APP_DIR / "annotated"
-VIDEOS_DIR = APP_DIR / "videos"
 STATIC_DIR = settings.REPO_ROOT / "frontend" / "static"
 TEMPLATES_DIR = settings.REPO_ROOT / "frontend" / "templates"
 
-UPLOADS_DIR.mkdir(exist_ok=True)
-ANNOTATED_DIR.mkdir(exist_ok=True)
-VIDEOS_DIR.mkdir(exist_ok=True)
+UPLOADS_DIR = settings.uploads_dir
+ANNOTATED_DIR = settings.annotated_dir
+VIDEOS_DIR = settings.videos_dir
+LITTERING_DIR = settings.littering_dir
+
+for runtime_dir in settings.runtime_dirs:
+    runtime_dir.mkdir(parents=True, exist_ok=True)
 
 MAX_UPLOAD_BYTES = settings.max_upload_bytes
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+def _resolve_littering_evidence_path(stored_path: str | None) -> Path | None:
+    """Resolve a DB evidence path while keeping access inside LITTERING_DIR."""
+    if not stored_path:
+        return None
+
+    root = LITTERING_DIR.resolve()
+    raw = Path(str(stored_path))
+    candidates: list[Path] = []
+
+    if raw.is_absolute():
+        candidates.append(raw)
+    else:
+        candidates.append(root / raw)
+        candidates.append(settings.REPO_ROOT / raw)
+        if LITTERING_DIR.name in raw.parts:
+            idx = len(raw.parts) - 1 - list(reversed(raw.parts)).index(LITTERING_DIR.name)
+            suffix_parts = raw.parts[idx + 1:]
+            if suffix_parts:
+                candidates.append(root / Path(*suffix_parts))
+
+    allowed: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        resolved_key = str(resolved)
+        if resolved_key in seen:
+            continue
+        seen.add(resolved_key)
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            continue
+        allowed.append(resolved)
+
+    if not allowed:
+        logger.warning("Ignoring evidence path outside littering dir: %s", stored_path)
+        return None
+    return next((path for path in allowed if path.exists()), allowed[0])
 
 
 # ── Lifespan: load models + create DB tables on startup ──────────────────────
@@ -81,9 +121,8 @@ async def _migrate_schema():
         "ALTER TABLE users ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         "ALTER TABLE monitored_locations ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         "ALTER TABLE littering_events ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
-        "ALTER TABLE authority_contacts ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
-        "ALTER TABLE webhook_configs ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         # Video + detection session isolation
+        "ALTER TABLE video_sessions ADD COLUMN littering_count INTEGER DEFAULT 0",
         "ALTER TABLE video_sessions ADD COLUMN user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE video_sessions ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         "ALTER TABLE detection_sessions ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
@@ -109,7 +148,6 @@ async def _migrate_schema():
         await db.get_or_create_default_org(session)
     async with db.engine.begin() as conn:
         for tbl in ("users", "monitored_locations", "littering_events",
-                    "authority_contacts", "webhook_configs",
                     "video_sessions", "detection_sessions"):
             try:
                 await conn.execute(db.sa_text(
@@ -155,16 +193,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Serve annotated images at /annotated/<filename>
-app.mount("/annotated", StaticFiles(directory=str(ANNOTATED_DIR)), name="annotated")
-
-# Serve annotated videos at /videos/<filename>
-app.mount("/videos", StaticFiles(directory=str(VIDEOS_DIR)), name="videos")
-
-# Serve littering event clips and thumbnails
-LITTERING_DIR = APP_DIR / "littering"
-LITTERING_DIR.mkdir(exist_ok=True)
-app.mount("/littering", StaticFiles(directory=str(LITTERING_DIR)), name="littering")
+# Generated media files are served through authenticated API endpoints below,
+# not as public static directories.
 
 # Include Routers
 app.include_router(auth_router)
@@ -279,6 +309,8 @@ async def system_info():
             "default_det_conf": settings.DEFAULT_DET_CONF,
             "monitor_min_det_conf": settings.MONITOR_MIN_DET_CONF,
             "monitor_target_fps": settings.MONITOR_TARGET_FPS,
+            "monitor_camera_width": settings.MONITOR_CAMERA_WIDTH,
+            "monitor_camera_height": settings.MONITOR_CAMERA_HEIGHT,
             "monitor_capture_max_dim": settings.MONITOR_CAPTURE_MAX_DIM,
             "monitor_jpeg_quality": settings.MONITOR_JPEG_QUALITY,
             "monitor_trash_imgsz": settings.MONITOR_TRASH_IMGSZ,
@@ -350,6 +382,7 @@ async def detect(
         longitude=final_lng,
         address=address,
         gps_source=gps_src,
+        organization_id=current_user.organization_id if current_user else None,
         reporter_id=current_user.id if current_user else None,
         user_note=user_note.strip()[:500] if user_note else None
     )
@@ -386,7 +419,7 @@ async def detect(
         filename=det_session.filename,
         total_objects=det_session.total_objects,
         inference_ms=det_session.inference_ms,
-        annotated_url=f"/annotated/{stem}_annotated.jpg",
+        annotated_url=f"/api/detect/sessions/{det_session.id}/annotated",
         detections=[schemas.DetectionRecordOut.model_validate(r) for r in records],
         latitude=final_lat,
         longitude=final_lng,
@@ -499,6 +532,16 @@ def _can_view_video_session(user: db.User, video_session: db.VideoSession) -> bo
     return _same_video_org(user, video_session) and video_session.user_id == user.id
 
 
+def _same_detection_org(user: db.User, detection_session: db.DetectionSession) -> bool:
+    return (detection_session.organization_id or 1) == (user.organization_id or 1)
+
+
+def _can_view_detection_session(user: db.User, detection_session: db.DetectionSession) -> bool:
+    if user.role == "admin":
+        return _same_detection_org(user, detection_session)
+    return _same_detection_org(user, detection_session) and detection_session.reporter_id == user.id
+
+
 async def _user_from_bearer_or_query(
     request: Request,
     session: AsyncSession,
@@ -522,6 +565,35 @@ async def _user_from_bearer_or_query(
 
 
 @app.get(
+    "/api/detect/sessions/{session_id}/annotated",
+    summary="Download annotated image for a detection session",
+)
+async def download_detection_annotated_image(
+    session_id: int,
+    request: Request,
+    token: Optional[str] = Query(default=None),
+    session: AsyncSession = Depends(db.get_db),
+):
+    current_user = await _user_from_bearer_or_query(request, session, token)
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Autentificare necesară.")
+
+    det_session = await session.get(db.DetectionSession, session_id)
+    if det_session is None:
+        raise HTTPException(status_code=404, detail="Sesiune de detecție negăsită.")
+    if not _can_view_detection_session(current_user, det_session):
+        raise HTTPException(status_code=403, detail="Acces restricționat la această detecție.")
+    if not det_session.annotated_path:
+        raise HTTPException(status_code=404, detail="Imaginea adnotată nu este disponibilă.")
+
+    p = Path(det_session.annotated_path)
+    if not p.exists():
+        raise HTTPException(status_code=410, detail="Imaginea adnotată a fost ștearsă.")
+
+    return FileResponse(p, media_type="image/jpeg", filename=p.name)
+
+
+@app.get(
     "/api/littering/events/{event_id}",
     response_model=schemas.LitteringEventOut,
     summary="Get littering event by ID",
@@ -537,18 +609,6 @@ async def get_littering_event(
     if not _can_view_littering_event(current_user, evt):
         raise HTTPException(status_code=403, detail="Acces restricționat.")
     return evt
-
-
-def _is_demo_authority_email(email: str | None) -> bool:
-    value = (email or "").strip().lower()
-    if "@" not in value:
-        return True
-    domain = value.rsplit("@", 1)[-1]
-    return (
-        domain in {"example.local", "example.com", "localhost"}
-        or domain.endswith(".local")
-        or domain.endswith(".invalid")
-    )
 
 
 @app.patch(
@@ -585,50 +645,10 @@ async def update_littering_event_status(
     if evt is None:
         raise HTTPException(status_code=404, detail="Eveniment negăsit.")
 
-    # In the local thesis demo, "forwarded" means evidence archived/prepared.
-    # Real authority email delivery is opt-in via ENABLE_AUTHORITY_EMAILS.
+    # In the thesis build, "forwarded" is used as a local archive/prepared status.
+    # No outbound email is sent from the application.
     if body.status == "forwarded":
-        try:
-            authorities = (await session.execute(
-                db.select(db.AuthorityContact).where(
-                    db.or_(
-                        db.AuthorityContact.organization_id == (current_user.organization_id or 1),
-                        db.AuthorityContact.organization_id.is_(None),
-                    )
-                )
-            )).scalars().all()
-
-            detected_str = evt.detected_at.strftime("%d.%m.%Y %H:%M UTC") if evt.detected_at else "necunoscut"
-            real_authorities = [auth for auth in authorities if not _is_demo_authority_email(auth.email)]
-            skipped_demo = len(authorities) - len(real_authorities)
-
-            if not settings.ENABLE_AUTHORITY_EMAILS:
-                logger.info(
-                    "Incident #%d marcat 'forwarded' ca arhivare/preparare raport; email autoritate dezactivat.",
-                    evt.id,
-                )
-            elif real_authorities:
-                from backend.auth import send_forward_email
-                for auth in real_authorities:
-                    background_tasks.add_task(
-                        send_forward_email,
-                        to_email=auth.email,
-                        authority_name=auth.name,
-                        event_id=evt.id,
-                        material=evt.material or "necunoscut",
-                        detected_at=detected_str,
-                        image_hash=evt.image_hash or "",
-                        address=evt.address or "",
-                        notes=body.notes or "",
-                        admin_username=current_user.username,
-                    )
-                logger.info(f"Forward email programat pentru {len(real_authorities)} autoritate(i) — incident #{evt.id}")
-            else:
-                logger.info(f"Incident #{evt.id} arhivat; nu există email real de autoritate configurat.")
-            if skipped_demo and settings.ENABLE_AUTHORITY_EMAILS:
-                logger.info(f"Incident #{evt.id}: {skipped_demo} contact(e) demo/local ignorate pentru livrare SMTP reală.")
-        except Exception as e:
-            logger.error(f"Eroare la programarea emailului forward: {e}")
+        logger.info("Incident #%d arhivat local; livrarea prin email este dezactivată.", evt.id)
 
     return evt
 
@@ -661,16 +681,20 @@ async def update_littering_event_notes(
 )
 async def download_littering_clip(
     event_id: int,
-    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    request: Request,
+    token: Optional[str] = Query(default=None),
     session: AsyncSession = Depends(db.get_db),
 ):
+    current_user = await _user_from_bearer_or_query(request, session, token)
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Autentificare necesară.")
     evt = await db.get_littering_event_by_id(session, event_id)
     if evt is None or not evt.clip_path:
         raise HTTPException(status_code=404, detail="Clip indisponibil.")
     if not _can_view_littering_event(current_user, evt):
         raise HTTPException(status_code=403, detail="Acces restricționat.")
-    full_path = LITTERING_DIR / evt.clip_path
-    if not full_path.exists():
+    full_path = _resolve_littering_evidence_path(evt.clip_path)
+    if full_path is None or not full_path.exists():
         raise HTTPException(status_code=404, detail="Fișier clip negăsit pe disk.")
     return FileResponse(
         str(full_path),
@@ -685,23 +709,27 @@ async def download_littering_clip(
 )
 async def get_littering_thumbnail(
     event_id: int,
-    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    request: Request,
+    token: Optional[str] = Query(default=None),
     session: AsyncSession = Depends(db.get_db),
 ):
+    current_user = await _user_from_bearer_or_query(request, session, token)
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Autentificare necesară.")
     evt = await db.get_littering_event_by_id(session, event_id)
     if evt is None or not evt.thumbnail_path:
         raise HTTPException(status_code=404, detail="Thumbnail indisponibil.")
     if not _can_view_littering_event(current_user, evt):
         raise HTTPException(status_code=403, detail="Acces restricționat.")
-    full_path = LITTERING_DIR / evt.thumbnail_path
-    if not full_path.exists():
+    full_path = _resolve_littering_evidence_path(evt.thumbnail_path)
+    if full_path is None or not full_path.exists():
         raise HTTPException(status_code=404, detail="Fișier thumbnail negăsit pe disk.")
     return FileResponse(str(full_path), media_type="image/jpeg")
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------------------
 # B2B Dashboard / Locations / Reports — endpoint-uri pentru produsul B2B
-# ═══════════════════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------------------
 
 @app.get("/api/dashboard/b2b", summary="B2B dashboard — KPI + trend + recent incidents")
 async def get_dashboard_b2b(
@@ -830,6 +858,9 @@ async def test_rtsp(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
 ):
     import socket, urllib.parse
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restrictionat.")
+
     url = (body.get("rtsp_url") or "").strip()
     if not url:
         return {"ok": False, "message": "URL gol"}
@@ -917,6 +948,9 @@ async def create_location(
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restrictionat.")
+
     ML = db.MonitoredLocation
     loc = ML(
         name=payload.get("name", "").strip(),
@@ -956,17 +990,9 @@ async def delete_littering_event(
     if not _same_org(current_user, event):
         raise HTTPException(status_code=403, detail="Acces restricționat.")
 
-    # Delete physical files from the mounted evidence directory.
-    # Stored paths are relative to backend/littering.
-    evidence_root = LITTERING_DIR.resolve()
     for rel_path in (event.clip_path, event.thumbnail_path):
-        if not rel_path:
-            continue
-        candidate = (evidence_root / rel_path).resolve()
-        try:
-            candidate.relative_to(evidence_root)
-        except ValueError:
-            logger.warning("Refuz stergere fisier in afara evidence dir: %s", candidate)
+        candidate = _resolve_littering_evidence_path(rel_path)
+        if candidate is None:
             continue
         if candidate.exists() and candidate.is_file():
             candidate.unlink()
@@ -983,10 +1009,15 @@ async def update_location(
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restrictionat.")
+
     ML = db.MonitoredLocation
     loc = (await session.execute(db.select(ML).where(ML.id == loc_id))).scalar_one_or_none()
     if not loc:
         raise HTTPException(status_code=404, detail="Locație inexistentă.")
+    if (loc.organization_id or 1) != (current_user.organization_id or 1):
+        raise HTTPException(status_code=403, detail="Acces restrictionat.")
     if "name" in payload and payload["name"]: loc.name = payload["name"]
     if "address" in payload: loc.address = payload["address"]
     if "lat" in payload: loc.latitude = payload["lat"]
@@ -1004,10 +1035,15 @@ async def delete_location(
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restrictionat.")
+
     ML = db.MonitoredLocation
     loc = (await session.execute(db.select(ML).where(ML.id == loc_id))).scalar_one_or_none()
     if not loc:
         raise HTTPException(status_code=404, detail="Locație inexistentă.")
+    if (loc.organization_id or 1) != (current_user.organization_id or 1):
+        raise HTTPException(status_code=403, detail="Acces restrictionat.")
     await session.delete(loc)
     await session.commit()
     return {"deleted": True}
@@ -1170,7 +1206,7 @@ async def reports_export(
             "Material",
             "Confidenta (%)",
             "Status",
-            "Operator",
+            "Utilizator",
             "Sursa locatie",
             "Latitudine (optional)",
             "Longitudine (optional)",
@@ -1188,7 +1224,7 @@ async def reports_export(
                 material_ro.get(e.material or "unknown", e.material or "Necunoscut"),
                 round((e.det_score or 0) * 100, 1),
                 status_ro.get(e.status or "", e.status or "N/A"),
-                e.reporter_username or (f"user #{e.reporter_id}" if e.reporter_id else "legacy / neatribuit"),
+                e.reporter_username or (f"utilizator #{e.reporter_id}" if e.reporter_id else "legacy / neatribuit"),
                 _location_source(e),
                 _csv_value(e.latitude),
                 _csv_value(e.longitude),
@@ -1547,14 +1583,14 @@ async def admin_invite_user(
     if role not in ("user", "admin"):
         role = "user"
     if not username or not email:
-        raise HTTPException(status_code=422, detail="Username și email sunt obligatorii.")
+        raise HTTPException(status_code=422, detail="Numele de utilizator și emailul sunt obligatorii.")
 
     # Check duplicates
     existing = await session.execute(
         select(db.User).where(db.or_(db.User.username == username, db.User.email == email))
     )
     if existing.scalar_one_or_none() is not None:
-        raise HTTPException(status_code=400, detail="Username sau email deja folosit.")
+        raise HTTPException(status_code=400, detail="Numele de utilizator sau emailul este deja folosit.")
 
     # Generate temp password (12 chars, mixed)
     alphabet = string.ascii_letters + string.digits + "!@#$"
@@ -1580,7 +1616,7 @@ async def admin_invite_user(
         "email": new_user.email,
         "role": new_user.role,
         "dev_password": temp_password,
-        "message": "User creat. Trimite parola temporară manual.",
+        "message": "Utilizator creat. Trimite parola temporară manual.",
     }
 
 
@@ -1633,31 +1669,6 @@ async def admin_stats(
         "avg_inference_ms": 0.0,
     }
 
-
-# ── Admin: Broadcast notification ─────────────────────────────────────────────
-
-@app.post("/api/admin/broadcast", summary="[Admin] Send notification to all users")
-async def admin_broadcast(
-    body: dict,
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
-    message = (body.get("message") or "").strip()
-    if not message or len(message) > 500:
-        raise HTTPException(status_code=422, detail="Mesajul trebuie să aibă între 1 și 500 caractere.")
-    
-    users_result = await session.execute(select(db.User.id))
-    user_ids = [uid for (uid,) in users_result]
-    for uid in user_ids:
-        session.add(db.Notification(
-            user_id=uid,
-            message=message,
-            category="info",
-        ))
-    await session.commit()
-    return {"ok": True, "sent_to": len(user_ids)}
 
 
 # ── Admin: Charts data (registrations per month, reports per day, materials) ──
@@ -1772,7 +1783,7 @@ async def admin_export_users_csv(
     import io
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["ID", "Username", "Email", "Role", "Points", "Reports", "Created"])
+    writer.writerow(["ID", "Utilizator", "Email", "Rol", "Puncte", "Incidente", "Creat"])
     result = await session.execute(
         select(db.User, func.count(db.LitteringEvent.id).label("total_reports"))
         .outerjoin(db.LitteringEvent, db.LitteringEvent.reporter_id == db.User.id)
@@ -1908,224 +1919,16 @@ async def download_annotated_video(
     return FileResponse(p, media_type="video/mp4", filename=p.name)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Phase A: Authority Integration Pipeline
-# ══════════════════════════════════════════════════════════════════════════════
-
-# ── A3: Authority contacts CRUD ──────────────────────────────────────────────
-
-@app.get("/api/admin/authorities", response_model=list[schemas.AuthorityContactOut],
-         summary="[Admin] List authority contacts")
-async def admin_list_authorities(
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Doar administratorii.")
-    org_id = current_user.organization_id or 1
-    rows = await session.execute(
-        select(db.AuthorityContact)
-        .where(db.or_(db.AuthorityContact.organization_id == org_id, db.AuthorityContact.organization_id.is_(None)))
-        .order_by(db.AuthorityContact.created_at.desc())
-    )
-    return rows.scalars().all()
-
-
-@app.post("/api/admin/authorities", response_model=schemas.AuthorityContactOut,
-          summary="[Admin] Add authority contact")
-async def admin_add_authority(
-    body: schemas.AuthorityContactCreate,
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Doar administratorii.")
-    contact = db.AuthorityContact(
-        name=body.name.strip()[:200],
-        email=body.email.strip()[:200],
-        area_description=body.area_description.strip()[:500] if body.area_description else "",
-        created_by=current_user.id,
-        organization_id=current_user.organization_id or 1,
-    )
-    session.add(contact)
-    await session.commit()
-    await session.refresh(contact)
-    return contact
-
-
-@app.delete("/api/admin/authorities/{authority_id}",
-            summary="[Admin] Delete authority contact")
-async def admin_delete_authority(
-    authority_id: int,
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Doar administratorii.")
-    result = await session.execute(
-        select(db.AuthorityContact).where(db.AuthorityContact.id == authority_id)
-    )
-    contact = result.scalar_one_or_none()
-    if not contact:
-        raise HTTPException(status_code=404, detail="Contact negăsit.")
-    await session.delete(contact)
-    await session.commit()
-    return {"ok": True}
-
-
-# ── A4: Webhook CRUD + fire ──────────────────────────────────────────────────
-
-@app.get("/api/admin/webhooks", response_model=list[schemas.WebhookOut],
-         summary="[Admin] List webhook configs")
-async def admin_list_webhooks(
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Doar administratorii.")
-    org_id = current_user.organization_id or 1
-    rows = await session.execute(
-        select(db.WebhookConfig)
-        .where(db.or_(db.WebhookConfig.organization_id == org_id, db.WebhookConfig.organization_id.is_(None)))
-        .order_by(db.WebhookConfig.created_at.desc())
-    )
-    return rows.scalars().all()
-
-
-@app.post("/api/admin/webhooks", response_model=schemas.WebhookOut,
-          summary="[Admin] Create webhook config")
-async def admin_create_webhook(
-    body: schemas.WebhookCreate,
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Doar administratorii.")
-    import secrets as _secrets
-    wh = db.WebhookConfig(
-        url=body.url.strip()[:500],
-        secret=body.secret.strip()[:128] if body.secret else _secrets.token_hex(16),
-        events=body.events.strip()[:200] if body.events else "verified",
-        active=body.active,
-        created_by=current_user.id,
-        organization_id=current_user.organization_id or 1,
-    )
-    session.add(wh)
-    await session.commit()
-    await session.refresh(wh)
-    return wh
-
-
-@app.patch("/api/admin/webhooks/{webhook_id}", response_model=schemas.WebhookOut,
-           summary="[Admin] Update webhook config")
-async def admin_update_webhook(
-    webhook_id: int,
-    body: schemas.WebhookUpdate,
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Doar administratorii.")
-    result = await session.execute(
-        select(db.WebhookConfig).where(db.WebhookConfig.id == webhook_id)
-    )
-    wh = result.scalar_one_or_none()
-    if not wh:
-        raise HTTPException(status_code=404, detail="Webhook negăsit.")
-    if body.url is not None:
-        wh.url = body.url.strip()[:500]
-    if body.events is not None:
-        wh.events = body.events.strip()[:200]
-    if body.active is not None:
-        wh.active = body.active
-    await session.commit()
-    await session.refresh(wh)
-    return wh
-
-
-@app.delete("/api/admin/webhooks/{webhook_id}",
-            summary="[Admin] Delete webhook config")
-async def admin_delete_webhook(
-    webhook_id: int,
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Doar administratorii.")
-    result = await session.execute(
-        select(db.WebhookConfig).where(db.WebhookConfig.id == webhook_id)
-    )
-    wh = result.scalar_one_or_none()
-    if not wh:
-        raise HTTPException(status_code=404, detail="Webhook negăsit.")
-    await session.delete(wh)
-    await session.commit()
-    return {"ok": True}
-
-
-@app.post("/api/admin/webhooks/{webhook_id}/test",
-          summary="[Admin] Send test event to webhook")
-async def admin_test_webhook(
-    webhook_id: int,
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Doar administratorii.")
-    result = await session.execute(
-        select(db.WebhookConfig).where(db.WebhookConfig.id == webhook_id)
-    )
-    wh = result.scalar_one_or_none()
-    if not wh:
-        raise HTTPException(status_code=404, detail="Webhook negăsit.")
-
-    import httpx, hmac, hashlib, json as _json
-    payload = {"event": "test", "message": "Webhook test from TrashDet", "timestamp": datetime.now(timezone.utc).isoformat()}
-    body_bytes = _json.dumps(payload).encode()
-    sig = hmac.new(wh.secret.encode(), body_bytes, hashlib.sha256).hexdigest()
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                wh.url,
-                content=body_bytes,
-                headers={"Content-Type": "application/json", "X-TrashDet-Signature": sig},
-            )
-        return {"ok": True, "status_code": resp.status_code, "response": resp.text[:500]}
-    except Exception as e:
-        return {"ok": False, "error": str(e)[:300]}
-
-
-async def fire_webhooks(db_session: AsyncSession, event: str, payload: dict):
-    """Fire all active webhooks for a given event. Called from verification/cleanup logic."""
-    import httpx, hmac, hashlib, json as _json
-    rows = await db_session.execute(
-        select(db.WebhookConfig).where(db.WebhookConfig.active == True)
-    )
-    for wh in rows.scalars():
-        if event not in wh.events.split(","):
-            continue
-        body_bytes = _json.dumps(payload).encode()
-        sig = hmac.new(wh.secret.encode(), body_bytes, hashlib.sha256).hexdigest()
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                await client.post(
-                    wh.url,
-                    content=body_bytes,
-                    headers={"Content-Type": "application/json", "X-TrashDet-Signature": sig},
-                )
-        except Exception:
-            pass  # Don't fail main operation on webhook error
-
-
-# ══════════════════════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------------------
 # Phase B: File Management
-# ══════════════════════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------------------
 
 # ── B4: Admin storage stats ──────────────────────────────────────────────────
 
 @app.get("/api/admin/storage", summary="[Admin] Disk storage stats")
 async def admin_storage_stats(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
 ):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Doar administratorii.")
@@ -2137,25 +1940,65 @@ async def admin_storage_stats(
         total = sum(f.stat().st_size for f in files)
         return {"count": len(files), "bytes": total, "size_mb": round(total / 1024 / 1024, 2)}
 
-    CLEANED_DIR = APP_DIR / "cleaned"
-    THUMBNAILS_DIR = APP_DIR / "thumbnails"
-    AVATARS_DIR = APP_DIR / "avatars"
+    def _empty_status_stats():
+        return {"events": 0, "files": 0, "bytes": 0, "size_mb": 0}
+
+    CLEANED_DIR = settings.cleaned_dir
+    THUMBNAILS_DIR = settings.thumbnails_dir
     evidence = _dir_stats(LITTERING_DIR)
     uploads = _dir_stats(UPLOADS_DIR)
     annotated = _dir_stats(ANNOTATED_DIR)
     videos = _dir_stats(VIDEOS_DIR)
+    status_keys = ("pending", "reviewed", "forwarded", "dismissed", "other")
+    evidence_by_status = {status: _empty_status_stats() for status in status_keys}
+    seen_by_status: dict[str, set[str]] = {status: set() for status in status_keys}
+
+    org_id = current_user.organization_id or 1
+    result = await session.execute(
+        select(db.LitteringEvent).where(
+            db.or_(
+                db.LitteringEvent.organization_id == org_id,
+                db.LitteringEvent.organization_id.is_(None),
+            )
+        )
+    )
+    for event in result.scalars().all():
+        status = event.status if event.status in evidence_by_status else "other"
+        status_stats = evidence_by_status[status]
+        status_stats["events"] += 1
+        for relative_path in (event.clip_path, event.thumbnail_path):
+            candidate = _resolve_littering_evidence_path(relative_path)
+            if candidate is None or not candidate.exists() or not candidate.is_file():
+                continue
+            resolved = str(candidate)
+            if resolved in seen_by_status[status]:
+                continue
+            seen_by_status[status].add(resolved)
+            status_stats["files"] += 1
+            status_stats["bytes"] += candidate.stat().st_size
+
+    tracked_evidence_bytes = 0
+    tracked_evidence_files = 0
+    for status_stats in evidence_by_status.values():
+        status_stats["size_mb"] = round(status_stats["bytes"] / 1024 / 1024, 2)
+        tracked_evidence_bytes += status_stats["bytes"]
+        tracked_evidence_files += status_stats["files"]
+
     return {
         "uploads": uploads,
         "annotated": annotated,
         "cleaned": _dir_stats(CLEANED_DIR),
         "videos": videos,
         "evidence": evidence,
+        "evidence_by_status": evidence_by_status,
         "thumbnails": _dir_stats(THUMBNAILS_DIR),
-        "avatars": _dir_stats(AVATARS_DIR),
         "uploads_bytes": uploads["bytes"],
         "annotated_bytes": annotated["bytes"],
         "videos_bytes": videos["bytes"],
         "evidence_bytes": evidence["bytes"],
+        "evidence_tracked_bytes": tracked_evidence_bytes,
+        "evidence_tracked_files": tracked_evidence_files,
+        "evidence_orphan_bytes": max(evidence["bytes"] - tracked_evidence_bytes, 0),
     }
 
 

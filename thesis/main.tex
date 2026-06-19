@@ -17,10 +17,16 @@
 \setcounter{page}{1}
 \input{frontmatter/pagina_titlu}
 
+% Mediul titlepage reseteaza contorul la 1 la iesire; il refixam ca pagina
+% alba sa fie 2 si cuprinsul sa inceapa pe pagina IMPARA 3 (regula ghidului).
+\setcounter{page}{2}
 \blankpage
 \input{frontmatter/cuprins}
 
-\cleartooddpage
+% Regula ghidului UAB: cuprinsul, bibliografia și fiecare CAPITOL încep pe
+% pagină impară. Introducerea nu este capitol numerotat, deci poate urma
+% imediat după cuprins (pagina 4), fără pagină goală.
+\clearpage
 \input{capitole/introducere}
 
 \cleartooddpage

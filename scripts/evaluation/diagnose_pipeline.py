@@ -16,9 +16,9 @@ Default values follow the diagnostic plan:
   - positive littering-like clips from datasets/test_videos
 
 Examples:
-    .venv\\Scripts\\python.exe scripts\\diagnose_pipeline.py
-    .venv\\Scripts\\python.exe scripts\\diagnose_pipeline.py --quick
-    .venv\\Scripts\\python.exe scripts\\diagnose_pipeline.py --frame-skip 10 --max-frames 120
+    .venv\\Scripts\\python.exe scripts\\evaluation\\diagnose_pipeline.py
+    .venv\\Scripts\\python.exe scripts\\evaluation\\diagnose_pipeline.py --quick
+    .venv\\Scripts\\python.exe scripts\\evaluation\\diagnose_pipeline.py --frame-skip 10 --max-frames 120
 """
 
 from __future__ import annotations

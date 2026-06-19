@@ -107,7 +107,9 @@ def test_batch_detection(client: httpx.Client, token: str = "") -> int | None:
     # Check annotated image URL
     ann = data.get("annotated_url", "")
     if ann:
-        r2 = client.get(f"{BASE}{ann}", timeout=10)
+        sep = "&" if "?" in ann else "?"
+        authed_ann = f"{ann}{sep}token={token}" if token else ann
+        r2 = client.get(f"{BASE}{authed_ann}", timeout=10)
         if r2.status_code == 200:
             _pass(f"Imagine adnotată accesibilă: {ann}")
         else:

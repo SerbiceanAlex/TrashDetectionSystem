@@ -2,7 +2,7 @@
 test_batch_and_monitor.py
 =========================
 Testează automat:
-  1. BATCH  — trimite 5 imagini din datasets/raw/images/ la /api/detect
+  1. BATCH  — trimite 5 imagini din datasets/parks_detect_final/images/test la /api/detect
   2. MONITOR — simulează starea mașinii LitteringDetector cu frame-uri reale
                (fără cameră: folosește imaginile de park din dataset)
 
@@ -27,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 from backend.config import settings
 
 API = settings.APP_BASE_URL.rstrip("/")
-IMAGES_DIR = ROOT / "datasets" / "raw" / "images"
+IMAGES_DIR = ROOT / "datasets" / "parks_detect_final" / "images" / "test"
 BOLD = "\033[1m"
 GREEN = "\033[92m"
 RED = "\033[91m"
@@ -326,7 +326,7 @@ if __name__ == "__main__":
             ok(f"Login admin reușit (JWT obținut)")
         else:
             info("Login eșuat — unele teste vor fi skipped")
-            info("  Rulează prepare_demo_db.py pentru conturile admin/operator locale")
+            info("  Rulează prepare_local_db.py pentru conturile admin/operator locale")
 
     # ── Rulează testele ──
     test_monitor_state_machine()  # Nu necesită server

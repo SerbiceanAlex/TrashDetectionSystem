@@ -19,6 +19,8 @@
 \usepackage{etoolbox}
 
 \usepackage{amsmath}
+\usepackage{array}
+\usepackage{booktabs}
 
 \usepackage{indentfirst}
 \setlength{\parindent}{1.25cm}
@@ -30,6 +32,11 @@
 \usepackage{graphicx}
 \usepackage{float}
 \usepackage{caption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc}
+\usepackage{chngcntr}
+\counterwithout{table}{chapter}
+\counterwithout{figure}{chapter}
 \captionsetup{
   justification=centering,
   labelsep=colon,
@@ -38,6 +45,10 @@
 \captionsetup[table]{position=bottom}
 \renewcommand{\figurename}{Figura}
 \renewcommand{\tablename}{Tabel}
+\gappto\captionsromanian{%
+  \renewcommand{\figurename}{Figura}%
+  \renewcommand{\tablename}{Tabel}%
+}
 
 \usepackage{titlesec}
 \titleformat{\chapter}[display]
@@ -64,37 +75,42 @@
 \usepackage{tocloft}
 \setcounter{tocdepth}{1}
 \renewcommand{\contentsname}{CUPRINS}
-\renewcommand{\cftchapfont}{\normalfont\bfseries}
-\renewcommand{\cftchappagefont}{\normalfont\bfseries}
+\renewcommand{\cftchapfont}{\normalfont}
+\renewcommand{\cftchappagefont}{\normalfont}
 \renewcommand{\cftsecfont}{\normalfont}
 \renewcommand{\cftsecpagefont}{\normalfont}
 \renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
 \renewcommand{\cftsecleader}{\cftdotfill{\cftdotsep}}
 % Format "CAPITOLUL X — Title" pentru capitole numerotate in cuprins
 \renewcommand{\cftchappresnum}{CAPITOLUL\space}
-\renewcommand{\cftchapaftersnum}{\space\textemdash\space}
-\setlength{\cftbeforechapskip}{6pt}
-\setlength{\cftbeforesecskip}{1pt}
-\setlength{\cftchapnumwidth}{8.5em}
+\renewcommand{\cftchapaftersnum}{.\space}
+\setlength{\cftbeforechapskip}{2pt}
+\setlength{\cftbeforesecskip}{0pt}
+\setlength{\cftchapnumwidth}{6.9em}
 \setlength{\cftsecnumwidth}{2.6em}
 \setlength{\cftchapindent}{0pt}
-\setlength{\cftsecindent}{8.5em}
+\setlength{\cftsecindent}{1.5em}
 \renewcommand{\cftdotsep}{2.5}
 
 \renewcommand{\bibname}{BIBLIOGRAFIE}
 \AtBeginEnvironment{thebibliography}{%
   \setstretch{1.0}%
-  \small%
-  \setlength{\itemsep}{10pt}%
+  \footnotesize%
+  \setlength{\itemsep}{4pt}%
   \setlength{\parsep}{0pt}%
   \setlength{\parskip}{0pt}%
 }
 
+\usepackage{xcolor}
 \usepackage{cite}
-\usepackage[hidelinks]{hyperref}
+\usepackage[
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=blue
+]{hyperref}
 
 % ── Code listings ───────────────────────────────────────────────────────────
-\usepackage{xcolor}
 \usepackage{listings}
 
 \definecolor{codebg}{rgb}{0.97,0.97,0.97}
@@ -145,7 +161,9 @@
   \clearpage%
   \ifodd\value{page}%
   \else%
-    \blankpage%
+    \thispagestyle{empty}%
+    \null%
+    \clearpage%
   \fi%
 }
 
@@ -160,10 +178,11 @@
   \thispagestyle{plain}%
   \begingroup%
   \setstretch{1.0}%
+  \small%
   \begin{center}
     {\bfseries\fontsize{14}{16}\selectfont CUPRINS\par}
   \end{center}
-  \vspace{0.4cm}
+  \vspace{0.1cm}
   \@starttoc{toc}%
   \endgroup%
   \clearpage%

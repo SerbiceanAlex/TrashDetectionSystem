@@ -1,4 +1,4 @@
-﻿<!-- ══ TAB: MONITOR ══════════════════════════════════════════════════════ -->
+<!-- ══ TAB: MONITOR ══════════════════════════════════════════════════════ -->
 <style>
 @keyframes cctv-scan {
   0%   { top: 0%; opacity: .55; }
@@ -36,15 +36,25 @@
   flex-direction: column;
   animation: fs-slide-in .25s ease-out;
 }
-#monitor-fullscreen canvas {
-  flex: 1;
+/* Preview = the native <video> element (full camera resolution, no re-draw blur).
+   The canvas sits on top, transparent, and only draws detection overlays. */
+#monitor-fullscreen video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-#monitor-fullscreen video {
-  display: none;
+#monitor-fullscreen canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: transparent;
+  pointer-events: none;
 }
 .fs-top-bar {
   position: absolute;
@@ -150,7 +160,7 @@
   line-height: 1;
   white-space: nowrap;
 }
-.monitor-demo-pill {
+.monitor-source-pill {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
@@ -166,10 +176,14 @@
 .monitor-viewport {
   position: relative;
   isolation: isolate;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 220px;
   background: #050810;
   aspect-ratio: 16 / 9;
   box-shadow: 0 4px 20px rgba(0,0,0,.4);
+  box-sizing: border-box;
 }
 .monitor-state-badge {
   position: absolute;
@@ -206,9 +220,20 @@
   gap: 12px;
   padding: 54px 24px 28px;
   text-align: center;
+  min-width: 0;
+  max-width: 100%;
   background:
     radial-gradient(circle at center, rgba(99,102,241,.10), transparent 42%),
     rgba(5,8,16,.70);
+}
+.monitor-empty-state > div {
+  max-width: 100%;
+  min-width: 0;
+}
+.monitor-empty-state p {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 .monitor-empty-icon {
   width: 54px;
@@ -242,15 +267,54 @@
   .monitor-panel-header {
     align-items: flex-start;
     flex-direction: column;
+    padding: 12px;
   }
-  .monitor-demo-pill {
+  .monitor-source-pill {
     align-self: flex-start;
   }
+  .monitor-grid {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 12px !important;
+    gap: 12px !important;
+    box-sizing: border-box;
+  }
+  .monitor-grid > * {
+    min-width: 0;
+    max-width: 100%;
+  }
   .monitor-viewport {
-    min-height: 240px;
+    min-height: 0;
+    aspect-ratio: 4 / 3;
   }
   .monitor-empty-state {
-    padding-top: 64px;
+    padding: 52px 14px 22px;
+    overflow: hidden;
+  }
+  .monitor-empty-state p:last-child {
+    max-width: min(250px, 100%);
+    margin-left: auto;
+    margin-right: auto;
+    font-size: 11px !important;
+    line-height: 1.35;
+  }
+  .monitor-empty-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+  }
+  .monitor-actions-overlay {
+    top: 10px;
+    right: 10px;
+    max-width: calc(100% - 20px);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .monitor-state-badge {
+    top: 10px;
+    left: 10px;
+    max-width: calc(100% - 20px);
   }
 }
 </style>
@@ -266,12 +330,12 @@
      x-transition:leave-start="opacity-100"
      x-transition:leave-end="opacity-0">
 
-  <!-- Hidden video element (sursa pentru canvas) -->
+  <!-- Video element vizibil — preview nativ la rezoluție completă -->
   <video x-ref="monitorVideo" autoplay playsinline muted></video>
 
-  <!-- Canvas fullscreen -->
+  <!-- Canvas transparent peste video — doar bounding boxes -->
   <canvas x-ref="monitorCanvas"
-          style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#000"></canvas>
+          style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:transparent;pointer-events:none"></canvas>
 
   <!-- ── TOP BAR ── -->
   <div class="fs-top-bar">
@@ -283,18 +347,18 @@
       Înapoi
     </button>
 
-    <!-- State pill + FPS -->
+    <!-- State pill -->
     <div style="display:flex;align-items:center;gap:6px">
       <!-- State badge -->
       <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
            style="backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)"
            :style="monitorState==='CLEAR'
-             ? 'background:rgba(22,163,74,.85);color:#fff;border:1px solid rgba(255,255,255,.2)'
-             : monitorState==='PERSON_PRESENT'
-             ? 'background:rgba(217,119,6,.95);color:#fff;border:1px solid rgba(255,255,255,.2)'
-             : monitorState==='MONITORING'
-             ? 'background:rgba(79,70,229,.95);color:#fff;border:1px solid rgba(255,255,255,.2)'
-             : 'background:rgba(0,0,0,.6);color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.1)'">
+              ? 'background:rgba(22,163,74,.85);color:#fff;border:1px solid rgba(255,255,255,.2)'
+              : monitorState==='PERSON_PRESENT'
+              ? 'background:rgba(217,119,6,.95);color:#fff;border:1px solid rgba(255,255,255,.2)'
+              : monitorState==='MONITORING'
+              ? 'background:rgba(79,70,229,.95);color:#fff;border:1px solid rgba(255,255,255,.2)'
+              : 'background:rgba(0,0,0,.6);color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.1)'">
         <span class="w-1.5 h-1.5 rounded-full shrink-0"
               :class="monitorState!=='CLEAR' ? 'cctv-rec-dot' : ''"
               :style="monitorState==='CLEAR' ? 'background:#fff'
@@ -305,10 +369,6 @@
           : monitorState==='MONITORING' ? 'VERIFICARE'
           : '...'"></span>
       </div>
-      <!-- FPS -->
-      <div class="px-2.5 py-1.5 rounded-full text-xs font-bold"
-           style="background:rgba(0,0,0,.55);color:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.1);backdrop-filter:blur(8px)"
-           x-text="'AI '+(monitorFpsDisplay || Math.round(monitorFps))+' FPS'"></div>
       <!-- Flip camera -->
       <button @click="flipMonitorCamera()"
               class="flex items-center justify-center rounded-full"
@@ -459,7 +519,7 @@
           <i data-lucide="cctv" class="w-4 h-4 shrink-0" style="color:#818cf8"></i>
           <span class="text-sm font-bold truncate" style="color:var(--tx-primary)">Monitor live</span>
         </div>
-        <span class="monitor-demo-pill">cameră locală</span>
+        <span class="monitor-source-pill">cameră locală</span>
       </div>
 
       <div class="monitor-grid p-4 gap-4">
@@ -468,14 +528,14 @@
 
           <div class="monitor-state-badge transition-all duration-300"
                :style="!monitorActive
-                 ? 'background:rgba(15,20,30,.88);color:rgba(255,255,255,.58);border:1px solid rgba(255,255,255,.10)'
-                 : monitorState==='CLEAR'
-                 ? 'background:rgba(22,163,74,.92);color:#fff;border:1px solid rgba(255,255,255,.2)'
-                 : monitorState==='PERSON_PRESENT'
-                 ? 'background:rgba(217,119,6,.96);color:#fff;border:1px solid rgba(255,255,255,.2)'
-                 : monitorState==='MONITORING'
-                 ? 'background:rgba(79,70,229,.96);color:#fff;border:1px solid rgba(255,255,255,.2)'
-                 : 'background:rgba(15,20,30,.88);color:rgba(255,255,255,.58);border:1px solid rgba(255,255,255,.10)'">
+                  ? 'background:rgba(15,20,30,.88);color:rgba(255,255,255,.58);border:1px solid rgba(255,255,255,.10)'
+                  : monitorState==='CLEAR'
+                  ? 'background:rgba(22,163,74,.92);color:#fff;border:1px solid rgba(255,255,255,.2)'
+                  : monitorState==='PERSON_PRESENT'
+                  ? 'background:rgba(217,119,6,.96);color:#fff;border:1px solid rgba(255,255,255,.2)'
+                  : monitorState==='MONITORING'
+                  ? 'background:rgba(79,70,229,.96);color:#fff;border:1px solid rgba(255,255,255,.2)'
+                  : 'background:rgba(15,20,30,.88);color:rgba(255,255,255,.58);border:1px solid rgba(255,255,255,.10)'">
             <span class="w-1.5 h-1.5 rounded-full shrink-0"
                   :class="monitorActive && monitorState!=='CLEAR' ? 'cctv-rec-dot' : ''"
                   :style="!monitorActive ? 'background:rgba(255,255,255,.35)'
@@ -496,9 +556,6 @@
               <i data-lucide="refresh-cw" class="w-3 h-3"></i>
               <span x-text="monitorFacingMode==='environment'?'Față':'Spate'"></span>
             </button>
-            <span x-show="monitorActive" class="px-2.5 py-1 rounded-full text-[11px] font-semibold"
-                  style="backdrop-filter:blur(8px);background:rgba(10,14,20,.65);color:rgba(255,255,255,.65);border:1px solid rgba(255,255,255,.08)"
-                  x-text="'AI '+(monitorFpsDisplay || Math.round(monitorFps))+' FPS'"></span>
           </div>
 
           <div x-show="monitorActive && (monitorPersons>0||monitorTrash>0)"
@@ -599,14 +656,6 @@
                 </div>
                 <input type="range" min="0.20" max="0.70" step="0.05" x-model.number="monitorPersonConf" class="slider w-full"/>
               </div>
-              <div>
-                <div class="flex justify-between text-[11px] mb-1.5" style="color:var(--tx-secondary)">
-                  <span>Ritm analiză AI</span>
-                  <strong :style="darkMode?'color:#818cf8':'color:#4f46e5'" x-text="monitorSendFps + ' FPS'"></strong>
-                </div>
-                <input type="range" min="12" max="30" step="1" x-model.number="monitorSendFps" class="slider w-full"/>
-                <p class="text-[10px] mt-1" style="color:var(--tx-muted)">Mod stabil recomandat: 25 FPS AI. 30 FPS rămâne disponibil, dar poate oscila pe laptop.</p>
-              </div>
             </div>
           </details>
         </div>
@@ -633,7 +682,7 @@
                style="background:var(--bg-raised);border:1px solid rgba(239,68,68,.18)"
                @click="goTo('incidents')">
             <template x-if="alert.thumbnail_url">
-              <img :src="'/littering/'+alert.thumbnail_url.split('/littering/').pop()"
+              <img :src="eventMediaUrl(alert, 'thumbnail')"
                    class="rounded-lg shrink-0 object-cover"
                    style="width:52px;height:40px;border:1px solid rgba(239,68,68,.2)"/>
             </template>
@@ -670,7 +719,7 @@
           style="border:2px dashed var(--bg-border)"
           onmouseover="this.style.borderColor='#6366f1';this.style.background='rgba(99,102,241,.04)'"
           onmouseout="this.style.borderColor='var(--bg-border)';this.style.background='transparent'">
-          <input type="file" accept="video/mp4,video/avi,video/mov,video/mkv,video/webm"
+          <input type="file" accept="video/*,.mp4,.avi,.mov,.mkv,.webm"
             @change="handleVideoFileSelect($event)" class="hidden"/>
           <div class="w-14 h-14 rounded-2xl flex items-center justify-center" style="background:rgba(99,102,241,.1)">
             <i data-lucide="upload-cloud" class="w-7 h-7" style="color:#6366f1"></i>
@@ -721,6 +770,9 @@
                 <span x-text="(s.total_objects||0) + ' obj.'"></span>
                 <span>·</span>
                 <span x-text="(s.total_frames||0) + ' fr'"></span>
+                <span>·</span>
+                <span :style="(s.littering_count||0)>0 ? 'color:#ef4444;font-weight:700' : ''"
+                      x-text="(s.littering_count||0) + ' incidente'"></span>
                 <template x-if="s.upload_time">
                   <span x-text="'· ' + new Date(s.upload_time).toLocaleDateString('ro-RO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})"></span>
                 </template>
@@ -732,14 +784,14 @@
               <span class="text-[10px] font-bold px-2.5 py-1 rounded-full"
                 :style="['done','completed'].includes(s.status)
                   ? 'background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.2)'
-                  : s.status==='processing'
+                  : ['processing','running'].includes(s.status)
                   ? 'background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.2)'
                   : s.status==='failed'
                   ? 'background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.2)'
                   : 'background:var(--bg-raised);color:var(--tx-muted);border:1px solid var(--bg-border)'"
-                x-text="['done','completed'].includes(s.status)?'Gata':s.status==='processing'?'Procesez…':s.status==='failed'?'Eroare':s.status">
+                x-text="['done','completed'].includes(s.status)?'Gata':['processing','running'].includes(s.status)?'Procesez…':s.status==='failed'?'Eroare':s.status">
               </span>
-              <template x-if="['done','completed'].includes(s.status)">
+              <template x-if="['done','completed'].includes(s.status) && (s.littering_count||0)>0">
                 <button @click="goTo('incidents')"
                   class="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
                   style="background:rgba(99,102,241,.08);color:#818cf8;border:1px solid rgba(99,102,241,.15)"
@@ -749,6 +801,9 @@
                   <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
                 </button>
               </template>
+              <template x-if="['done','completed'].includes(s.status) && !(s.littering_count||0)">
+                <span class="text-[10px] font-semibold" style="color:var(--tx-muted)">Fără incident</span>
+              </template>
             </div>
           </div>
         </template>
@@ -757,9 +812,13 @@
 
     <div class="flex gap-3 items-start p-3.5 rounded-xl" style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.12)">
       <i data-lucide="lightbulb" class="w-4 h-4 shrink-0 mt-0.5" style="color:#6366f1"></i>
-      <p class="text-xs leading-relaxed" style="color:var(--tx-secondary)">
+      <p class="text-xs leading-relaxed" style="display:none;color:var(--tx-secondary)">
         <strong style="color:var(--tx-primary)">Test rapid:</strong> Orice videoclip MP4 cu o persoană care lasă ceva pe jos funcționează.
         Sistemul detectează automat actul de aruncare și salvează dovada în <em>Incidente</em>.
+      </p>
+      <p class="text-xs leading-relaxed" style="color:var(--tx-secondary)">
+        <strong style="color:var(--tx-primary)">Test rapid:</strong> Folosește un videoclip în care persoana lasă obiectul jos și apoi se îndepărtează.
+        Dacă obiectul rămâne în cadru, sistemul confirmă incidentul și salvează dovada în <em>Incidente</em>.
       </p>
     </div>
   </div>

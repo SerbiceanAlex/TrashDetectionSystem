@@ -1,5 +1,5 @@
 ﻿"""
-Standalone visual demo for illegal littering detection.
+Standalone visual run for illegal littering detection.
 
 Runs on a video file or on a live camera and shows:
   - trash detections with persistent track IDs
@@ -8,9 +8,9 @@ Runs on a video file or on a live camera and shows:
   - alert flash when LitteringDetector emits an event
 
 Examples:
-    .venv\\Scripts\\python.exe scripts\\demos\\demo_littering.py --video datasets\\test_videos\\clip.mp4
-    .venv\\Scripts\\python.exe scripts\\demos\\demo_littering.py --camera 0
-    .venv\\Scripts\\python.exe scripts\\demos\\demo_littering.py --camera http://192.168.x.x:4747/video
+    .venv\\Scripts\\python.exe scripts\\presentation\\visual_littering.py --video datasets\\test_videos\\clip.mp4
+    .venv\\Scripts\\python.exe scripts\\presentation\\visual_littering.py --camera 0
+    .venv\\Scripts\\python.exe scripts\\presentation\\visual_littering.py --camera http://192.168.x.x:4747/video
 """
 
 from __future__ import annotations
@@ -55,11 +55,11 @@ STATE_LABELS = {
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Demo detectie aruncare ilegala")
+    parser = argparse.ArgumentParser(description="Rulare vizuala pentru detectie aruncare ilegala")
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--video", type=str, help="Cale catre fisier video")
     source.add_argument("--camera", type=str, help="Index camera (0, 1) sau URL stream")
-    parser.add_argument("--save", action="store_true", help="Salveaza output in outputs/demo_output.mp4")
+    parser.add_argument("--save", action="store_true", help="Salveaza output in outputs/presentation_output.mp4")
     parser.add_argument("--detector", type=Path, default=DEFAULT_DETECTOR, help="Cale catre detectorul YOLO")
     parser.add_argument("--person-model", type=Path, default=DEFAULT_PERSON, help="Cale catre yolov8n.pt")
     parser.add_argument("--det-conf", type=float, default=0.30, help="Prag confidenta trash")
@@ -222,7 +222,7 @@ def draw_overlay(
     return frame
 
 
-def run_demo(args: argparse.Namespace) -> int:
+def run_visual_run(args: argparse.Namespace) -> int:
     source = args.video if args.video else args.camera
     assert source is not None
 
@@ -233,7 +233,7 @@ def run_demo(args: argparse.Namespace) -> int:
         print(f"EROARE: modelul de persoane nu exista: {args.person_model}")
         return 2
 
-    print("\nTrashDetection - Demo Littering")
+    print("\nTrashDetection - Visual Littering Run")
     print(f"Sursa    : {source}")
     print(f"Detector : {args.detector}")
     print("Taste    : Q/ESC=iesire, SPACE=pauza, S=screenshot\n")
@@ -258,12 +258,12 @@ def run_demo(args: argparse.Namespace) -> int:
 
     writer = None
     if args.save:
-        out_path = REPO / "outputs" / "demo_output.mp4"
+        out_path = REPO / "outputs" / "presentation_output.mp4"
         out_path.parent.mkdir(exist_ok=True)
         writer = cv2.VideoWriter(str(out_path), cv2.VideoWriter_fourcc(*"mp4v"), fps_src, (width, height))
         print(f"Salvez output la: {out_path}")
 
-    window_name = "TrashDetection - Demo Littering"
+    window_name = "TrashDetection - Visual Littering Run"
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(window_name, min(width, 1280), min(height, 720))
 
@@ -350,4 +350,4 @@ def run_demo(args: argparse.Namespace) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(run_demo(parse_args()))
+    raise SystemExit(run_visual_run(parse_args()))

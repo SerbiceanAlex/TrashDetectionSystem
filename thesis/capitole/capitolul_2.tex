@@ -1,11 +1,110 @@
-\chapter{Tehnologii și Concepte Teoretice}
+\chapter{Fundamente Teoretice și Tehnologii Utilizate}
 
-\section{Viziune artificială și detecția obiectelor}
+\section{Viziune artificială și rețele neuronale convoluționale}
 
-\section{Arhitectura modelelor YOLOv8 și clasificarea materialelor}
+Viziunea artificială este domeniul informaticii care urmărește extragerea automată a informațiilor din imagini și secvențe video. Într-un sistem de monitorizare, imaginea nu este tratată doar ca material vizual, ci ca o structură de date. Fiecare cadru video este compus din pixeli, iar fiecare pixel conține valori numerice care descriu intensitatea sau culoarea unei zone foarte mici din imagine. Prin prelucrarea acestor valori, sistemul poate identifica forme, contururi, texturi, obiecte și relații spațiale.
 
-\section{Algoritmi de tracking multi-obiect}
+În cazul lucrării de față, viziunea artificială este folosită pentru analizarea cadrelor video provenite dintr-o cameră locală sau dintr-un fișier încărcat de utilizator. Scopul nu este doar recunoașterea unei imagini izolate, ci interpretarea unei scene în timp. Un obiect de tip deșeu poate fi vizibil într-un singur cadru, poate apărea treptat, poate fi parțial acoperit de o persoană sau poate fi confundat cu un element al fundalului. Din acest motiv, sistemul trebuie să combine analiza vizuală cu o logică temporală.
 
-\section{Detecția evenimentelor temporale prin mașini de stări}
+Rețelele neuronale convoluționale au devenit o soluție de bază pentru analiza imaginilor deoarece pot învăța automat caracteristici vizuale din date. În loc ca dezvoltatorul să definească manual reguli pentru fiecare formă sau textură, modelul învață filtre care răspund la elemente vizuale relevante. Primele straturi pot detecta margini, diferențe de culoare și forme simple, iar straturile mai adânci pot combina aceste informații în structuri mai complexe. Lucrările fundamentale privind rețelele convoluționale și utilizarea lor în recunoașterea imaginilor au contribuit decisiv la dezvoltarea aplicațiilor moderne de viziune artificială \cite{lecun1998gradient}, \cite{krizhevsky2012imagenet}.
 
-\section{Stack tehnologic pentru aplicații web full-stack}
+Pentru un sistem aplicativ, avantajul principal al acestor modele este capacitatea de generalizare. Modelul nu memorează doar imaginile de antrenare, ci încearcă să identifice tipare care pot apărea și în exemple noi. Totuși, această generalizare depinde de calitatea datelor, de diversitatea exemplelor și de modul în care modelul este evaluat. În domeniul deșeurilor, datele sunt mai dificile decât în clasificarea unor obiecte mari și bine centrate: obiectele pot fi mici, deformate, suprapuse cu fundalul sau surprinse în condiții diferite de iluminare.
+
+În lucrare se folosește învățarea prin transfer. Aceasta pornește de la un model deja antrenat pe un volum mare de imagini și îl adaptează la domeniul urmărit. Abordarea este potrivită deoarece antrenarea unui model profund de la zero necesită cantități mari de date și resurse hardware considerabile. Prin transfer learning, modelul poate reutiliza caracteristici vizuale generale și le poate ajusta pentru detectarea obiectelor de tip deșeu.
+
+\section{Detecția obiectelor și familia de modele YOLO}
+
+Detecția obiectelor reprezintă o sarcină mai complexă decât clasificarea unei imagini. În clasificare, modelul primește o imagine și returnează o etichetă pentru întreaga imagine. În detecție, modelul trebuie să indice atât clasa obiectului, cât și poziția acestuia în cadru. Poziția este exprimată printr-o casetă de delimitare, numită bounding box, care încadrează zona în care modelul estimează prezența obiectului.
+
+Rezultatul unei detecții conține, de regulă, coordonatele casetei, clasa estimată și un scor de încredere. Scorul de încredere nu trebuie interpretat ca certitudine absolută, ci ca o estimare numerică produsă de model. În aplicații reale, alegerea pragului de încredere influențează direct comportamentul sistemului. Un prag prea mic poate produce multe detecții false, iar un prag prea mare poate elimina obiecte reale, mai ales dacă acestea sunt mici sau parțial vizibile.
+
+Modelele pentru detecția obiectelor pot fi împărțite, în linii mari, în abordări în doi pași și abordări într-un singur pas. Modelele în doi pași, precum Faster R-CNN, propun mai întâi regiuni candidate și apoi clasifică obiectele din acele regiuni \cite{ren2015faster}. Acestea pot obține rezultate bune, dar au un cost computațional mai ridicat. Modelele într-un singur pas estimează direct pozițiile și clasele obiectelor, ceea ce le face mai potrivite pentru aplicații video, unde timpul de procesare contează.
+
+Familia YOLO face parte din categoria detectorilor într-un singur pas și este cunoscută pentru orientarea către detecție rapidă \cite{redmon2016yolo}. În proiectul de față, această caracteristică este importantă deoarece fluxul video trebuie analizat cadru cu cadru, iar utilizatorul are nevoie de răspuns vizual într-un timp rezonabil. Implementarea Ultralytics YOLOv8 oferă un cadru practic pentru antrenare, evaluare și inferență, fiind folosită atât pentru detectorul de deșeuri, cât și pentru clasificatorul de material \cite{ultralytics2023yolov8}.
+
+În sistemul realizat, detectorul de deșeuri este orientat către localizarea obiectelor relevante în cadru. El nu decide singur dacă a avut loc un incident. Detecția este prima etapă a unui pipeline mai amplu: obiectele detectate sunt analizate în timp, comparate cu prezența persoanelor, asociate cu un scor de încredere și trimise către interfața web doar atunci când condițiile temporale sugerează un eveniment relevant.
+
+\section{Clasificarea imaginilor și estimarea materialului}
+
+Clasificarea imaginilor este procesul prin care unui obiect, unei imagini sau unei regiuni de imagine i se atribuie o etichetă. În lucrare, clasificarea materialului este folosită după etapa de detecție. Mai întâi, detectorul localizează un obiect de tip deșeu, apoi zona corespunzătoare obiectului este decupată și transmisă unui clasificator. Clasificatorul estimează materialul obiectului: plastic, hârtie, sticlă, metal sau altă categorie relevantă.
+
+Separarea detecției de clasificare are un avantaj practic. Detectorul se concentrează pe întrebarea „există un obiect de tip deșeu și unde se află?”, iar clasificatorul se concentrează pe întrebarea „ce material pare să aibă obiectul detectat?”. Într-o aplicație reală, această împărțire poate face fluxul mai ușor de interpretat și ajustat. Dacă detectorul localizează corect obiectul, dar clasificatorul greșește materialul, eroarea poate fi analizată separat.
+
+Estimarea materialului nu are rol juridic și nu trebuie privită ca o identificare absolută. Un ambalaj transparent poate fi confundat cu sticlă sau plastic, o hârtie murdară poate avea culoare apropiată de fundal, iar o doză metalică poate fi parțial ascunsă. Din acest motiv, rezultatul clasificatorului este folosit ca informație auxiliară în incident, nu ca decizie finală. Utilizatorul responsabil poate verifica imaginea și clipul asociat înainte de confirmare.
+
+În fluxul aplicației, clasificarea materialului îmbunătățește modul de descriere a incidentelor. În loc ca sistemul să afișeze doar o alertă generică, incidentul poate conține o estimare mai utilă pentru filtrare, raportare și analiză ulterioară. Această informație poate ajuta și la interpretarea rezultatelor experimentale, deoarece unele materiale pot fi mai greu de recunoscut decât altele.
+
+\section{Tracking multi-obiect și analiză temporală}
+
+Analiza unei imagini individuale nu este suficientă pentru identificarea unui posibil incident de aruncare ilegală. Într-un cadru izolat, sistemul poate observa un obiect de tip deșeu, dar nu poate stabili dacă obiectul era deja acolo, dacă a fost mutat, dacă a fost adus de vânt sau dacă a apărut în urma unei acțiuni umane. Pentru a apropia sistemul de scenarii reale, este necesară analiza temporală a secvenței video.
+
+Trackingul multi-obiect urmărește asocierea detecțiilor de la un cadru la altul. Dacă un obiect este detectat în cadre consecutive, algoritmul încearcă să păstreze aceeași identitate pentru acel obiect. Același principiu se aplică și persoanelor detectate în scenă. Prin această asociere se poate observa dacă o persoană se apropie de o zonă, dacă un obiect apare lângă ea și dacă obiectul rămâne stabil după deplasarea persoanei.
+
+În literatura de specialitate, ByteTrack este o metodă de tracking multi-obiect care asociază detecțiile între cadre și valorifică inclusiv detecțiile cu scoruri mai mici pentru a menține traiectorii mai stabile \cite{zhang2022bytetrack}. În contextul proiectului, trackingul este util deoarece reduce riscul de a interpreta aceeași apariție vizuală ca mai multe evenimente independente. De asemenea, el oferă informații despre persistența obiectului și despre relația temporală dintre persoană și deșeu.
+
+Logica temporală folosită în aplicație urmărește mai multe indicii. În primul rând, sistemul verifică apariția sau stabilizarea unui obiect de tip deșeu. În al doilea rând, analizează dacă în apropiere există sau a existat o persoană. În al treilea rând, verifică dacă obiectul persistă în scenă suficient pentru a justifica salvarea unei dovezi. Aceste reguli nu garantează identificarea perfectă a intenției, dar reduc numărul de momente care trebuie verificate manual.
+
+Un aspect important este evitarea alertelor repetate pentru același eveniment. Dacă un obiect rămâne în scenă mai multe secunde, sistemul nu trebuie să creeze un incident nou la fiecare cadru. Din acest motiv, logica temporală trebuie să includă mecanisme de stabilizare, ferestre de analiză și reguli de evitare a duplicării. Detaliile concrete ale acestei componente sunt prezentate în capitolele dedicate proiectării și implementării.
+
+\section{Metrici de evaluare pentru modele de viziune artificială}
+
+Evaluarea modelelor de viziune artificială trebuie realizată prin metrici clare, nu doar prin observații vizuale. Pentru detectorul de deșeuri, interesează atât câte obiecte reale sunt detectate, cât și câte detecții false sunt produse. Pentru clasificatorul de material, interesează cât de des eticheta estimată corespunde categoriei reale. Pentru logica temporală, evaluarea trebuie să urmărească dacă sistemul semnalează corect evenimentele relevante din clipuri video.
+
+În cazul detecției și clasificării, se folosesc noțiunile de adevărat pozitiv, fals pozitiv, fals negativ și adevărat negativ. Un adevărat pozitiv apare atunci când sistemul identifică în mod corect un obiect sau o clasă. Un fals pozitiv apare atunci când sistemul semnalează un obiect sau o clasă care nu este corectă. Un fals negativ apare atunci când sistemul omite un obiect real. Aceste valori stau la baza metricilor principale.
+
+Precizia arată cât de multe dintre predicțiile pozitive ale modelului sunt corecte:
+
+\[
+\text{Precizie} = \frac{TP}{TP + FP}
+\]
+
+Recall-ul arată cât de multe dintre exemplele reale pozitive au fost identificate de model:
+
+\[
+\text{Recall} = \frac{TP}{TP + FN}
+\]
+
+Scorul F1 combină precizia și recall-ul într-o singură valoare:
+
+\[
+F1 = 2 \cdot \frac{\text{Precizie} \cdot \text{Recall}}{\text{Precizie} + \text{Recall}}
+\]
+
+Pentru detecția obiectelor se folosește și metrica IoU, care exprimă intersecția peste reuniune. Aceasta măsoară suprapunerea dintre caseta prezisă de model și caseta reală din setul etichetat. O detecție este considerată corectă doar dacă IoU depășește un anumit prag. Metricile mAP@50 și mAP@50--95 sunt folosite frecvent pentru evaluarea detectorilor, deoarece sintetizează performanța la unul sau mai multe praguri de suprapunere.
+
+Pentru clasificatorul de material poate fi folosită acuratețea, dar aceasta nu este întotdeauna suficientă. Dacă unele clase apar mai des decât altele, acuratețea poate ascunde erori importante pentru clasele rare. Din acest motiv, este utilă și matricea de confuzie, care arată ce clase sunt confundate între ele. Modul de interpretare a acestor metrici este reluat în capitolul de testare, unde evaluarea este legată de fluxul aplicativ al sistemului.
+
+\section{Tehnologii web, baze de date și comunicare client-server}
+
+Componenta aplicativă a lucrării este dezvoltată ca sistem web local. Această alegere permite folosirea unei interfețe accesibile din browser, separarea logicii de backend de interfața utilizatorului și integrarea componentelor de inferență într-un flux controlat. Aplicația nu este doar un script de procesare video, ci o platformă în care utilizatorul poate porni monitorizarea, încărca fișiere video, vedea incidente, valida dovezi și administra datele locale.
+
+Backend-ul este construit cu FastAPI, un framework modern pentru API-uri Python, bazat pe tipare standard și pe suport pentru funcții asincrone. În proiect, FastAPI este potrivit deoarece permite definirea clară a endpoint-urilor, gestionarea cererilor HTTP, servirea interfeței web și integrarea WebSocket-urilor pentru fluxuri video. WebSocket-ul este important deoarece permite transmiterea repetată a cadrelor între browser și server, fără a deschide o cerere HTTP separată pentru fiecare cadru.
+
+Prelucrarea imaginilor și a clipurilor video este realizată cu OpenCV. Biblioteca permite citirea cadrelor din fișiere video sau camere, redimensionarea imaginilor, desenarea casetelor de delimitare, salvarea thumbnail-urilor și generarea clipurilor asociate incidentelor. Clasa VideoCapture este folosită ca mecanism pentru capturarea video din fișiere, dispozitive sau fluxuri video. În aplicație, aceste operații sunt folosite pentru a transforma fluxul video într-o succesiune de cadre care pot fi analizate de modelele YOLO.
+
+Baza de date locală este realizată cu SQLite, iar accesul la date este gestionat prin SQLAlchemy. SQLite este potrivit pentru un prototip local deoarece funcționează ca motor de bază de date integrat, fără configurarea unui server separat. SQLAlchemy oferă un strat de lucru cu baza de date și suport pentru utilizare asincronă, ceea ce se potrivește cu structura backend-ului. În proiect, baza de date păstrează utilizatorii, incidentele, sesiunile video, statusurile de validare și metadatele dovezilor locale.
+
+Interfața web este realizată cu HTML, CSS și JavaScript, servite prin backend. Ea oferă panouri diferite în funcție de rolul utilizatorului. Utilizatorul responsabil poate monitoriza fluxul video și valida incidentele, iar administratorul poate gestiona utilizatorii, incidentele și dovezile locale. Această separare este necesară deoarece nu toate acțiunile trebuie să fie disponibile tuturor utilizatorilor.
+
+Din punct de vedere arhitectural, sistemul poate fi privit ca o succesiune de componente conectate: browserul transmite cadre sau fișiere video, backend-ul procesează datele, modelele YOLO realizează detecția și clasificarea, logica temporală decide dacă se creează un incident, iar baza de date păstrează starea evenimentului. Tabelul următor sintetizează rolul principalelor tehnologii utilizate.
+
+\begin{table}[!htbp]
+\centering
+\footnotesize
+\begin{tabular}{|>{\raggedright\arraybackslash}p{4.1cm}|>{\raggedright\arraybackslash}p{9.6cm}|}
+\hline
+\textbf{Nivel al sistemului} & \textbf{Tehnologii și rol principal} \\
+\hline
+Analiză vizuală & YOLOv8 și Ultralytics pentru localizarea deșeurilor, detectarea persoanelor și estimarea materialului prin clasificare pe regiunea decupată. \\
+\hline
+Procesare video & OpenCV pentru citirea cadrelor, redimensionare, adnotare vizuală, salvarea thumbnail-urilor și generarea clipurilor asociate incidentelor. \\
+\hline
+Backend și date & FastAPI, SQLite și SQLAlchemy pentru endpoint-uri HTTP, WebSocket-uri, autentificare, persistența incidentelor și gestionarea dovezilor locale. \\
+\hline
+Interfață utilizator & HTML, CSS și JavaScript pentru monitorizare, validarea incidentelor, administrare și afișarea dovezilor într-un panou web local. \\
+\hline
+\end{tabular}
+\caption{Rolul principalelor tehnologii utilizate în sistem}
+\end{table}
+
+Prin combinarea acestor tehnologii, aplicația obține un flux complet, de la captarea imaginii până la gestionarea incidentului în interfață. Capitolul următor va descrie modul în care datele sunt pregătite, cum sunt organizate seturile de antrenare, validare și testare și cum sunt antrenate modelele folosite în sistem.

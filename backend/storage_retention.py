@@ -21,7 +21,7 @@ from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
-LITTERING_DIR = settings.REPO_ROOT / "backend" / "littering"
+LITTERING_DIR = settings.littering_dir
 
 
 def _safe_littering_path(relative_path: str | None) -> Path | None:
@@ -29,13 +29,38 @@ def _safe_littering_path(relative_path: str | None) -> Path | None:
         return None
 
     root = LITTERING_DIR.resolve()
-    candidate = (root / relative_path).resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError:
-        logger.warning("Refusing to delete path outside littering dir: %s", candidate)
+    raw = Path(str(relative_path))
+    candidates: list[Path] = []
+
+    if raw.is_absolute():
+        candidates.append(raw)
+    else:
+        candidates.append(root / raw)
+        candidates.append(settings.REPO_ROOT / raw)
+        if LITTERING_DIR.name in raw.parts:
+            idx = len(raw.parts) - 1 - list(reversed(raw.parts)).index(LITTERING_DIR.name)
+            suffix_parts = raw.parts[idx + 1:]
+            if suffix_parts:
+                candidates.append(root / Path(*suffix_parts))
+
+    allowed: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        resolved_key = str(resolved)
+        if resolved_key in seen:
+            continue
+        seen.add(resolved_key)
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            continue
+        allowed.append(resolved)
+
+    if not allowed:
+        logger.warning("Refusing to delete path outside littering dir: %s", relative_path)
         return None
-    return candidate
+    return next((path for path in allowed if path.exists()), allowed[0])
 
 
 def _append_retention_note(existing: str | None, retention_days: int) -> str:

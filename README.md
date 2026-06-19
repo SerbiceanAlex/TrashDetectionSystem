@@ -1,31 +1,31 @@
-﻿# TrashDetectionSystem
+# TrashDetectionSystem
 
-Sistem inteligent pentru detectarea actului de aruncare ilegala a deseurilor in spatii publice prin analiza video in timp real.
+Sistem inteligent pentru detectarea actului de aruncare ilegală a deșeurilor în spații publice, folosind analiză video și modele de viziune artificială.
 
-Lucrarea este orientata pe partea de ML: detectorul de deseuri, clasificatorul de material si algoritmul temporal care decide daca un obiect aparut in scena reprezinta un incident de littering. Aplicatia web ramane demonstratia practica a pipeline-ului.
+Lucrarea este orientată pe componenta de Machine Learning: detectorul de deșeuri, clasificatorul de material și algoritmul temporal care decide dacă un obiect apărut în scenă reprezintă un posibil incident. Aplicația web susține validarea practică a pipeline-ului prin monitorizare, administrare și păstrarea locală a dovezilor.
 
-## Directia proiectului
+## Direcția proiectului
 
-Proiectul a pornit de la ideea simpla de detectie a deseurilor in imagini si a evoluat catre o problema mai puternica pentru licenta: identificarea momentului in care o persoana arunca ilegal un obiect. Sistemul coreleaza temporal trei elemente:
+Proiectul a pornit de la detecția deșeurilor în imagini și a evoluat către o problemă mai potrivită pentru lucrarea de licență: identificarea momentului în care o persoană aruncă sau abandonează ilegal un obiect. Sistemul corelează temporal trei elemente:
 
-1. prezenta unei persoane in cadru;
-2. disparitia sau indepartarea persoanei din zona;
-3. aparitia/stabilizarea unui obiect de tip deseu in zona monitorizata.
+1. prezența unei persoane în cadru;
+2. dispariția sau îndepărtarea persoanei din zonă;
+3. apariția și stabilizarea unui obiect de tip deșeu în zona monitorizată.
 
-Rezultatul este salvat ca dovada: metadata, thumbnail, clip scurt si scoruri de incredere.
+Rezultatul este salvat ca dovadă locală: metadata, thumbnail, clip scurt, status și scoruri de încredere.
 
 ## Modele ML
 
-Pipeline-ul folosit de aplicatie este two-stage:
+Pipeline-ul folosit de aplicație este în două etape:
 
 ```text
 Frame video
-  -> Detector YOLOv8 final: localizeaza obiectele trash
-  -> Clasificator YOLOv8 B2: estimeaza materialul
-  -> Behavioral Engine: decide daca exista act de aruncare
+  -> Detector YOLOv8 final: localizează obiectele de tip deșeu
+  -> Clasificator YOLOv8 B2: estimează materialul
+  -> Behavioral Engine: decide dacă există un posibil act de aruncare
 ```
 
-Greutatile finale folosite de aplicatie stau in `models/`:
+Greutățile finale folosite de aplicație sunt în `models/`:
 
 ```text
 models/
@@ -33,49 +33,65 @@ models/
 └── classify/B2/best.pt
 ```
 
-`runs/` ramane zona de experimente si antrenari YOLO. Modelul activ este checkpoint-ul promovat in `models/detector/production/best.pt`.
+`runs/` rămâne zona de experimente și antrenări YOLO. Modelul activ este checkpoint-ul promovat în `models/detector/production/best.pt`.
 
 ## Structura proiectului
 
 ```text
 TrashDetectionSystem/
 ├── backend/
-│   ├── main.py                 # API FastAPI si rute HTTP
-│   ├── video.py                # WebSocket live monitor si procesare video upload
-│   ├── inference.py            # incarcare modele, inferenta, tracking, blur GDPR
-│   ├── littering_detector.py   # algoritmul temporal de detectie a actului de aruncare
-│   ├── database.py             # modele SQLAlchemy si helpers DB
+│   ├── main.py                 # API FastAPI și rute HTTP
+│   ├── video.py                # WebSocket live monitor și procesare video upload
+│   ├── inference.py            # încărcare modele, inferență, tracking, blur GDPR
+│   ├── littering_detector.py   # algoritmul temporal de detecție a actului de aruncare
+│   ├── database.py             # modele SQLAlchemy și helpers DB
 │   ├── schemas.py              # scheme Pydantic pentru API
 │   └── ml/
 │       └── two_stage.py        # pipeline YOLO detector + clasificator
 ├── frontend/
 │   ├── templates/              # pagini Alpine/Jinja
 │   └── static/
-│       ├── js/                 # logica UI, auth, monitor, admin
+│       ├── js/                 # logică UI, autentificare, monitorizare, admin
 │       └── css/                # stiluri
 ├── models/
-│   ├── detector/production/    # model detector final folosit in aplicatie
-│   └── classify/B2/            # model clasificator folosit in aplicatie
+│   ├── detector/production/    # model detector final folosit în aplicație
+│   └── classify/B2/            # model clasificator folosit în aplicație
+├── data/
+│   ├── README.md               # explică datele locale generate
+│   ├── trash_detection.db      # SQLite local, ignorat de git
+│   └── runtime/                # uploaduri, video, thumbnail-uri și dovezi generate
+├── certs/                      # certificat HTTPS local generat automat, ignorat de git
+├── datasets/                   # dataseturi locale pentru antrenare/evaluare
 ├── notebooks/
-│   ├── training/               # experimente si antrenari
-│   └── evaluation/             # evaluari, comparatii, figuri pentru licenta
+│   ├── training/               # experimente și antrenări
+│   └── evaluation/             # evaluări, comparații, figuri pentru licență
 ├── scripts/
-│   ├── data/                   # pregatire dataseturi, split, validare, export cropuri
+│   ├── data/                   # pregătire dataseturi, split, validare, export cropuri
 │   ├── training/               # scripturi de antrenare
-│   ├── evaluation/             # evaluari standalone
-│   ├── demos/                  # demo vizual pentru profesor/prezentare
-│   ├── maintenance/            # reset DB, creare admin/demo user
+│   ├── evaluation/             # evaluări standalone
+│   ├── presentation/           # rulare vizuală pentru profesor/prezentare
+│   ├── maintenance/            # reset DB, creare conturi locale
 │   └── smoke/                  # teste manuale rapide pe server pornit
 ├── tests/                      # teste automate pytest
-├── results/                    # rezultate si metrici folosite in lucrare
-├── start_https.py              # pornire locala HTTPS pentru camera telefonului
-├── requirements.txt
-└── PROJECT_SUCCESS_PATH.md     # status proiect si detectorul final in productie
+├── thesis/                     # lucrarea LaTeX, surse, configurare și PDF final
+│   ├── capitole/               # capitolele lucrării
+│   ├── sources/extracted/      # texte extrase din ghiduri și șabloane primite
+│   └── main.pdf                # PDF generat local
+├── outputs/                    # figuri generate pentru licență și prezentare
+├── results/                    # rezultate și metrici folosite în lucrare
+├── start_https.py              # pornire locală HTTPS pentru camera telefonului
+└── requirements.txt
 ```
 
-Directoarele `datasets/`, `runs/`, `outputs/`, `backend/uploads/`, `backend/videos/` si fisierele `.pt` sunt artefacte locale si nu sunt versionate.
+Directoarele `datasets/`, `runs/`, `outputs/`, `data/runtime/`, baza locală `data/trash_detection.db` și fișierele `.pt` sunt artefacte locale și nu sunt versionate.
 
-## Pornire rapida
+Dataseturile locale păstrate pentru reproducere și evaluare sunt:
+
+- `datasets/parks_detect_final/` - setul final pentru detectorul de deșeuri;
+- `datasets/trashnet_cls/` - setul final pentru clasificatorul de material;
+- `datasets/test_videos/` - clipuri pentru smoke test, evaluare video și prezentare.
+
+## Pornire rapidă
 
 ```powershell
 py -m venv .venv
@@ -85,39 +101,36 @@ Copy-Item .env.example .env
 .\.venv\Scripts\python.exe start_https.py
 ```
 
-Pentru camera telefonului, ruleaza serverul HTTPS si deschide adresa afisata in consola de pe acelasi Wi-Fi.
-Browserul va afisa un avertisment de certificat local/self-signed; pentru demo local se continua cu
-`Advanced` / `Help me understand` -> `Proceed`.
+Pentru camera telefonului, rulează serverul HTTPS și deschide adresa afișată în consolă de pe același Wi-Fi. Browserul poate afișa un avertisment pentru certificatul local/self-signed; pentru rulare locală se continuă cu `Advanced` / `Help me understand` -> `Proceed`.
 
 Comenzi utile pentru serverul local:
 
 ```powershell
-# Pornire normala pe portul local HTTPS 8443
+# Pornire normală pe portul local HTTPS 8443
 .\.venv\Scripts\python.exe start_https.py
 
-# Serverul ruleaza in terminalul curent; Ctrl+C il opreste si logurile raman vizibile.
+# Serverul rulează în terminalul curent; Ctrl+C îl oprește și logurile rămân vizibile.
 
-# Daca portul este deja ocupat de o rulare veche
+# Dacă portul este deja ocupat de o rulare veche
 .\.venv\Scripts\python.exe start_https.py --restart
 
-# Daca vrei doar sa deschizi serverul deja pornit, fara sa-l atasezi la terminal
+# Dacă vrei doar să deschizi serverul deja pornit, fără să-l atașezi la terminal
 .\.venv\Scripts\python.exe start_https.py --reuse
 
 # Oprire server local
 .\.venv\Scripts\python.exe start_https.py --stop
 
-# Port alternativ, doar daca 8443 este ocupat de alt program
+# Port alternativ, doar dacă 8443 este ocupat de alt program
 .\.venv\Scripts\python.exe start_https.py --port 9444
 
-# Fara deschidere automata in browser
+# Fără deschidere automată în browser
 .\.venv\Scripts\python.exe start_https.py --no-open
 
-# Fara reload automat, util pentru un demo mai tacut
+# Fără reload automat, util pentru o prezentare mai stabilă
 .\.venv\Scripts\python.exe start_https.py --no-reload
 ```
 
-Pentru a reduce cererile repetate de Windows Firewall, permite Python/Uvicorn pe retele private
-sau ruleaza o singura data in PowerShell pornit ca Administrator:
+Pentru a reduce cererile repetate de Windows Firewall, permite Python/Uvicorn pe rețele private sau rulează o singură dată în PowerShell pornit ca Administrator:
 
 ```powershell
 New-NetFirewallRule -DisplayName "TrashDet HTTPS Local" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8443,9444 -Profile Private
@@ -125,13 +138,13 @@ New-NetFirewallRule -DisplayName "TrashDet HTTPS Local" -Direction Inbound -Acti
 
 ## Configurare locală și server-ready
 
-Setările care diferă între rularea locală și un server se află în `.env` și sunt citite prin `backend/config.py`.
-Fișierul `.env.example` conține valorile necesare pentru:
+Setările care diferă între rularea locală și un server se află în `.env` și sunt citite prin `backend/config.py`. Fișierul `.env.example` conține valorile necesare pentru:
 
 ```text
 SECRET_KEY
 APP_BASE_URL
 DATABASE_URL
+STORAGE_ROOT
 DETECTOR_WEIGHTS
 CLASSIFIER_WEIGHTS
 PERSON_DETECTOR_WEIGHTS
@@ -142,44 +155,44 @@ MONITOR_MIN_DET_CONF
 LITTERING_FILE_RETENTION_DAYS
 ```
 
-Pentru licență, aplicația rulează local cu SQLite implicit (`backend/trash_detection.db`). Pentru un deploy ulterior pe server, `DATABASE_URL` poate indica o bază PostgreSQL, iar `APP_BASE_URL` trebuie setat la domeniul/URL-ul serverului. Modelele rămân configurabile prin căi relative la rădăcina proiectului.
+Pentru licență, aplicația rulează local cu SQLite implicit (`data/trash_detection.db`). Pentru un deploy ulterior pe server, `DATABASE_URL` poate indica o bază PostgreSQL, iar `APP_BASE_URL` trebuie setat la domeniul/URL-ul serverului. Modelele rămân configurabile prin căi relative la rădăcina proiectului.
 
-Retenția probelor video este activă implicit: fișierele din `backend/littering/` mai vechi de `LITTERING_FILE_RETENTION_DAYS` sunt curățate automat, iar metadata incidentelor rămâne în baza de date.
+Retenția probelor video este activă implicit: fișierele din `data/runtime/littering/` mai vechi de `LITTERING_FILE_RETENTION_DAYS` sunt curățate automat, iar metadata incidentelor rămâne în baza de date.
 
 ## Comenzi utile
 
 ```powershell
-# Demo vizual pe clip
-.\.venv\Scripts\python.exe scripts\demos\demo_littering.py --video datasets\test_videos\clip.mp4
+# Rulare vizuală pe clip
+.\.venv\Scripts\python.exe scripts\presentation\visual_littering.py --video datasets\test_videos\clip.mp4
 
-# Demo live camera
-.\.venv\Scripts\python.exe scripts\demos\demo_littering.py --camera 0
+# Rulare live camera
+.\.venv\Scripts\python.exe scripts\presentation\visual_littering.py --camera 0
 
 # Evaluare video pe clipuri selectate manual
 .\.venv\Scripts\python.exe scripts\evaluation\evaluate_video_events.py --manifest scripts\evaluation\video_manifest_template.csv --frame-skip 1
 
-# Pregatire baza de date demo: admin/operator, locatie, autoritate, OTP cleanup
-.\.venv\Scripts\python.exe scripts\maintenance\prepare_demo_db.py --apply --prune-locations --reset-demo-passwords
+# Pregătire baza de date locală: admin/utilizator, locație, autoritate, OTP cleanup
+.\.venv\Scripts\python.exe scripts\maintenance\prepare_local_db.py --apply --prune-locations --reset-local-passwords
 
 # Reset date generate local
 .\.venv\Scripts\python.exe -m scripts.maintenance.reset_data
 ```
 
-Conturi demo locale:
+Conturi locale:
 
 ```text
 admin    / Admin1234!    rol: admin
-operator / Operator1234! rol: user/operator
+operator / Operator1234! rol: utilizator
 ```
 
-Adminul vede panoul de administrare, utilizatorii, locațiile, incidentele, autoritățile și storage-ul. Operatorul folosește monitorizarea și fluxul de incidente fără acces la administrarea organizației.
+Adminul vede panoul de administrare, utilizatorii, locațiile, incidentele, autoritățile și stocarea locală. Utilizatorul folosește monitorizarea și fluxul de incidente fără acces la administrarea organizației.
 
 ## Focus pentru lucrare
 
-In redactare, aplicatia web trebuie tratata ca suport practic. Partea principala merita sa fie:
+În redactare, aplicația web este tratată ca suport practic pentru sistemul ML. Partea principală a lucrării rămâne:
 
-1. pregatirea dataseturilor si antrenarea modelelor;
-2. evaluarea detectorului final si a clasificatorului B2;
-3. logica Behavioral Engine si criteriile temporale;
-4. experimentele pe clipuri reale si analiza erorilor;
-5. limite, GDPR si directii viitoare.
+1. pregătirea dataseturilor și antrenarea modelelor;
+2. evaluarea detectorului final și a clasificatorului B2;
+3. logica Behavioral Engine și criteriile temporale;
+4. experimentele pe clipuri reale și analiza erorilor;
+5. limite, GDPR și direcții viitoare.

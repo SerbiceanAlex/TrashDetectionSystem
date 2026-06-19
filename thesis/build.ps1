@@ -26,6 +26,20 @@ try {
     & $BibTeX main
     & $XeLaTeX -interaction=nonstopmode -synctex=1 main.tex
     & $XeLaTeX -interaction=nonstopmode -synctex=1 main.tex
+    $AuxFiles = @(
+        "main.aux",
+        "main.bbl",
+        "main.blg",
+        "main.log",
+        "main.out",
+        "main.synctex.gz",
+        "main.toc"
+    )
+    foreach ($File in $AuxFiles) {
+        if (Test-Path -LiteralPath $File) {
+            Remove-Item -LiteralPath $File -Force
+        }
+    }
     Write-Host "PDF generat: $ThesisRoot\main.pdf"
 }
 finally {
