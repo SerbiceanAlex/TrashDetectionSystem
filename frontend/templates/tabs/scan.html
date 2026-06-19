@@ -726,7 +726,8 @@
           </div>
           <div class="text-center">
             <p class="text-base font-bold mb-1" style="color:var(--tx-primary)">Selectează un videoclip</p>
-            <p class="text-xs" style="color:var(--tx-muted)">MP4, AVI, MOV, MKV · max 200 MB</p>
+            <p class="text-xs" style="color:var(--tx-muted)"
+               x-text="'MP4, AVI, MOV, MKV · max ' + (systemInfo?.runtime?.video_max_upload_mb || 200) + ' MB'"></p>
           </div>
         </label>
         <p class="text-center text-xs mt-3" style="color:var(--tx-muted)">Timp estimat: ~1 minut per minut de video</p>

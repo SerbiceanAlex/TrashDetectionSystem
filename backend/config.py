@@ -42,6 +42,7 @@ class Settings(BaseSettings):
 
     # ── Upload limits ────────────────────────────────────────────────────────
     MAX_UPLOAD_MB: int = 20
+    VIDEO_MAX_UPLOAD_MB: int = 200
 
     # ── File retention (days before auto-cleanup) ────────────────────────────
     RETENTION_DAYS_FAKE: int = 30
@@ -92,6 +93,10 @@ class Settings(BaseSettings):
     @property
     def max_upload_bytes(self) -> int:
         return self.MAX_UPLOAD_MB * 1024 * 1024
+
+    @property
+    def video_max_upload_bytes(self) -> int:
+        return self.VIDEO_MAX_UPLOAD_MB * 1024 * 1024
 
     @property
     def storage_root(self) -> Path:

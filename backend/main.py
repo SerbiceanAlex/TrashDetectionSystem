@@ -46,6 +46,7 @@ for runtime_dir in settings.runtime_dirs:
     runtime_dir.mkdir(parents=True, exist_ok=True)
 
 MAX_UPLOAD_BYTES = settings.max_upload_bytes
+VIDEO_MAX_UPLOAD_BYTES = settings.video_max_upload_bytes
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
@@ -316,6 +317,7 @@ async def system_info():
             "monitor_trash_imgsz": settings.MONITOR_TRASH_IMGSZ,
             "monitor_person_imgsz": settings.MONITOR_PERSON_IMGSZ,
             "max_upload_mb": settings.MAX_UPLOAD_MB,
+            "video_max_upload_mb": settings.VIDEO_MAX_UPLOAD_MB,
             "littering_file_retention_days": settings.LITTERING_FILE_RETENTION_DAYS,
             "storage_cleanup_enabled": settings.STORAGE_CLEANUP_ENABLED,
         },
@@ -1445,13 +1447,25 @@ async def upload_video(
     # Write to disk in 1 MB chunks — avoids loading the entire file into RAM
     chunk_size = 1024 * 1024
     video_empty = True
+    written_bytes = 0
+    over_video_limit = False
     with open(save_path, "wb") as out_f:
         while True:
             chunk = await asyncio.to_thread(file.file.read, chunk_size)
             if not chunk:
                 break
+            written_bytes += len(chunk)
+            if written_bytes > VIDEO_MAX_UPLOAD_BYTES:
+                over_video_limit = True
+                break
             out_f.write(chunk)
             video_empty = False
+    if over_video_limit:
+        save_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=413,
+            detail=f"Video too large. Maximum size is {settings.VIDEO_MAX_UPLOAD_MB} MB.",
+        )
     if video_empty:
         save_path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Empty file uploaded.")

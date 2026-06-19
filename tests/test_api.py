@@ -359,6 +359,17 @@ async def test_video_upload_requires_auth(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_video_upload_rejects_files_over_video_limit(client: AsyncClient, monkeypatch):
+    _override_admin()
+    monkeypatch.setattr("backend.main.VIDEO_MAX_UPLOAD_BYTES", 4)
+    resp = await client.post(
+        "/api/video/upload",
+        files={"file": ("clip.mp4", b"12345", "video/mp4")},
+    )
+    assert resp.status_code == 413
+
+
+@pytest.mark.asyncio
 async def test_detect_no_file(client: AsyncClient):
     resp = await client.post("/api/detect")
     assert resp.status_code in (401, 422)
