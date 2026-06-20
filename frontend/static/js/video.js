@@ -194,7 +194,7 @@ function videoApp() {
     monitorTrash: 0,
     monitorAlerts: [],
     monitorPersonConf: 0.35,
-    monitorSendFps: 15,
+    monitorSendFps: 24,
     monitorCameraWidth: 1280,
     monitorCameraHeight: 720,
     monitorCaptureMaxDim: 640,
@@ -213,11 +213,11 @@ function videoApp() {
     async startMonitor() {
       try {
         const runtime = this.systemInfo?.runtime || {};
-        const configuredTargetFps = Number(runtime.monitor_target_fps || 15);
-        if (this.monitorSendFps === 15 && configuredTargetFps !== 15) {
+        const configuredTargetFps = Number(runtime.monitor_target_fps || 24);
+        if (this.monitorSendFps === 24 && configuredTargetFps !== 24) {
           this.monitorSendFps = configuredTargetFps;
         }
-        this.monitorSendFps = Math.max(10, Math.min(Number(this.monitorSendFps || configuredTargetFps || 15), 30));
+        this.monitorSendFps = Math.max(10, Math.min(Number(this.monitorSendFps || configuredTargetFps || 24), 30));
         this.monitorCameraWidth = Math.max(640, Math.min(Number(runtime.monitor_camera_width || this.monitorCameraWidth || 1280), 1920));
         this.monitorCameraHeight = Math.max(360, Math.min(Number(runtime.monitor_camera_height || this.monitorCameraHeight || 720), 1080));
         this.monitorCaptureMaxDim = Math.max(416, Math.min(Number(runtime.monitor_capture_max_dim || this.monitorCaptureMaxDim || 640), 768));

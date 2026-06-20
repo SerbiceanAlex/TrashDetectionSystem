@@ -60,10 +60,11 @@ class Settings(BaseSettings):
     LIVE_IMGSZ: int = 640
     DEFAULT_DET_CONF: float = 0.30
     MONITOR_MIN_DET_CONF: float = 0.35
-    # Țintă realistă: fiecare cadru face encode pe telefon → WiFi → YOLO → răspuns.
-    # 15 FPS de analiză e sustenabil pe RTX 3050 cu telefon prin LAN; camera
-    # rulează oricum la 30fps nativ pentru un preview fluid.
-    MONITOR_TARGET_FPS: int = 15
+    # Țintă 24 FPS: peste 20, serverul activează stride-uri (trash la fiecare
+    # al 2-lea cadru, persoane la al 3-lea, cu caching între), deci face mai
+    # puțin per cadru și susține rate mai mari. Clientul trimite cât permit
+    # encode-ul de pe telefon + WiFi; plafonul artificial de 15 a fost ridicat.
+    MONITOR_TARGET_FPS: int = 24
     MONITOR_CAMERA_WIDTH: int = 1280
     MONITOR_CAMERA_HEIGHT: int = 720
     # Capturarea trimisă spre AI și dimensiunea de inferență urcate la 768:
