@@ -70,6 +70,12 @@ LOST_TIMEOUT_S        = 5.0    # seconds person can be absent before ABANDONED (
 ABANDON_STATIC_S      = 1.2    # secunde de stat nemișcat în starea DROPPED → ABANDONED
 TRASH_MISS_GRACE      = 12     # cadre de detecție lipsă tolerate înainte de a uita tracker-ul (clipire)
 PICKUP_MOVE_PX        = 55.0   # deplasare mare a obiectului lângă persoană = ridicat înapoi (anulare)
+# Raza în care un obiect NOU apărut lângă o persoană este asociat acelei
+# persoane. Mai mare decât SEPARATION_DIST_M ca să prindă și aruncarea la
+# distanță (obiectul aterizează la 2–3 m), nu doar lăsatul la picioare.
+# Precizia rămâne protejată: obiectul trebuie să fie NOU (neexistent în
+# baseline) ȘI să devină static pe jos înainte de a declanșa.
+THROW_RANGE_M         = 3.0
 CONFIRM_EVENT_S       = 3.0    # MODE A — wait this long after candidate event; cancel if person returns
                                 # 3s = bun compromis: ignora reveniri rapide (<3s) dar prinde aruncari reale
 EVENT_COOLDOWN_S      = 8.0    # suppress duplicate alerts immediately after one incident fires
@@ -426,7 +432,7 @@ class LitteringDetector:
                 # pozitiv „abandon" când persoana doar trece pe lângă el.
                 if tid in self._known_trash_ids:
                     continue
-                if dist_m < SEPARATION_DIST_M:
+                if dist_m < THROW_RANGE_M:
                     self._rel_trackers[tid] = TrashRelTracker(
                         trash_id=tid,
                         person_id=nearest_pid,
@@ -449,9 +455,12 @@ class LitteringDetector:
             if tracker.state == TrashRelState.NEARBY:
                 if is_static:
                     tracker.static_frames += 1
+                    # Obiect NOU devenit static pe jos, în raza unei persoane =
+                    # lăsat sau aruncat. Nu mai cerem să fie sub 1.5 m, ca să
+                    # prindem și aruncarea (obiectul aterizează mai departe).
                     if (
                         tracker.static_frames >= STATIC_FRAMES_NEEDED
-                        and dist_m < SEPARATION_DIST_M
+                        and dist_m < THROW_RANGE_M
                     ):
                         tracker.state         = TrashRelState.DROPPED
                         tracker.static_frames = 0
