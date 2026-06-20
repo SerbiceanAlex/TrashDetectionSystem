@@ -233,6 +233,9 @@ async def test_generated_image_media_is_authenticated(client: AsyncClient, sessi
 
     suffix = uuid4().hex
     ann_path = ANNOTATED_DIR / f"pytest_{suffix}_annotated.jpg"
+    # annotated/ se creează acum lazy (la prima scanare reală); testul își
+    # pregătește singur folderul fixture.
+    ANNOTATED_DIR.mkdir(parents=True, exist_ok=True)
     ann_path.write_bytes(b"\xff\xd8\xff\xd9")
     det_session = db.DetectionSession(
         filename="pytest.jpg",

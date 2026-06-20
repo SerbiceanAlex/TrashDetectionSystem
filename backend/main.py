@@ -233,6 +233,10 @@ async def get_current_org(
 
 def _save_files(original_bytes: bytes, annotated_bytes: bytes, stem: str):
     """Write original + annotated images to disk (runs as a background task)."""
+    # Creează folderele doar la prima scanare de imagine (lazy), ca să nu
+    # apară goale în proiect dacă nu s-au folosit niciodată.
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    ANNOTATED_DIR.mkdir(parents=True, exist_ok=True)
     (UPLOADS_DIR / f"{stem}.jpg").write_bytes(original_bytes)
     (ANNOTATED_DIR / f"{stem}_annotated.jpg").write_bytes(annotated_bytes)
 
@@ -1956,8 +1960,6 @@ async def admin_storage_stats(
     def _empty_status_stats():
         return {"events": 0, "files": 0, "bytes": 0, "size_mb": 0}
 
-    CLEANED_DIR = settings.cleaned_dir
-    THUMBNAILS_DIR = settings.thumbnails_dir
     evidence = _dir_stats(LITTERING_DIR)
     uploads = _dir_stats(UPLOADS_DIR)
     annotated = _dir_stats(ANNOTATED_DIR)
@@ -2000,11 +2002,9 @@ async def admin_storage_stats(
     return {
         "uploads": uploads,
         "annotated": annotated,
-        "cleaned": _dir_stats(CLEANED_DIR),
         "videos": videos,
         "evidence": evidence,
         "evidence_by_status": evidence_by_status,
-        "thumbnails": _dir_stats(THUMBNAILS_DIR),
         "uploads_bytes": uploads["bytes"],
         "annotated_bytes": annotated["bytes"],
         "videos_bytes": videos["bytes"],

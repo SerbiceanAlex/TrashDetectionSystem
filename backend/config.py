@@ -125,22 +125,14 @@ class Settings(BaseSettings):
         return self.storage_root / "littering"
 
     @property
-    def cleaned_dir(self) -> Path:
-        return self.storage_root / "cleaned"
-
-    @property
-    def thumbnails_dir(self) -> Path:
-        return self.storage_root / "thumbnails"
-
-    @property
     def runtime_dirs(self) -> list[Path]:
+        # Doar folderele scrise efectiv în mod curent. uploads/ și annotated/
+        # se creează lazy la prima scanare de imagine (vezi main.py), iar
+        # cleaned/ și thumbnails/ au fost scoase (nu erau folosite — dovezile
+        # incidentelor merg în littering/).
         return [
-            self.uploads_dir,
-            self.annotated_dir,
-            self.cleaned_dir,
             self.videos_dir,
             self.littering_dir,
-            self.thumbnails_dir,
         ]
 
 
