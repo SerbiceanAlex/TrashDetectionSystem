@@ -284,6 +284,19 @@ def run_clip(
 
     cap.release()
 
+    # Flush orice candidat aflat în fereastra de confirmare la final de clip,
+    # exact ca procesarea de upload din producție (_process_video_sync).
+    final_event = event_detector.finalize()
+    if final_event is not None:
+        events.append({
+            "frame_idx": frame_idx,
+            "time_sec": round(frame_idx / fps_src, 2),
+            "method": final_event.detection_method,
+            "trash_count": -1,
+            "person_count": -1,
+            "det_score": round(float(final_event.det_score), 4),
+        })
+
     elapsed = time.time() - started
     fps_runtime = processed / elapsed if elapsed > 0 else 0.0
     first_event_time = events[0]["time_sec"] if events else ""

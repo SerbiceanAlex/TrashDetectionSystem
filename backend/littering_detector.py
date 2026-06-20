@@ -321,7 +321,21 @@ class LitteringDetector:
         self._rel_trackers.clear()
 
     def finalize(self) -> Optional[LitteringEvent]:
-        """Call when video stream ends to flush any pending distance events."""
+        """Call when video stream ends to flush any pending events.
+
+        Necesar mai ales pentru clipurile scurte (upload sau evaluare): dacă
+        un candidat pe zonă este încă în fereastra de confirmare când se
+        termină stream-ul, iar persoana nu s-a întors să ridice obiectul,
+        evenimentul este real și trebuie emis — altfel un clip de câteva
+        secunde cu o aruncare clară nu ar genera niciun incident.
+        """
+        if self._event_candidate is not None:
+            confirmed = self._event_candidate
+            self._event_candidate = None
+            self._event_candidate_remaining = 0
+            self._start_post_capture(confirmed)
+            return confirmed
+
         if self._pending_event and self._capture_post:
             self._capture_post = False
             return self._pending_event
@@ -470,7 +484,6 @@ class LitteringDetector:
         thumbnail = _make_thumbnail(
             frame, det["box"],
             PersonZone(*person_box, self.frame_idx),
-            label=f"ABANDON {distance_m:.1f}m",
         )
         return LitteringEvent(
             detected_at_ts          = time.time(),
