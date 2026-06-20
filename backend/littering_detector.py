@@ -59,10 +59,17 @@ import numpy as np
 
 PERSON_HEIGHT_M       = 1.70   # assumed average person height (metres)
 SEPARATION_DIST_M     = 1.50   # person distance that triggers SEPARATING state
-ABANDON_DIST_M        = 3.00   # person distance that triggers ABANDONED event
+ABANDON_DIST_M        = 2.00   # person distance that triggers ABANDONED event (was 3.0 — nerealist: omul aruncă și face 1–2 pași)
 JITTER_THRESHOLD_PX   = 15.0   # max trash centre movement (px) to count as static
 STATIC_FRAMES_NEEDED  = 8      # consecutive frames trash must be static → DROPPED
 LOST_TIMEOUT_S        = 5.0    # seconds person can be absent before ABANDONED (was 2.0 — too aggressive)
+# Obiect care rămâne pe jos (static) atât timp DUPĂ ce a fost lăsat este o
+# abandonare, chiar dacă persoana nu se îndepărtează 2 m (cazul wide-shot:
+# aruncă și zăbovește în cadru). Dacă obiectul e ridicat înapoi, se mișcă și
+# tracker-ul se resetează — anularea cerută de teză rămâne validă.
+ABANDON_STATIC_S      = 1.2    # secunde de stat nemișcat în starea DROPPED → ABANDONED
+TRASH_MISS_GRACE      = 12     # cadre de detecție lipsă tolerate înainte de a uita tracker-ul (clipire)
+PICKUP_MOVE_PX        = 55.0   # deplasare mare a obiectului lângă persoană = ridicat înapoi (anulare)
 CONFIRM_EVENT_S       = 3.0    # MODE A — wait this long after candidate event; cancel if person returns
                                 # 3s = bun compromis: ignora reveniri rapide (<3s) dar prinde aruncari reale
 EVENT_COOLDOWN_S      = 8.0    # suppress duplicate alerts immediately after one incident fires
@@ -102,6 +109,8 @@ class TrashRelTracker:
     last_trash_cy:  float         = 0.0
     person_lost_at: Optional[float] = None
     max_distance_m: float         = 0.0
+    miss_frames:    int           = 0   # cadre consecutive fără detecție (clipire)
+    dropped_static: int           = 0   # cadre nemișcat de când a intrat în DROPPED
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -387,10 +396,16 @@ class LitteringDetector:
         current_trash_ids = {d["track_id"] for d in trash_dets}
         trash_by_id = {d["track_id"]: d for d in trash_dets}
 
-        # Expire trackers whose trash disappeared
-        for tid in list(self._rel_trackers.keys()):
+        # Toleranță la clipirea detecției: nu uita tracker-ul la primul cadru
+        # lipsă, ci abia după câteva (la fel ca pe calea de zonă). Altfel un
+        # obiect lăsat pe jos care „pâlpâie" pierde tot progresul de abandonare.
+        for tid, tracker in list(self._rel_trackers.items()):
             if tid not in current_trash_ids:
-                del self._rel_trackers[tid]
+                tracker.miss_frames += 1
+                if tracker.miss_frames > TRASH_MISS_GRACE:
+                    del self._rel_trackers[tid]
+            else:
+                tracker.miss_frames = 0
 
         for det in trash_dets:
             tid  = det["track_id"]
@@ -422,10 +437,11 @@ class LitteringDetector:
                 continue
 
             tracker.owner_box = nearest_pb
-            is_static = math.hypot(
+            move_px = math.hypot(
                 tcx - tracker.last_trash_cx,
                 tcy - tracker.last_trash_cy,
-            ) < JITTER_THRESHOLD_PX
+            )
+            is_static = move_px < JITTER_THRESHOLD_PX
             tracker.last_trash_cx = tcx
             tracker.last_trash_cy = tcy
             tracker.max_distance_m = max(tracker.max_distance_m, dist_m)
@@ -443,8 +459,30 @@ class LitteringDetector:
                     tracker.static_frames = 0
 
             elif tracker.state == TrashRelState.DROPPED:
+                # Calea rapidă: persoana chiar se îndepărtează → separare.
                 if dist_m >= SEPARATION_DIST_M:
                     tracker.state = TrashRelState.SEPARATING
+                    tracker.dropped_static = 0
+                elif move_px > PICKUP_MOVE_PX:
+                    # Obiectul s-a deplasat MULT lângă persoană — probabil ridicat
+                    # înapoi; resetează progresul (anulare conform tezei). Doar o
+                    # mișcare mare contează, nu jitterul de re-detecție după o
+                    # clipire, care altfel ar șterge tot progresul de abandonare.
+                    tracker.dropped_static = 0
+                    tracker.state = TrashRelState.NEARBY
+                    tracker.static_frames = 0
+                else:
+                    # Obiectul rămâne (aproximativ) pe loc. Dacă persoana l-ar fi
+                    # ridicat, s-ar fi mișcat mult (ramura de mai sus). Stat
+                    # nemișcat destul = abandonare, chiar dacă persoana zăbovește
+                    # în cadru (cazul wide-shot: aruncă și rămâne aproape).
+                    if is_static:
+                        tracker.dropped_static += 1
+                    if tracker.dropped_static >= int(ABANDON_STATIC_S * self.fps):
+                        tracker.state = TrashRelState.ABANDONED
+                        event = self._build_distance_event(frame, det, tracker, dist_m, nearest_pb)
+                        del self._rel_trackers[tid]
+                        return event
 
             elif tracker.state == TrashRelState.SEPARATING:
                 if dist_m >= ABANDON_DIST_M:
