@@ -645,7 +645,6 @@ def _make_thumbnail(
     trash_box: tuple[int, int, int, int],
     zone: PersonZone,
     size: tuple[int, int] = (320, 240),
-    label: str = "NEW LITTER!",
 ) -> np.ndarray:
     thumb = frame.copy()
 
@@ -655,12 +654,6 @@ def _make_thumbnail(
 
     tx1, ty1, tx2, ty2 = trash_box
     cv2.rectangle(thumb, (tx1, ty1), (tx2, ty2), (0, 0, 255), 2)
-    cv2.putText(thumb, label, (tx1, max(ty1 - 6, 10)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2, cv2.LINE_AA)
-
-    cv2.rectangle(thumb, (0, 0), (thumb.shape[1], 28), (0, 0, 200), -1)
-    cv2.putText(thumb, "LITTERING DETECTED", (6, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv2.LINE_AA)
 
     return cv2.resize(thumb, size, interpolation=cv2.INTER_AREA)
 
