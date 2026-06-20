@@ -383,7 +383,7 @@ function videoApp() {
               // Build the JPEG only when a frame is actually due. The preview
               // canvas still renders every animation frame, but encoding is
               // throttled to the AI rhythm.
-              const maxDim = Math.max(416, Math.min(Number(this.monitorCaptureMaxDim || 512), 640));
+              const maxDim = Math.max(416, Math.min(Number(this.monitorCaptureMaxDim || 768), 896));
               const scale = Math.min(1, maxDim / Math.max(vw, vh));
               cc.width = Math.round(vw * scale);
               cc.height = Math.round(vh * scale);

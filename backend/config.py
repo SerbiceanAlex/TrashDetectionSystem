@@ -66,9 +66,14 @@ class Settings(BaseSettings):
     MONITOR_TARGET_FPS: int = 15
     MONITOR_CAMERA_WIDTH: int = 1280
     MONITOR_CAMERA_HEIGHT: int = 720
-    MONITOR_CAPTURE_MAX_DIM: int = 640
+    # Capturarea trimisă spre AI și dimensiunea de inferență urcate la 768:
+    # benchmark pe RTX 3050 arată +~1 ms cost de detector (server tot ~42 FPS),
+    # dar recall sensibil mai bun pe obiecte mici la 1–3 m, principala limită
+    # observată în testele reale. Capturarea și inferența trebuie să crească
+    # împreună, altfel detectorul ar mări un JPEG de 640 fără detaliu nou.
+    MONITOR_CAPTURE_MAX_DIM: int = 768
     MONITOR_JPEG_QUALITY: float = 0.75
-    MONITOR_TRASH_IMGSZ: int = 640
+    MONITOR_TRASH_IMGSZ: int = 768
     MONITOR_PERSON_IMGSZ: int = 416
 
     @property
