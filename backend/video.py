@@ -769,7 +769,7 @@ async def handle_monitor_ws(
     tracker = await asyncio.to_thread(_load_tracker)
 
     det_conf = max(det_conf, settings.MONITOR_MIN_DET_CONF)
-    analysis_fps = max(5.0, min(float(analysis_fps or settings.MONITOR_TARGET_FPS), 30.0))
+    analysis_fps = max(5.0, min(float(analysis_fps or settings.MONITOR_TARGET_FPS), 120.0))
     detector = LitteringDetector(
         fps=analysis_fps,
         monitor_seconds=10.0,

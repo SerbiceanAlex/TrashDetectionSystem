@@ -60,20 +60,20 @@ class Settings(BaseSettings):
     LIVE_IMGSZ: int = 640
     DEFAULT_DET_CONF: float = 0.30
     MONITOR_MIN_DET_CONF: float = 0.35
-    # Țintă 30 FPS: peste 20, serverul activează stride-uri (trash la fiecare
-    # al 2-lea cadru, persoane la al 3-lea, cu caching între), deci face mai
-    # puțin per cadru. Clientul trimite cât permite hardware-ul: pe laptop
-    # (encode local + localhost) se atinge ~30 la 768px; pe telefon prin WiFi
-    # ~15 (limitat de encode-ul JPEG). Peste 30 nu e necesar pentru un act de
-    # câteva secunde, iar headroom-ul e folosit pe rezoluție (768), nu pe FPS.
-    MONITOR_TARGET_FPS: int = 30
+    # Țintă 120 = plafon larg, NU throttle. Lecție din teste: o țintă mică
+    # (ex. 60) se sincronizează prost cu refresh-ul ecranului și gâtuiește
+    # artificial (~46); o țintă mult peste capacitatea reală lasă bucla să
+    # ruleze la ceiling-ul fizic. Real obținut: ~55 FPS pe laptop la 768px
+    # (encode JPEG = bariera), ~15 pe telefon prin WiFi. Contorul afișează
+    # rata reală, nu ținta.
+    MONITOR_TARGET_FPS: int = 120
     MONITOR_CAMERA_WIDTH: int = 1280
     MONITOR_CAMERA_HEIGHT: int = 720
-    # Capturarea trimisă spre AI și dimensiunea de inferență urcate la 768:
-    # benchmark pe RTX 3050 arată +~1 ms cost de detector (server tot ~42 FPS),
-    # dar recall sensibil mai bun pe obiecte mici la 1–3 m, principala limită
-    # observată în testele reale. Capturarea și inferența trebuie să crească
-    # împreună, altfel detectorul ar mări un JPEG de 640 fără detaliu nou.
+    # Captură și inferență la 768 — prioritate pe CALITATEA detecției (recall
+    # bun pe obiecte mici la 1–3 m), decizia autorului. Pe laptop encode-ul de
+    # 768 limitează la ~26-27 FPS, suficient pentru un act de câteva secunde;
+    # afișajul FPS e stabilizat ca să nu pâlpâie. Evaluarea pe 19 clipuri AI
+    # confirmă imgsz 768 ca optim (recall 0,81 vs 0,69 la 1024).
     MONITOR_CAPTURE_MAX_DIM: int = 768
     MONITOR_JPEG_QUALITY: float = 0.75
     MONITOR_TRASH_IMGSZ: int = 768

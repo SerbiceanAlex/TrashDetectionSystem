@@ -217,7 +217,7 @@ function videoApp() {
         // Adoptă mereu ținta din config (test de ceiling): clientul împinge cât
         // poate, iar contorul onest arată rata reală susținută.
         this.monitorSendFps = configuredTargetFps;
-        this.monitorSendFps = Math.max(10, Math.min(Number(this.monitorSendFps || configuredTargetFps || 24), 60));
+        this.monitorSendFps = Math.max(10, Math.min(Number(this.monitorSendFps || configuredTargetFps || 24), 120));
         this.monitorCameraWidth = Math.max(640, Math.min(Number(runtime.monitor_camera_width || this.monitorCameraWidth || 1280), 1920));
         this.monitorCameraHeight = Math.max(360, Math.min(Number(runtime.monitor_camera_height || this.monitorCameraHeight || 720), 1080));
         this.monitorCaptureMaxDim = Math.max(416, Math.min(Number(runtime.monitor_capture_max_dim || this.monitorCaptureMaxDim || 640), 768));
@@ -344,7 +344,7 @@ function videoApp() {
         facingMode: this.monitorFacingMode,
         width: { ideal: width },
         height: { ideal: height },
-        frameRate: { ideal: 60 },
+        frameRate: { ideal: 120 },
       };
     },
 
@@ -433,16 +433,23 @@ function videoApp() {
       const raw = Math.max(0, Math.min(Number(rawFps || 0), target));
       this.monitorFpsRaw = raw;
 
-      // Netezire ușoară contra jitter-ului, dar valoarea afișată este cea REALĂ
-      // (măsurată de server) — nu se rotunjește artificial la țintă.
+      // Netezire mai puternică contra jitter-ului. Valoarea rămâne cea REALĂ
+      // (măsurată de server), doar mai stabilă vizual.
       this.monitorFps = this.monitorFps > 0
-        ? (this.monitorFps * 0.8 + raw * 0.2)
+        ? (this.monitorFps * 0.88 + raw * 0.12)
         : raw;
 
       const now = performance.now();
-      if (this._monitorFpsLastDisplayAt === 0 || (now - this._monitorFpsLastDisplayAt) > 500) {
-        this.monitorFpsDisplay = Math.round(this.monitorFps);
-        this._monitorFpsLastDisplayAt = now;
+      if (this._monitorFpsLastDisplayAt !== 0 && (now - this._monitorFpsLastDisplayAt) < 700) return;
+      this._monitorFpsLastDisplayAt = now;
+
+      // Bandă moartă: schimbă numărul afișat doar dacă media netezită s-a
+      // depărtat cu cel puțin 1.5 față de ce e pe ecran — altfel rămâne fix
+      // (nu mai pâlpâie 26↔27 la valori de graniță).
+      const current = this.monitorFpsDisplay || 0;
+      const smoothed = this.monitorFps;
+      if (current === 0 || Math.abs(smoothed - current) >= 1.5) {
+        this.monitorFpsDisplay = Math.round(smoothed);
       }
     },
 

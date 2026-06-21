@@ -453,7 +453,7 @@ async def ws_video_monitor(
     websocket: WebSocket,
     det_conf: float = Query(default=settings.MONITOR_MIN_DET_CONF, ge=0.10, le=0.95),
     person_conf: float = Query(default=0.20, ge=0.10, le=0.95),
-    analysis_fps: float = Query(default=float(settings.MONITOR_TARGET_FPS), ge=5.0, le=60.0),
+    analysis_fps: float = Query(default=float(settings.MONITOR_TARGET_FPS), ge=5.0, le=120.0),
     lat: Optional[float] = Query(default=None),
     lng: Optional[float] = Query(default=None),
     token: Optional[str] = Query(default=None),
