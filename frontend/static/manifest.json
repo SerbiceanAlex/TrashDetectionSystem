@@ -1,20 +1,20 @@
 {
-  "name": "EcoAlert — Hartă curățenie urbană",
-  "short_name": "EcoAlert",
-  "description": "Detectare și raportare deșeuri în timp real cu AI. Ajută la menținerea curate a spațiilor verzi.",
+  "name": "TrashDet — Detecție aruncare ilegală de deșeuri",
+  "short_name": "TrashDet",
+  "description": "Sistem automat de detecție și raportare a abandonării ilegale de deșeuri în spații verzi, cu AI.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0a0f0a",
-  "theme_color": "#16a34a",
+  "background_color": "#020617",
+  "theme_color": "#059669",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌿</text></svg>",
+      "src": "/static/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ],
-  "categories": ["utilities", "lifestyle"],
+  "categories": ["utilities"],
   "lang": "ro"
 }
