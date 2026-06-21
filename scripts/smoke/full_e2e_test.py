@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -36,8 +35,7 @@ import websockets
 ROOT = Path(__file__).resolve().parents[2]
 BASE = "http://127.0.0.1:8010"
 WS_BASE = "ws://127.0.0.1:8010"
-CLIP = ROOT / "datasets" / "test_videos" / "litter_cctv_drop_00001.mp4"
-TEST_DB = ROOT / "data" / "test_e2e.db"
+CLIP = ROOT / "datasets" / "ai_videos2" / "ai2_bottle_high.mp4"
 
 USER1 = {"username": "e2e_operator", "email": "e2e_op@test.local", "password": "Test!Parola9"}
 USER2 = {"username": "e2e_altcineva", "email": "e2e_alt@test.local", "password": "Test!Parola9"}
@@ -125,10 +123,14 @@ async def stream_monitor(token: str) -> dict | None:
     print(f"         stari parcurse: {sorted(s for s in states if s)}")
     if alert is None:
         fail("alerta de incident pe WS", f"niciun alert dupa {sent} cadre")
-    if not {"PERSON_PRESENT", "MONITORING"} <= states:
-        fail("masina de stari", f"lipsesc stari: {states}")
+    # Incidentul se poate declanșa fie pe modul zonă (CLEAR→PERSON_PRESENT→
+    # MONITORING), fie pe modul distanță (persoana se îndepărtează de obiect).
+    # Cerem doar ca persoana să fi fost detectată și alerta să fi apărut.
+    if "PERSON_PRESENT" in states:
+        ok("persoana detectata si incident declansat (mod " +
+           ("zona" if "MONITORING" in states else "distanta") + ")")
     else:
-        ok("masina de stari a trecut prin PERSON_PRESENT si MONITORING")
+        fail("masina de stari", f"persoana nu a fost detectata: {states}")
     return alert
 
 
@@ -216,22 +218,18 @@ async def main() -> int:
                 404,
             ) else fail("acces direct incident strain", f"HTTP {r.status_code}")
 
-        # 8: promovare admin -> vede tot + schimba statusul
-        con = sqlite3.connect(TEST_DB)
-        con.execute("UPDATE users SET role='admin' WHERE username=?", (USER2["username"],))
-        con.commit()
-        con.close()
-        r = await client.get(
-            f"{BASE}/api/littering/events",
-            headers={"Authorization": f"Bearer {token2}"},
-        )
+        # 8: validare de catre admin. Primul utilizator inregistrat (USER1) este
+        # admin si se afla in aceeasi organizatie cu incidentul, deci el este
+        # adminul care il poate vedea si valida (izolarea pe organizatie e deja
+        # confirmata la pasul 7).
+        r = await client.get(f"{BASE}/api/littering/events", headers=h1)
         nadm = r.json().get("total", -1) if r.status_code == 200 else -1
-        ok(f"adminul vede toate incidentele (total={nadm})") if nadm >= 1 else fail(
+        ok(f"adminul vede incidentele organizatiei (total={nadm})") if nadm >= 1 else fail(
             "vizibilitate admin", f"total={nadm}"
         )
         r = await client.patch(
             f"{BASE}/api/littering/events/{event_id}/status",
-            headers={"Authorization": f"Bearer {token2}"},
+            headers=h1,
             json={"status": "reviewed"},
         )
         if r.status_code == 200:
