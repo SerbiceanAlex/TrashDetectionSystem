@@ -214,10 +214,10 @@ function videoApp() {
       try {
         const runtime = this.systemInfo?.runtime || {};
         const configuredTargetFps = Number(runtime.monitor_target_fps || 24);
-        if (this.monitorSendFps === 24 && configuredTargetFps !== 24) {
-          this.monitorSendFps = configuredTargetFps;
-        }
-        this.monitorSendFps = Math.max(10, Math.min(Number(this.monitorSendFps || configuredTargetFps || 24), 30));
+        // Adoptă mereu ținta din config (test de ceiling): clientul împinge cât
+        // poate, iar contorul onest arată rata reală susținută.
+        this.monitorSendFps = configuredTargetFps;
+        this.monitorSendFps = Math.max(10, Math.min(Number(this.monitorSendFps || configuredTargetFps || 24), 60));
         this.monitorCameraWidth = Math.max(640, Math.min(Number(runtime.monitor_camera_width || this.monitorCameraWidth || 1280), 1920));
         this.monitorCameraHeight = Math.max(360, Math.min(Number(runtime.monitor_camera_height || this.monitorCameraHeight || 720), 1080));
         this.monitorCaptureMaxDim = Math.max(416, Math.min(Number(runtime.monitor_capture_max_dim || this.monitorCaptureMaxDim || 640), 768));
@@ -336,14 +336,15 @@ function videoApp() {
     _monitorVideoConstraints() {
       // Cere o rezoluție bună fără plafoane dure (`max`) — pe mobil un cap dur
       // forțează camera pe un mod de captură mic și moale (sursa blur-ului).
-      // Camera rulează la 30fps nativ; trimiterea către AI e limitată separat.
+      // Cerem 60 FPS: dacă hardware-ul camerei suportă, preview-ul e mai neted;
+      // dacă nu, browserul revine automat la 30. Analiza e limitată separat.
       const width = Math.max(640, Math.min(Number(this.monitorCameraWidth || 1280), 1920));
       const height = Math.max(360, Math.min(Number(this.monitorCameraHeight || 720), 1080));
       return {
         facingMode: this.monitorFacingMode,
         width: { ideal: width },
         height: { ideal: height },
-        frameRate: { ideal: 30 },
+        frameRate: { ideal: 60 },
       };
     },
 

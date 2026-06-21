@@ -60,11 +60,13 @@ class Settings(BaseSettings):
     LIVE_IMGSZ: int = 640
     DEFAULT_DET_CONF: float = 0.30
     MONITOR_MIN_DET_CONF: float = 0.35
-    # Țintă 24 FPS: peste 20, serverul activează stride-uri (trash la fiecare
+    # Țintă 30 FPS: peste 20, serverul activează stride-uri (trash la fiecare
     # al 2-lea cadru, persoane la al 3-lea, cu caching între), deci face mai
-    # puțin per cadru și susține rate mai mari. Clientul trimite cât permit
-    # encode-ul de pe telefon + WiFi; plafonul artificial de 15 a fost ridicat.
-    MONITOR_TARGET_FPS: int = 24
+    # puțin per cadru. Clientul trimite cât permite hardware-ul: pe laptop
+    # (encode local + localhost) se atinge ~30 la 768px; pe telefon prin WiFi
+    # ~15 (limitat de encode-ul JPEG). Peste 30 nu e necesar pentru un act de
+    # câteva secunde, iar headroom-ul e folosit pe rezoluție (768), nu pe FPS.
+    MONITOR_TARGET_FPS: int = 30
     MONITOR_CAMERA_WIDTH: int = 1280
     MONITOR_CAMERA_HEIGHT: int = 720
     # Capturarea trimisă spre AI și dimensiunea de inferență urcate la 768:

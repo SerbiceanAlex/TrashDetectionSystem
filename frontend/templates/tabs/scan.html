@@ -381,6 +381,17 @@
     </div>
   </div>
 
+  <!-- ── FPS counter (colț stânga-jos) ── -->
+  <div style="position:absolute;left:12px;bottom:120px;z-index:12;display:flex;align-items:center;gap:6px;
+              padding:5px 10px;border-radius:999px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);
+              border:1px solid rgba(255,255,255,.15)">
+    <span class="w-1.5 h-1.5 rounded-full"
+          :style="monitorFpsDisplay>=20 ? 'background:#4ade80;box-shadow:0 0 6px #4ade80'
+                 : monitorFpsDisplay>=12 ? 'background:#fbbf24' : 'background:#ef4444'"></span>
+    <span style="font-size:13px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums"
+          x-text="monitorFpsDisplay + ' FPS'"></span>
+  </div>
+
   <!-- ── PROGRESS BAR (MONITORING state) ── -->
   <div x-show="monitorState==='MONITORING'"
        style="position:absolute;top:0;left:0;right:0;height:3px;z-index:11">
