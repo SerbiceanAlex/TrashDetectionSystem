@@ -7,12 +7,10 @@ Models loaded:
   _classifier  — custom YOLOv8n-cls material classifier (5 classes)
   _person_det  — pretrained yolov8n (COCO) used only for class 0 = person
 
-Littering detection helpers:
-  run_pipeline_track()  — same as run_pipeline_frame() but uses model.track()
-                          so each trash bbox gets a persistent track_id.
-  detect_persons()      — runs person_det on a frame, returns person bboxes.
-  blur_face_regions()   — applies GaussianBlur to top-25% of each person bbox
-                          (GDPR privacy-by-design — face anonymisation).
+Funcții expuse:
+  run_pipeline()        — pipeline pe bytes de imagine (scanare foto).
+  run_pipeline_frame()  — pipeline pe un cadru numpy (fără re-encode JPEG).
+  detect_persons()      — rulează person_det pe un cadru, întoarce bbox-urile.
 """
 
 import time
@@ -161,79 +159,6 @@ def run_pipeline_frame(
 # Littering Detection helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_pipeline_track(
-    frame: np.ndarray,
-    det_conf: float = settings.DEFAULT_DET_CONF,
-    det_imgsz: int = settings.LIVE_IMGSZ,
-    cls_imgsz: int = 224,
-) -> tuple[list[dict], np.ndarray, float]:
-    """
-    Same as run_pipeline_frame() but uses model.track() with ByteTrack so
-    each detected trash bbox gets a persistent integer track_id.
-
-    Returns:
-        detections  — list of dicts; each dict has 'track_id' in addition to
-                      the standard detect_and_classify keys.
-        annotated   — numpy BGR annotated frame
-        elapsed_ms  — inference time in milliseconds
-
-    NOTE: persist=True keeps ByteTrack state between calls — call this
-    function consecutively on frames of the SAME video stream.  Each new
-    video/WebSocket session should use a fresh YOLO instance (see
-    video.py:handle_monitor_ws) to avoid state bleed between sessions.
-    """
-    from backend.ml.two_stage import draw_detections, clamp_box, classify_crop
-
-    frame = _resize_if_needed(frame)
-    h, w = frame.shape[:2]
-
-    t0 = time.perf_counter()
-    with _inference_lock:
-        results = _detector.track(
-            frame,
-            conf=det_conf,
-            imgsz=det_imgsz,
-            verbose=False,
-            persist=True,
-            tracker="bytetrack.yaml",
-        )
-    elapsed_ms = (time.perf_counter() - t0) * 1000.0
-
-    boxes = results[0].boxes
-    detections: list[dict] = []
-
-    if boxes is not None and boxes.xyxy is not None:
-        xyxy_list  = boxes.xyxy.tolist()
-        conf_list  = boxes.conf.tolist() if boxes.conf is not None else [0.0] * len(xyxy_list)
-        id_list    = (
-            [int(x) for x in boxes.id.tolist()]
-            if (hasattr(boxes, "id") and boxes.id is not None)
-            else list(range(len(xyxy_list)))
-        )
-
-        for idx, (xyxy, det_score, track_id) in enumerate(zip(xyxy_list, conf_list, id_list)):
-            x1, y1, x2, y2 = clamp_box(*xyxy, w, h)
-            if x2 <= x1 or y2 <= y1:
-                continue
-            crop = frame[y1:y2, x1:x2]
-            if crop.size == 0:
-                continue
-            with _inference_lock:
-                mat_name, mat_score = classify_crop(_classifier, crop, cls_imgsz, _cls_names)
-            detections.append({
-                "index":         idx,
-                "track_id":      track_id,
-                "box":           (x1, y1, x2, y2),
-                "det_score":     float(det_score),
-                "material_name": mat_name,
-                "material_score": mat_score,
-            })
-
-    fps = 1000.0 / max(elapsed_ms, 1e-3)
-    annotated = draw_detections(frame, detections, fps=fps, max_labels=5, line_width=2)
-    return detections, annotated, elapsed_ms
-
-
 # Minimum person bbox size — filters out partial-body detections (arm/leg
 # visible as person leaves the frame edge), which would falsely spike the count.
 _MIN_PERSON_W = 15   # pixels — supports distant persons in CCTV footage
@@ -276,54 +201,3 @@ def detect_persons(
             continue
         persons.append((x1, y1, x2, y2))
     return persons
-
-
-def blur_face_regions(
-    frame: np.ndarray,
-    person_boxes: list[tuple[int, int, int, int]],
-    face_fraction: float = 0.25,
-    kernel_size: int = 51,
-) -> np.ndarray:
-    """
-    Apply Gaussian blur to the top `face_fraction` of each person bounding box.
-
-    This is a privacy-by-design measure (GDPR Art. 25) — faces are anonymised
-    before the frame is stored or transmitted.  The decision to issue a fine
-    remains with a human officer who reviews the evidence packet.
-
-    Args:
-        frame:         BGR numpy array (will be copied internally).
-        person_boxes:  list of (x1, y1, x2, y2) person bboxes.
-        face_fraction: fraction of the bbox height treated as the face region.
-        kernel_size:   GaussianBlur kernel (must be odd, larger = stronger blur).
-
-    Returns:
-        BGR frame with face regions blurred (original frame is NOT modified).
-    """
-    out = frame.copy()
-    k = kernel_size if kernel_size % 2 == 1 else kernel_size + 1  # ensure odd
-    for (x1, y1, x2, y2) in person_boxes:
-        face_h = max(1, int((y2 - y1) * face_fraction))
-        fy2 = min(y1 + face_h, out.shape[0])
-        region = out[y1:fy2, x1:x2]
-        if region.size == 0:
-            continue
-        out[y1:fy2, x1:x2] = cv2.GaussianBlur(region, (k, k), 0)
-    return out
-
-
-def draw_persons_overlay(
-    frame: np.ndarray,
-    person_boxes: list[tuple[int, int, int, int]],
-    color: tuple[int, int, int] = (255, 165, 0),
-) -> np.ndarray:
-    """
-    Draw person bounding boxes (orange) on a frame.
-    Used for the monitor WebSocket feed so the user can see tracked persons.
-    """
-    out = frame
-    for (x1, y1, x2, y2) in person_boxes:
-        cv2.rectangle(out, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(out, "person", (x1, max(y1 - 8, 10)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2, cv2.LINE_AA)
-    return out

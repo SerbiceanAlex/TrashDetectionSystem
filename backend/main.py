@@ -437,16 +437,9 @@ async def detect(
 
 # ── Video endpoints ─────────────────────────────────────────────────────────
 
-@app.websocket("/ws/video/live")
-async def ws_video_live(
-    websocket: WebSocket,
-    det_conf: float = settings.DEFAULT_DET_CONF,
-):
-    """WebSocket for live webcam video: browser sends JPEG frames, server
-    returns annotated frames + stats JSON."""
-    async with db.AsyncSessionLocal() as session:
-        await vid.handle_live_ws(websocket, det_conf, session)
-
+# Singurul flux video live folosit de interfață este monitorul de incidente
+# de mai jos (/ws/video/monitor). Vechiul endpoint /ws/video/live (detecție
+# simplă pe cadru, fără logică temporală) a fost eliminat — nu mai era apelat.
 
 @app.websocket("/ws/video/monitor")
 async def ws_video_monitor(
