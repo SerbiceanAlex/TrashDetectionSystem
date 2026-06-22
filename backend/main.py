@@ -27,7 +27,7 @@ from sqlalchemy.orm import selectinload
 from backend import database as db
 from backend import inference as infer
 from backend import schemas
-from backend.auth_router import router as auth_router, get_current_active_user, oauth2_scheme
+from backend.auth_router import router as auth_router, get_current_active_user
 from backend.auth import decode_access_token
 from backend.config import settings
 from backend.storage_retention import cleanup_littering_evidence, storage_cleanup_loop
@@ -93,61 +93,38 @@ def _resolve_littering_evidence_path(stored_path: str | None) -> Path | None:
 # ── Lifespan: load models + create DB tables on startup ──────────────────────
 
 async def _migrate_schema():
-    """Add new columns to existing tables (SQLite ALTER TABLE).
-    
-    Safe to run repeatedly — each ALTER is wrapped in try/except
-    so it's a no-op if the column already exists.
+    """Adaugă coloane noi în tabelele existente (ALTER TABLE pe SQLite).
+
+    Sigur de rulat de mai multe ori — fiecare ALTER e prins în try/except,
+    deci nu face nimic dacă coloana există deja.
     """
     alter_statements = [
-        # DetectionSession table — lifecycle fields
-        "ALTER TABLE detection_sessions ADD COLUMN status VARCHAR(20) DEFAULT 'pending'",
-        "ALTER TABLE detection_sessions ADD COLUMN cluster_id INTEGER REFERENCES detection_sessions(id)",
-        "ALTER TABLE detection_sessions ADD COLUMN claimed_by INTEGER REFERENCES users(id)",
-        "ALTER TABLE detection_sessions ADD COLUMN claimed_at DATETIME",
-        "ALTER TABLE detection_sessions ADD COLUMN cleaned_image_path TEXT",
-        "ALTER TABLE detection_sessions ADD COLUMN cleaned_at DATETIME",
-        "ALTER TABLE detection_sessions ADD COLUMN expires_at DATETIME",
-        "ALTER TABLE detection_sessions ADD COLUMN verification_score REAL DEFAULT 0.0",
-        "ALTER TABLE detection_sessions ADD COLUMN user_note TEXT",
-        # DetectionRecord — impact metrics
-        "ALTER TABLE detection_records ADD COLUMN estimated_weight_kg REAL DEFAULT 0.0",
-        # LitteringEvent — distance-based evidence fields (v2 state machine)
+        # LitteringEvent — câmpuri de dovadă pe distanță (mașina de stări v2)
         "ALTER TABLE littering_events ADD COLUMN incident_uid VARCHAR(36)",
         "ALTER TABLE littering_events ADD COLUMN owner_person_id INTEGER",
         "ALTER TABLE littering_events ADD COLUMN distance_at_abandonment REAL",
         "ALTER TABLE littering_events ADD COLUMN detection_method VARCHAR(32) DEFAULT 'zone'",
         "ALTER TABLE littering_events ADD COLUMN reporter_id INTEGER REFERENCES users(id)",
-        # Organization multi-tenant
+        # Multi-tenant pe organizație
         "ALTER TABLE users ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         "ALTER TABLE littering_events ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
-        # Video + detection session isolation
+        # Izolarea sesiunilor video
         "ALTER TABLE video_sessions ADD COLUMN littering_count INTEGER DEFAULT 0",
         "ALTER TABLE video_sessions ADD COLUMN user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE video_sessions ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
-        "ALTER TABLE detection_sessions ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
     ]
     async with db.engine.begin() as conn:
         for stmt in alter_statements:
             try:
                 await conn.execute(db.sa_text(stmt))
             except Exception:
-                pass  # Column already exists — expected on subsequent runs
+                pass  # coloana există deja — normal la rulările următoare
 
-    # Migrate legacy data: is_resolved=1 → status='cleaned'
-    async with db.engine.begin() as conn:
-        await conn.execute(
-            db.sa_text(
-                "UPDATE detection_sessions SET status = 'cleaned' "
-                "WHERE is_resolved = 1 AND (status IS NULL OR status = 'pending')"
-            )
-        )
-
-    # Ensure default org exists and assign all legacy rows to it
+    # Asigură organizația implicită și atribuie rândurile vechi ei
     async with db.AsyncSessionLocal() as session:
         await db.get_or_create_default_org(session)
     async with db.engine.begin() as conn:
-        for tbl in ("users", "littering_events",
-                    "video_sessions", "detection_sessions"):
+        for tbl in ("users", "littering_events", "video_sessions"):
             try:
                 await conn.execute(db.sa_text(
                     f"UPDATE {tbl} SET organization_id = 1 WHERE organization_id IS NULL"
@@ -155,7 +132,7 @@ async def _migrate_schema():
             except Exception:
                 pass
 
-    print("[migration] Schema migration complete.")
+    print("[migration] Migrarea schemei e completă.")
 
 
 @asynccontextmanager
@@ -227,15 +204,6 @@ async def get_current_org(
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _save_files(original_bytes: bytes, annotated_bytes: bytes, stem: str):
-    """Write original + annotated images to disk (runs as a background task)."""
-    # Creează folderele doar la prima scanare de imagine (lazy), ca să nu
-    # apară goale în proiect dacă nu s-au folosit niciodată.
-    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-    ANNOTATED_DIR.mkdir(parents=True, exist_ok=True)
-    (UPLOADS_DIR / f"{stem}.jpg").write_bytes(original_bytes)
-    (ANNOTATED_DIR / f"{stem}_annotated.jpg").write_bytes(annotated_bytes)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -325,113 +293,6 @@ async def system_info():
             "storage_cleanup_enabled": settings.STORAGE_CLEANUP_ENABLED,
         },
     }
-
-
-@app.post("/api/detect", response_model=schemas.DetectResponse, summary="Upload image and run detection")
-async def detect(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    det_conf: float = Query(default=settings.DEFAULT_DET_CONF, ge=0.05, le=0.95, description="Detector confidence threshold"),
-    latitude: float = Query(default=None, description="GPS latitude"),
-    longitude: float = Query(default=None, description="GPS longitude"),
-    user_note: str = Query(default=None, description="User note/description for the report"),
-    session: AsyncSession = Depends(db.get_db),
-    token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-):
-    """
-    Upload a JPEG/PNG image, run the two-stage pipeline, store results in DB,
-    and return the annotated image URL + detection JSON.
-    """
-    # Optional auth links detections to the current user/organization.
-    current_user = None
-    if token:
-        try:
-            payload = decode_access_token(token)
-            if payload and "username" in payload:
-                res = await session.execute(select(db.User).where(db.User.username == payload["username"]))
-                current_user = res.scalar_one_or_none()
-        except Exception:
-            pass
-    allowed = {"image/jpeg", "image/png", "image/webp", "image/bmp"}
-    if file.content_type not in allowed:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
-
-    image_bytes = await file.read()
-    if len(image_bytes) == 0:
-        raise HTTPException(status_code=400, detail="Empty file uploaded.")
-    if len(image_bytes) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {MAX_UPLOAD_BYTES // 1024 // 1024} MB.")
-
-    final_lat = latitude
-    final_lng = longitude
-    address   = None
-    gps_src   = "browser" if latitude else None
-
-    # Run inference
-    try:
-        detections, annotated_bytes, elapsed_ms = infer.run_pipeline(image_bytes, det_conf=det_conf)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
-
-    # Unique stem for saved files
-    stem = uuid.uuid4().hex
-
-    # Persist session row
-    det_session = db.DetectionSession(
-        filename=file.filename or "upload.jpg",
-        image_path=str(UPLOADS_DIR / f"{stem}.jpg"),
-        annotated_path=str(ANNOTATED_DIR / f"{stem}_annotated.jpg"),
-        total_objects=len(detections),
-        inference_ms=round(elapsed_ms, 2),
-        latitude=final_lat,
-        longitude=final_lng,
-        address=address,
-        gps_source=gps_src,
-        organization_id=current_user.organization_id if current_user else None,
-        reporter_id=current_user.id if current_user else None,
-        user_note=user_note.strip()[:500] if user_note else None
-    )
-    session.add(det_session)
-    await session.flush()  # get the auto-generated id
-
-    # Persist individual detection records
-    records = []
-    for det in detections:
-        x1, y1, x2, y2 = det["box"]
-        rec = db.DetectionRecord(
-            session_id=det_session.id,
-            material=det["material_name"],
-            det_score=round(det["det_score"], 4),
-            cls_score=round(det["material_score"], 4),
-            box_x1=x1,
-            box_y1=y1,
-            box_x2=x2,
-            box_y2=y2,
-        )
-        session.add(rec)
-        records.append(rec)
-
-    await session.commit()
-    await session.refresh(det_session)
-    for rec in records:
-        await session.refresh(rec)
-
-    # Save image files in background (non-blocking)
-    background_tasks.add_task(_save_files, image_bytes, annotated_bytes, stem)
-
-    return schemas.DetectResponse(
-        session_id=det_session.id,
-        filename=det_session.filename,
-        total_objects=det_session.total_objects,
-        inference_ms=det_session.inference_ms,
-        annotated_url=f"/api/detect/sessions/{det_session.id}/annotated",
-        detections=[schemas.DetectionRecordOut.model_validate(r) for r in records],
-        latitude=final_lat,
-        longitude=final_lng,
-        address=address,
-        gps_source=gps_src,
-        reporter_id=current_user.id if current_user else None
-    )
 
 
 # ── Video endpoints ─────────────────────────────────────────────────────────
@@ -529,16 +390,6 @@ def _can_view_video_session(user: db.User, video_session: db.VideoSession) -> bo
     return _same_video_org(user, video_session) and video_session.user_id == user.id
 
 
-def _same_detection_org(user: db.User, detection_session: db.DetectionSession) -> bool:
-    return (detection_session.organization_id or 1) == (user.organization_id or 1)
-
-
-def _can_view_detection_session(user: db.User, detection_session: db.DetectionSession) -> bool:
-    if user.role == "admin":
-        return _same_detection_org(user, detection_session)
-    return _same_detection_org(user, detection_session) and detection_session.reporter_id == user.id
-
-
 async def _user_from_bearer_or_query(
     request: Request,
     session: AsyncSession,
@@ -559,35 +410,6 @@ async def _user_from_bearer_or_query(
         return result.scalar_one_or_none()
     except Exception:
         return None
-
-
-@app.get(
-    "/api/detect/sessions/{session_id}/annotated",
-    summary="Download annotated image for a detection session",
-)
-async def download_detection_annotated_image(
-    session_id: int,
-    request: Request,
-    token: Optional[str] = Query(default=None),
-    session: AsyncSession = Depends(db.get_db),
-):
-    current_user = await _user_from_bearer_or_query(request, session, token)
-    if current_user is None:
-        raise HTTPException(status_code=401, detail="Autentificare necesară.")
-
-    det_session = await session.get(db.DetectionSession, session_id)
-    if det_session is None:
-        raise HTTPException(status_code=404, detail="Sesiune de detecție negăsită.")
-    if not _can_view_detection_session(current_user, det_session):
-        raise HTTPException(status_code=403, detail="Acces restricționat la această detecție.")
-    if not det_session.annotated_path:
-        raise HTTPException(status_code=404, detail="Imaginea adnotată nu este disponibilă.")
-
-    p = Path(det_session.annotated_path)
-    if not p.exists():
-        raise HTTPException(status_code=410, detail="Imaginea adnotată a fost ștearsă.")
-
-    return FileResponse(p, media_type="image/jpeg", filename=p.name)
 
 
 @app.get(
@@ -1393,7 +1215,6 @@ async def admin_stats(
     }
 
 
-
 # ── Admin: Charts data (registrations per month, reports per day, materials) ──
 
 @app.get("/api/admin/charts", summary="[Admin] Chart data for admin dashboard")
@@ -1546,7 +1367,6 @@ async def get_notifications(
                 "id": n.id,
                 "message": n.message,
                 "category": n.category,
-                "session_id": n.session_id,
                 "is_read": n.is_read,
                 "created_at": n.created_at.isoformat() if n.created_at else "",
             }

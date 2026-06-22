@@ -13,7 +13,7 @@ from uuid import uuid4
 from backend import auth
 from backend import database as db
 from backend.auth_router import get_current_active_user
-from backend.main import ANNOTATED_DIR, LITTERING_DIR, VIDEOS_DIR, app
+from backend.main import LITTERING_DIR, VIDEOS_DIR, app
 
 
 def _override_admin() -> None:
@@ -218,64 +218,6 @@ async def test_admin_storage_breaks_littering_evidence_down_by_status(client: As
 
 
 @pytest.mark.asyncio
-async def test_generated_image_media_is_authenticated(client: AsyncClient, session):
-    async def _override_get_db_same_session():
-        yield session
-
-    app.dependency_overrides[db.get_db] = _override_get_db_same_session
-
-    org = db.Organization(name="Detection media org")
-    admin = db.User(username="detect_admin", email="detect_admin@test.local", hashed_password="x", role="admin", organization=org)
-    owner = db.User(username="detect_owner", email="detect_owner@test.local", hashed_password="x", role="user", organization=org)
-    outsider = db.User(username="detect_outsider", email="detect_outsider@test.local", hashed_password="x", role="user", organization=org)
-    session.add_all([org, admin, owner, outsider])
-    await session.flush()
-
-    suffix = uuid4().hex
-    ann_path = ANNOTATED_DIR / f"pytest_{suffix}_annotated.jpg"
-    # annotated/ se creează acum lazy (la prima scanare reală); testul își
-    # pregătește singur folderul fixture.
-    ANNOTATED_DIR.mkdir(parents=True, exist_ok=True)
-    ann_path.write_bytes(b"\xff\xd8\xff\xd9")
-    det_session = db.DetectionSession(
-        filename="pytest.jpg",
-        annotated_path=str(ann_path),
-        total_objects=1,
-        inference_ms=12.5,
-        organization_id=org.id,
-        reporter_id=owner.id,
-    )
-    session.add(det_session)
-    await session.flush()
-
-    admin_token = auth.create_access_token({"username": admin.username, "role": admin.role, "id": admin.id})
-    owner_token = auth.create_access_token({"username": owner.username, "role": owner.role, "id": owner.id})
-    outsider_token = auth.create_access_token({"username": outsider.username, "role": outsider.role, "id": outsider.id})
-
-    try:
-        direct = await client.get(f"/annotated/{ann_path.name}")
-        assert direct.status_code == 404
-
-        no_auth = await client.get(f"/api/detect/sessions/{det_session.id}/annotated")
-        assert no_auth.status_code == 401
-
-        owner_resp = await client.get(f"/api/detect/sessions/{det_session.id}/annotated?token={owner_token}")
-        assert owner_resp.status_code == 200
-        assert "image/jpeg" in owner_resp.headers.get("content-type", "")
-
-        admin_resp = await client.get(
-            f"/api/detect/sessions/{det_session.id}/annotated",
-            headers={"Authorization": f"Bearer {admin_token}"},
-        )
-        assert admin_resp.status_code == 200
-
-        outsider_resp = await client.get(f"/api/detect/sessions/{det_session.id}/annotated?token={outsider_token}")
-        assert outsider_resp.status_code == 403
-    finally:
-        ann_path.unlink(missing_ok=True)
-
-
-@pytest.mark.asyncio
 async def test_dashboard_b2b_requires_auth(client: AsyncClient):
     resp = await client.get("/api/dashboard/b2b")
     assert resp.status_code in (401, 403)
@@ -336,7 +278,3 @@ async def test_video_upload_rejects_files_over_video_limit(client: AsyncClient, 
     assert resp.status_code == 413
 
 
-@pytest.mark.asyncio
-async def test_detect_no_file(client: AsyncClient):
-    resp = await client.post("/api/detect")
-    assert resp.status_code in (401, 422)

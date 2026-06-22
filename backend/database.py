@@ -59,67 +59,13 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(200), nullable=False)
-    role = Column(String(20), default="user") # 'user' or 'admin'
+    role = Column(String(20), default="user")  # 'user' sau 'admin'
     points = Column(Integer, default=0)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    # Relationships
+    # Relații
     organization = relationship("Organization", back_populates="users")
-    reports = relationship("DetectionSession", foreign_keys="[DetectionSession.reporter_id]", back_populates="reporter")
-    resolutions = relationship("DetectionSession", foreign_keys="[DetectionSession.resolver_id]", back_populates="resolver")
-
-
-class DetectionSession(Base):
-    """Un rând per imagine încărcată și scanată (rezultatul detecției foto)."""
-
-    __tablename__ = "detection_sessions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    filename = Column(String(255), nullable=False)
-    upload_time = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    image_path = Column(Text, nullable=True)       # original saved
-    annotated_path = Column(Text, nullable=True)   # annotated saved
-    total_objects = Column(Integer, default=0)
-    inference_ms = Column(Float, default=0.0)
-    latitude = Column(Float, nullable=True)        # GPS coordinates
-    longitude = Column(Float, nullable=True)
-    address = Column(Text, nullable=True)          # reverse-geocoded address
-    gps_source = Column(String(16), nullable=True) # 'exif' | 'browser' | 'manual'
-    is_resolved = Column(Integer, default=0)       # 0=dirty, 1=cleaned
-    resolved_at = Column(DateTime, nullable=True)
-
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
-    reporter_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    resolver_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-
-    reporter = relationship("User", foreign_keys=[reporter_id], back_populates="reports")
-    resolver = relationship("User", foreign_keys=[resolver_id], back_populates="resolutions")
-
-    records = relationship(
-        "DetectionRecord", back_populates="session", cascade="all, delete-orphan"
-    )
-
-
-class DetectionRecord(Base):
-    """Un rând per obiect detectat într-o scanare foto (un bounding box)."""
-
-    __tablename__ = "detection_records"
-
-    id = Column(Integer, primary_key=True, index=True)
-    session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=False)
-    material = Column(String(64), nullable=False)
-    det_score = Column(Float, nullable=False)
-    cls_score = Column(Float, nullable=False)
-    box_x1 = Column(Integer, nullable=False)
-    box_y1 = Column(Integer, nullable=False)
-    box_x2 = Column(Integer, nullable=False)
-    box_y2 = Column(Integer, nullable=False)
-    estimated_weight_kg = Column(Float, default=0.0)
-
-    session = relationship("DetectionSession", back_populates="records")
-
-
 
 
 class VideoSession(Base):
@@ -128,7 +74,7 @@ class VideoSession(Base):
     __tablename__ = "video_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
-    source_type = Column(String(16), nullable=False)       # "webcam" or "upload"
+    source_type = Column(String(16), nullable=False)       # "webcam" sau "upload"
     filename = Column(String(255), nullable=True)
     start_time = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     end_time = Column(DateTime, nullable=True)
@@ -138,12 +84,12 @@ class VideoSession(Base):
     littering_count = Column(Integer, default=0)
     avg_fps = Column(Float, default=0.0)
     avg_inference_ms = Column(Float, default=0.0)
-    materials_summary = Column(Text, nullable=True)         # JSON string
-    video_path = Column(Text, nullable=True)                # original upload
-    annotated_video_path = Column(Text, nullable=True)      # annotated output
+    materials_summary = Column(Text, nullable=True)         # JSON ca text
+    video_path = Column(Text, nullable=True)                # uploadul original
+    annotated_video_path = Column(Text, nullable=True)      # videoul adnotat
     status = Column(String(16), default="running")          # running / completed / failed
-    frames_processed = Column(Integer, default=0)           # progress tracking
-    total_frames_expected = Column(Integer, default=0)      # total frames in source video
+    frames_processed = Column(Integer, default=0)           # urmărirea progresului
+    total_frames_expected = Column(Integer, default=0)      # total cadre în sursă
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
@@ -157,12 +103,10 @@ class Notification(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     message = Column(Text, nullable=False)
     category = Column(String(32), default="info")   # 'incident' | 'review' | 'info'
-    session_id = Column(Integer, ForeignKey("detection_sessions.id"), nullable=True)
-    is_read = Column(Integer, default=0)             # 0=unread, 1=read
+    is_read = Column(Integer, default=0)             # 0=necitit, 1=citit
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", foreign_keys=[user_id])
-    session = relationship("DetectionSession", foreign_keys=[session_id])
 
 
 class LitteringEvent(Base):

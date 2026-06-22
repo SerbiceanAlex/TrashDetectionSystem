@@ -26,45 +26,6 @@ class UserOut(BaseModel):
     created_at: datetime
 
 
-# Detecție pe imagine (scanare foto)
-
-class DetectionRecordOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    material: str
-    det_score: float
-    cls_score: float
-    box_x1: int
-    box_y1: int
-    box_x2: int
-    box_y2: int
-    estimated_weight_kg: float = 0.0
-
-
-class DetectResponse(BaseModel):
-    session_id: int
-    filename: str
-    total_objects: int
-    inference_ms: float
-    annotated_url: str
-    detections: list[DetectionRecordOut]
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    address: Optional[str] = None
-    gps_source: Optional[str] = None
-    is_resolved: int = 0
-    resolved_at: Optional[datetime] = None
-    reporter_id: Optional[int] = None
-    resolver_id: Optional[int] = None
-    status: str = "pending"
-    verification_score: float = 0.0
-    claimed_by: Optional[int] = None
-    claimed_at: Optional[datetime] = None
-    cleaned_at: Optional[datetime] = None
-    user_note: Optional[str] = None
-
-
 # Procesare video
 
 class VideoSessionOut(BaseModel):
@@ -115,7 +76,6 @@ class NotificationOut(BaseModel):
     id: int
     message: str
     category: Optional[str] = None
-    session_id: Optional[int] = None
     is_read: int
     created_at: str
 
