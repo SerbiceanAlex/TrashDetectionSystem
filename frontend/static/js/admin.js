@@ -301,8 +301,9 @@ function adminApp() {
         const data = await fetchAPI(url);
         this.incidents = data.items;
         this.incidentTotal = data.total;
-        const visibleIds = new Set(this.incidents.map(e => e.id));
-        this.incidentSelectedIds = this.incidentSelectedIds.filter(id => visibleIds.has(id));
+        // Resetează selecția la fiecare (re)încărcare a listei: la refresh,
+        // schimbarea paginii, a filtrului sau a tab-ului nu rămâne nimic bifat.
+        this.incidentSelectedIds = [];
 
         try {
           // Incarca totalurile globale asincron pentru KPI cards
