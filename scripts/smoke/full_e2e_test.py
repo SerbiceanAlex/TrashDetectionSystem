@@ -1,17 +1,17 @@
-"""
-Test end-to-end complet pe lantul de incident, izolat de datele reale.
+r"""
+Test end-to-end complet pe lanțul de incident, izolat de datele reale.
 
-Simuleaza exact scenariul de utilizare:
-  1.  inregistrare utilizator + login (token JWT)
+Simulează exact scenariul de utilizare:
+  1.  înregistrare utilizator + login (token JWT)
   2.  conectare la WebSocket-ul de monitorizare (ca telefonul)
-  3.  trimitere cadre dintr-un clip real cu aruncare (persoana lasa obiect, pleaca)
-  4.  asteptare alerta de incident de la server
-  5.  verificare in REST: incidentul exista, are thumbnail SI clip video
-  6.  descarcarea dovezilor (thumbnail + clip) returneaza 200
-  7.  alt utilizator NU vede incidentul (izolare pe reporter)
-  8.  promovat admin -> vede incidentul si ii poate schimba statusul
+  3.  trimitere cadre dintr-un clip real cu aruncare (persoana lasă obiect, pleacă)
+  4.  așteptare alertă de incident de la server
+  5.  verificare în REST: incidentul există, are thumbnail ȘI clip video
+  6.  descărcarea dovezilor (thumbnail + clip) returnează 200
+  7.  alt utilizator NU vede incidentul (izolare pe raportor)
+  8.  adminul vede incidentul și îi poate schimba statusul
 
-Rulare (porneste serverul de test separat, pe CPU, port 8010, DB izolata):
+Rulare (pornește serverul de test separat, pe CPU, port 8010, DB izolată):
     $env:DATABASE_URL="sqlite+aiosqlite:///D:/TrashDetectionSystem/data/test_e2e.db"
     $env:STORAGE_ROOT="data/runtime_test"
     $env:CUDA_VISIBLE_DEVICES=""
@@ -45,27 +45,30 @@ errors: list[str] = []
 
 
 def ok(msg):
+    """Marchează o verificare ca trecută."""
     print(f"{PASS} {msg}")
 
 
 def fail(msg, detail=""):
+    """Marchează o verificare ca eșuată și o reține în lista de erori."""
     print(f"{FAIL} {msg}" + (f": {detail}" if detail else ""))
     errors.append(msg)
 
 
 async def register_and_login(client: httpx.AsyncClient, user: dict) -> str | None:
+    """Înregistrează și autentifică un utilizator; întoarce token-ul JWT sau None."""
     r = await client.post(f"{BASE}/api/auth/register", json=user)
-    if r.status_code not in (200, 201, 400, 409):  # 400/409 = exista deja
-        fail(f"register {user['username']}", f"HTTP {r.status_code}: {r.text[:200]}")
+    if r.status_code not in (200, 201, 400, 409):  # 400/409 = există deja
+        fail(f"înregistrare {user['username']}", f"HTTP {r.status_code}: {r.text[:200]}")
         return None
     r = await client.post(
         f"{BASE}/api/auth/login",
         data={"username": user["username"], "password": user["password"]},
     )
     if r.status_code != 200 or "access_token" not in r.json():
-        fail(f"login {user['username']}", f"HTTP {r.status_code}: {r.text[:200]}")
+        fail(f"autentificare {user['username']}", f"HTTP {r.status_code}: {r.text[:200]}")
         return None
-    ok(f"register + login {user['username']}")
+    ok(f"înregistrare + autentificare {user['username']}")
     return r.json()["access_token"]
 
 
@@ -112,7 +115,7 @@ async def stream_monitor(token: str) -> dict | None:
                     f"alerta primita dupa {sent} cadre / {time.time()-t0:.0f}s "
                     f"(material={msg.get('material')}, event_id={msg.get('event_id')})"
                 )
-                post_frames_left = 45  # tine WS deschis pt fereastra post + flush clip
+                post_frames_left = 45  # ține WS deschis pentru fereastra post + scrierea clipului
             else:
                 states.add(msg.get("state"))
             if post_frames_left is not None:
@@ -120,7 +123,7 @@ async def stream_monitor(token: str) -> dict | None:
                 if post_frames_left <= 0:
                     break
     cap.release()
-    print(f"         stari parcurse: {sorted(s for s in states if s)}")
+    print(f"         stări parcurse: {sorted(s for s in states if s)}")
     if alert is None:
         fail("alerta de incident pe WS", f"niciun alert dupa {sent} cadre")
     # Incidentul se poate declanșa fie pe modul zonă (CLEAR→PERSON_PRESENT→
