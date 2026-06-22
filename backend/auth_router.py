@@ -1,3 +1,10 @@
+"""
+Rutele de autentificare (/api/auth): înregistrare, login, reguli de parolă și
+profilul curent. Aici sunt și dependențele FastAPI care extrag utilizatorul din
+token-ul JWT (get_current_user / get_current_active_user), folosite pentru a
+proteja celelalte endpoint-uri. Logica criptografică propriu-zisă e în auth.py.
+"""
+
 from datetime import timedelta
 from typing import Annotated
 
@@ -18,6 +25,11 @@ async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     session: AsyncSession = Depends(db.get_db)
 ) -> db.User:
+    """
+    Dependență FastAPI: decodează token-ul JWT din antet, caută utilizatorul în
+    DB și îl întoarce. Ridică 401 dacă tokenul lipsește/e invalid sau dacă
+    utilizatorul nu mai există. Se pune ca `Depends` pe rutele protejate.
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -39,25 +51,11 @@ async def get_current_user(
 async def get_current_active_user(
     current_user: Annotated[db.User, Depends(get_current_user)]
 ) -> db.User:
+    """
+    Varianta folosită pe rute: același utilizator ca get_current_user (loc
+    rezervat pentru o eventuală verificare de cont activ/suspendat).
+    """
     return current_user
-
-
-async def get_current_user_optional(
-    token: str = Depends(OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)),
-    session: AsyncSession = Depends(db.get_db),
-) -> "db.User | None":
-    """Optional auth — returns None instead of raising 401 when no token is provided."""
-    if not token:
-        return None
-    try:
-        payload = auth.decode_access_token(token)
-        username: str = payload.get("username")
-        if not username:
-            return None
-        result = await session.execute(select(db.User).where(db.User.username == username))
-        return result.scalar_one_or_none()
-    except Exception:
-        return None
 
 
 @router.post("/register", response_model=schemas.UserOut)
@@ -65,6 +63,11 @@ async def register_user(
     user_in: schemas.UserCreate,
     session: AsyncSession = Depends(db.get_db)
 ):
+    """
+    Înregistrează un cont nou: validează parola, verifică unicitatea
+    username/email, salvează parola ca hash. Primul utilizator devine admin cu
+    organizația proprie; ceilalți intră în organizația implicită (id=1).
+    """
     # Validate password policy
     pw_errors = auth.validate_password(user_in.password)
     if pw_errors:
@@ -115,7 +118,9 @@ async def login(
     session: AsyncSession = Depends(db.get_db)
 ):
     """
-    Verify username + password and return a JWT token.
+    Autentifică utilizatorul: verifică rate-limit-ul, parola față de hash, și
+    întoarce un token JWT la succes. La parolă greșită înregistrează eșecul
+    (pentru blocare temporară); la succes resetează contorul de încercări.
     """
     username = form_data.username
 
@@ -151,7 +156,7 @@ async def login(
 
 @router.get("/password-rules")
 async def password_rules():
-    """Return password policy rules for the frontend to display."""
+    """Întoarce regulile de parolă, ca frontend-ul să le afișeze la înregistrare."""
     return {
         "min_length": auth.PASSWORD_MIN_LENGTH,
         "rules": [msg for _, msg in auth.PASSWORD_RULES],
@@ -162,4 +167,5 @@ async def password_rules():
 async def read_users_me(
     current_user: Annotated[db.User, Depends(get_current_active_user)]
 ):
+    """Întoarce profilul utilizatorului autentificat (pe baza token-ului)."""
     return current_user
