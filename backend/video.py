@@ -328,7 +328,7 @@ async def process_uploaded_video(
                             await s.commit()
 
                 logger.info(
-                    "Littering event #%d saved from uploaded video (t=%.1fs, material=%s)",
+                    "Incident de aruncare #%d salvat din video-ul încărcat (t=%.1fs, material=%s)",
                     db_event.id, ts_sec, event.material,
                 )
                 saved_event_count += 1
