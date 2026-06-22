@@ -47,7 +47,7 @@ def load_models():
     if _detector is None:
         _detector = YOLO(str(settings.detector_path))
         _detector.to(_DEVICE)
-        log.info("Detector loaded: %s", settings.detector_path)
+        log.info("Detector încărcat: %s", settings.detector_path)
 
     if _classifier is None:
         cls_path = settings.classifier_path
@@ -59,20 +59,20 @@ def load_models():
                 _cls_names = {int(k): str(v) for k, v in raw.items()}
             elif isinstance(raw, list):
                 _cls_names = {i: str(v) for i, v in enumerate(raw)}
-            log.info("Classifier loaded: %s", cls_path)
+            log.info("Clasificator încărcat: %s", cls_path)
         else:
             # Lipsesc ponderile clasificatorului — clasificarea materialului e oprită.
             # Detecția și monitorizarea abandonării funcționează în continuare complet.
-            log.warning("Classifier not found at %s — material will show as 'unknown'", cls_path)
+            log.warning("Clasificatorul nu a fost găsit la %s — materialul va apărea ca 'unknown'", cls_path)
             _cls_names = {0: "unknown"}
 
     if _person_det is None:
         person_pt = settings.person_detector_path
         _person_det = YOLO(str(person_pt))
         _person_det.to(_DEVICE)
-        log.info("Person detector loaded: %s", person_pt)
+        log.info("Detector de persoane încărcat: %s", person_pt)
 
-    log.info("All models loaded on device: %s", _DEVICE)
+    log.info("Toate modelele încărcate pe dispozitivul: %s", _DEVICE)
 
 
 def _resize_if_needed(frame: np.ndarray) -> np.ndarray:
@@ -104,7 +104,7 @@ def run_pipeline(
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
     frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if frame is None:
-        raise ValueError("Cannot decode image — unsupported format or corrupted file.")
+        raise ValueError("Nu pot decoda imaginea — format neacceptat sau fișier corupt.")
 
     frame = _resize_if_needed(frame)
 
