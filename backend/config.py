@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     MAX_IMAGE_DIM: int = 1920
     LIVE_IMGSZ: int = 640
     DEFAULT_DET_CONF: float = 0.30
-    MONITOR_MIN_DET_CONF: float = 0.35
+    MONITOR_MIN_DET_CONF: float = 0.25
     # Țintă 120 = plafon larg, NU throttle. Lecție din teste: o țintă mică
     # (ex. 60) se sincronizează prost cu refresh-ul ecranului și gâtuiește
     # artificial (~46); o țintă mult peste capacitatea reală lasă bucla să

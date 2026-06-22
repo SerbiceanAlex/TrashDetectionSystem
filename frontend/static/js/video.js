@@ -2,8 +2,10 @@
 
 function videoApp() {
   return {
-    // Confidence
-    detConf: 0.35,
+    // Confidence — prag mai jos pentru a prinde obiecte mai mici/la distanță
+    // (>2.5 m). Falsele sunt ținute sub control de suprimarea pe corp, filtrul
+    // geometric și logica temporală (un fals tranzitoriu nu creează incident).
+    detConf: 0.25,
 
     // Upload state
     uploadFile: null,
