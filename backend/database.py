@@ -1,5 +1,12 @@
 """
-SQLAlchemy 2.0 async database layer.
+Stratul de bază de date (SQLAlchemy 2.0, async).
+
+Conține: modelele (tabelele) ORM, motorul + fabrica de sesiuni, și funcțiile
+helper de acces la date (CRUD) folosite de rutele din main.py.
+
+Notă: `and_`, `or_`, `func`, `select`, `text` sunt importate aici și folosite
+și prin `db.<nume>` în main.py (re-export), ca rutele să nu importe direct din
+sqlalchemy. De aceea unele apar „neutilizate" pentru linter, dar sunt necesare.
 """
 
 from datetime import datetime, timezone
@@ -12,11 +19,11 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    and_,
+    and_,       # noqa: F401 — re-export pentru main.py (db.and_)
     func,
     or_,
     select,
-    text as sa_text,
+    text as sa_text,   # noqa: F401 — re-export pentru main.py (db.sa_text)
 )
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, relationship, selectinload
@@ -32,7 +39,7 @@ class Base(DeclarativeBase):
 
 
 class Organization(Base):
-    """Client organization / tenant."""
+    """Organizația (tenant) care grupează utilizatorii și incidentele lor."""
 
     __tablename__ = "organizations"
 
@@ -44,7 +51,7 @@ class Organization(Base):
 
 
 class User(Base):
-    """Platform users."""
+    """Utilizatorii platformei (rol 'admin' sau 'user'), legați de o organizație."""
 
     __tablename__ = "users"
 
@@ -64,7 +71,7 @@ class User(Base):
 
 
 class DetectionSession(Base):
-    """One row per uploaded image."""
+    """Un rând per imagine încărcată și scanată (rezultatul detecției foto)."""
 
     __tablename__ = "detection_sessions"
 
@@ -95,7 +102,7 @@ class DetectionSession(Base):
 
 
 class DetectionRecord(Base):
-    """One row per detected object (bounding box)."""
+    """Un rând per obiect detectat într-o scanare foto (un bounding box)."""
 
     __tablename__ = "detection_records"
 
@@ -116,7 +123,7 @@ class DetectionRecord(Base):
 
 
 class VideoSession(Base):
-    """One row per video stream / upload."""
+    """Un rând per video procesat (upload sau flux), cu statistici și progres."""
 
     __tablename__ = "video_sessions"
 
@@ -142,7 +149,7 @@ class VideoSession(Base):
 
 
 class Notification(Base):
-    """In-app notification for a user."""
+    """Notificare în aplicație pentru un utilizator (incident, review, info)."""
 
     __tablename__ = "notifications"
 
@@ -223,11 +230,13 @@ class LitteringEvent(Base):
 
 
 async def create_tables():
+    """Creează tabelele lipsă în baza de date (rulat la pornire)."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
 async def get_db():
+    """Dependență FastAPI: oferă o sesiune async de DB pe durata unei cereri."""
     async with AsyncSessionLocal() as session:
         yield session
 
@@ -235,6 +244,7 @@ async def get_db():
 # ── Organization helpers ──────────────────────────────────────────────────────
 
 async def get_org_by_id(db: AsyncSession, org_id: int) -> "Organization | None":
+    """Întoarce organizația după id (sau None dacă nu există)."""
     result = await db.execute(select(Organization).where(Organization.id == org_id))
     return result.scalar_one_or_none()
 
@@ -251,6 +261,7 @@ async def get_or_create_default_org(db: AsyncSession) -> "Organization":
 
 
 async def create_organization(db: AsyncSession, name: str) -> "Organization":
+    """Creează o organizație nouă (pentru primul utilizator = admin propriu)."""
     org = Organization(name=name)
     db.add(org)
     await db.commit()
@@ -258,12 +269,10 @@ async def create_organization(db: AsyncSession, name: str) -> "Organization":
     return org
 
 
-# ── Query helpers ────────────────────────────────────────────────────────────
-
-
 # ── Video session helpers ──────────────────────────────────────────────────
 
 async def create_video_session(db: AsyncSession, source_type: str, filename: str | None = None) -> VideoSession:
+    """Deschide o sesiune video (la începutul procesării unui upload/flux)."""
     vs = VideoSession(source_type=source_type, filename=filename)
     db.add(vs)
     await db.flush()
@@ -285,6 +294,7 @@ async def finish_video_session(
     annotated_video_path: str | None = None,
     status: str = "completed",
 ):
+    """Închide o sesiune video: salvează statisticile finale și marchează 100%."""
     vs = (await db.execute(select(VideoSession).where(VideoSession.id == session_id))).scalar_one_or_none()
     if vs is None:
         return
@@ -304,6 +314,7 @@ async def finish_video_session(
 
 
 async def update_video_progress(db: AsyncSession, session_id: int, frames_processed: int, total_frames_expected: int = 0):
+    """Actualizează progresul procesării unui video (bara de progres din UI)."""
     vs = (await db.execute(select(VideoSession).where(VideoSession.id == session_id))).scalar_one_or_none()
     if vs is None:
         return
@@ -314,6 +325,7 @@ async def update_video_progress(db: AsyncSession, session_id: int, frames_proces
 
 
 async def get_video_session_by_id(db: AsyncSession, session_id: int):
+    """Întoarce o sesiune video după id (sau None)."""
     result = await db.execute(select(VideoSession).where(VideoSession.id == session_id))
     return result.scalar_one_or_none()
 
@@ -340,6 +352,7 @@ async def create_littering_event(
     reporter_id: int | None = None,
     organization_id: int | None = None,
 ) -> "LitteringEvent":
+    """Salvează un incident de aruncare detectat (apelat când se declanșează alerta)."""
     evt = LitteringEvent(
         material=material,
         det_score=round(det_score, 4),
@@ -375,6 +388,10 @@ async def list_littering_events(
     org_id: int | None = None,
     reporter_id: int | None = None,
 ) -> tuple[list["LitteringEvent"], int]:
+    """
+    Listează incidentele paginat, filtrabile după organizație, raportor, status
+    și material. Întoarce (lista_pagina, total). Folosită de lista din UI.
+    """
     q = select(LitteringEvent).options(selectinload(LitteringEvent.reporter)).order_by(LitteringEvent.detected_at.desc())
     if org_id is not None:
         q = q.where(or_(LitteringEvent.organization_id == org_id, LitteringEvent.organization_id.is_(None)))
@@ -390,6 +407,7 @@ async def list_littering_events(
 
 
 async def get_littering_event_by_id(db: AsyncSession, event_id: int) -> "LitteringEvent | None":
+    """Întoarce un incident după id, cu raportorul încărcat (sau None)."""
     result = await db.execute(
         select(LitteringEvent)
         .options(selectinload(LitteringEvent.reporter))
@@ -405,6 +423,10 @@ async def update_littering_event_status(
     reviewed_by: int | None = None,
     notes: str | None = None,
 ) -> "LitteringEvent | None":
+    """
+    Schimbă statusul unui incident (pending/reviewed/forwarded/dismissed) și
+    setează cine/când l-a verificat. Folosită la validarea de către admin.
+    """
     evt = await get_littering_event_by_id(db, event_id)
     if evt is None:
         return None
@@ -425,6 +447,7 @@ async def get_video_sessions_paginated(
     db: AsyncSession, skip: int, limit: int,
     org_id: int | None = None, user_id: int | None = None,
 ):
+    """Listează sesiunile video paginat, filtrabile pe organizație/utilizator."""
     q = select(VideoSession).order_by(VideoSession.start_time.desc())
     if org_id is not None:
         q = q.where(or_(VideoSession.organization_id == org_id, VideoSession.organization_id.is_(None)))

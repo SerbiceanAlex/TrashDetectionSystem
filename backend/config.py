@@ -17,46 +17,43 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── Paths ────────────────────────────────────────────────────────────────
-    REPO_ROOT: Path = Path(__file__).parent.parent
-    STORAGE_ROOT: str = "data/runtime"
-    DETECTOR_WEIGHTS: str = "models/detector/production/best.pt"
-    CLASSIFIER_WEIGHTS: str = "models/classify/B2/best.pt"
-    PERSON_DETECTOR_WEIGHTS: str = "models/pretrained/yolov8n.pt"
+    # ── Căi ──────────────────────────────────────────────────────────────────
+    REPO_ROOT: Path = Path(__file__).parent.parent      # rădăcina proiectului
+    STORAGE_ROOT: str = "data/runtime"                  # unde se scriu fișierele generate
+    DETECTOR_WEIGHTS: str = "models/detector/production/best.pt"   # YOLOv8 deșeuri (antrenat)
+    CLASSIFIER_WEIGHTS: str = "models/classify/B2/best.pt"         # clasificator material
+    PERSON_DETECTOR_WEIGHTS: str = "models/pretrained/yolov8n.pt"  # detector persoane (COCO)
 
-    # ── JWT / Auth ───────────────────────────────────────────────────────────
+    # ── JWT / Autentificare ──────────────────────────────────────────────────
     SECRET_KEY: str = "CHANGE-ME-generate-with-python-c-import-secrets-secrets.token_hex(32)"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    ALGORITHM: str = "HS256"                            # algoritm de semnare a token-ului
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7      # valabilitate token: 7 zile
 
-    # ── Rate limiting ────────────────────────────────────────────────────────
-    MAX_LOGIN_ATTEMPTS: int = 5
-    LOGIN_LOCKOUT_MINUTES: int = 15
+    # ── Rate limiting la login (anti brute-force) ────────────────────────────
+    MAX_LOGIN_ATTEMPTS: int = 5                         # eșuări permise înainte de blocare
+    LOGIN_LOCKOUT_MINUTES: int = 15                     # durata blocării temporare
 
-    # ── App base URL (printed by start_https, shown in system info) ─────────
+    # ── URL-ul aplicației (afișat de start_https, în system info) ────────────
     APP_BASE_URL: str = "http://localhost:8000"
 
-    # ── Upload limits ────────────────────────────────────────────────────────
-    MAX_UPLOAD_MB: int = 20
-    VIDEO_MAX_UPLOAD_MB: int = 200
+    # ── Limite de upload ─────────────────────────────────────────────────────
+    MAX_UPLOAD_MB: int = 20                             # imagini
+    VIDEO_MAX_UPLOAD_MB: int = 200                      # videouri
 
-    # ── File retention (days before auto-cleanup) ────────────────────────────
-    RETENTION_DAYS_FAKE: int = 30
-    RETENTION_DAYS_EXPIRED: int = 60
-    RETENTION_DAYS_CLEANED: int = 365
-    STORAGE_CLEANUP_ENABLED: bool = True
-    STORAGE_CLEANUP_INTERVAL_HOURS: int = 24
-    LITTERING_FILE_RETENTION_DAYS: int = 30
+    # ── Curățare automată a probelor (fișierele incidentelor) ────────────────
+    STORAGE_CLEANUP_ENABLED: bool = True          # pornește bucla de curățare în fundal
+    STORAGE_CLEANUP_INTERVAL_HOURS: int = 24      # cât de des rulează curățarea
+    LITTERING_FILE_RETENTION_DAYS: int = 30       # vechimea după care se șterg clip/thumbnail
 
-    # ── Database ─────────────────────────────────────────────────────────────
-    DATABASE_URL: str = ""  # computed in property if empty
+    # ── Bază de date ─────────────────────────────────────────────────────────
+    DATABASE_URL: str = ""  # gol → se calculează SQLite local în proprietatea db_url
 
-    # ── Inference ────────────────────────────────────────────────────────────
-    MAX_IMAGE_DIM: int = 1920
-    LIVE_IMGSZ: int = 640
-    DEFAULT_DET_CONF: float = 0.30
-    MONITOR_MIN_DET_CONF: float = 0.25
-    MONITOR_PERSON_CONF: float = 0.25
+    # ── Inferență (parametri model) ──────────────────────────────────────────
+    MAX_IMAGE_DIM: int = 1920          # latura maximă la care se redimensionează un cadru
+    LIVE_IMGSZ: int = 640              # imgsz implicit pentru scanarea de imagini
+    DEFAULT_DET_CONF: float = 0.30     # prag de încredere implicit (upload/scanare)
+    MONITOR_MIN_DET_CONF: float = 0.25 # prag MINIM pe monitorul live (prinde și obiecte la distanță)
+    MONITOR_PERSON_CONF: float = 0.25  # prag pentru detecția persoanelor pe monitor
     # Țintă 120 = plafon larg, NU throttle. Lecție din teste: o țintă mică
     # (ex. 60) se sincronizează prost cu refresh-ul ecranului și gâtuiește
     # artificial (~46); o țintă mult peste capacitatea reală lasă bucla să
@@ -64,8 +61,11 @@ class Settings(BaseSettings):
     # (encode JPEG = bariera), ~15 pe telefon prin WiFi. Contorul afișează
     # rata reală, nu ținta.
     MONITOR_TARGET_FPS: int = 120
+    # Rata FIXĂ la care rulează logica temporală (mașina de stări). Independentă
+    # de rata reală de cadre, ca timpii în secunde (pre-roll, confirmare,
+    # abandonare) să fie corecți și la fel pe orice dispozitiv. Vezi video.py.
     MONITOR_LOGIC_FPS: int = 25
-    MONITOR_CAMERA_WIDTH: int = 1280
+    MONITOR_CAMERA_WIDTH: int = 1280   # rezoluția cerută camerei (orientativ)
     MONITOR_CAMERA_HEIGHT: int = 720
     # Captură și inferență la 768 — prioritate pe CALITATEA detecției (recall
     # bun pe obiecte mici la 1–3 m), decizia autorului. Pe laptop encode-ul de
@@ -77,8 +77,12 @@ class Settings(BaseSettings):
     MONITOR_TRASH_IMGSZ: int = 768
     MONITOR_PERSON_IMGSZ: int = 416
 
+    # ── Valori derivate (căi absolute + conversii) ───────────────────────────
+    # Toate transformă setările de mai sus în căi/valori gata de folosit.
+
     @property
     def detector_path(self) -> Path:
+        """Calea absolută către modelul de detecție a deșeurilor."""
         return self.REPO_ROOT / self.DETECTOR_WEIGHTS
 
     @property
@@ -91,6 +95,7 @@ class Settings(BaseSettings):
 
     @property
     def db_url(self) -> str:
+        """URL-ul bazei de date: DATABASE_URL dacă e setat, altfel SQLite local."""
         if self.DATABASE_URL:
             return self.DATABASE_URL
         db_path = self.REPO_ROOT / "data" / "trash_detection.db"
@@ -106,6 +111,7 @@ class Settings(BaseSettings):
 
     @property
     def storage_root(self) -> Path:
+        """Folderul rădăcină pentru fișierele generate (absolutizat față de proiect)."""
         root = Path(self.STORAGE_ROOT)
         return root if root.is_absolute() else self.REPO_ROOT / root
 
@@ -127,6 +133,7 @@ class Settings(BaseSettings):
 
     @property
     def runtime_dirs(self) -> list[Path]:
+        """Folderele create la pornire pentru fișierele generate de aplicație."""
         # Doar folderele scrise efectiv în mod curent. uploads/ și annotated/
         # se creează lazy la prima scanare de imagine (vezi main.py), iar
         # cleaned/ și thumbnails/ au fost scoase (nu erau folosite — dovezile
