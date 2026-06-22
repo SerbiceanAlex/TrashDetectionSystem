@@ -313,7 +313,9 @@ async def system_info():
             "live_imgsz": settings.LIVE_IMGSZ,
             "default_det_conf": settings.DEFAULT_DET_CONF,
             "monitor_min_det_conf": settings.MONITOR_MIN_DET_CONF,
+            "monitor_person_conf": settings.MONITOR_PERSON_CONF,
             "monitor_target_fps": settings.MONITOR_TARGET_FPS,
+            "monitor_logic_fps": settings.MONITOR_LOGIC_FPS,
             "monitor_camera_width": settings.MONITOR_CAMERA_WIDTH,
             "monitor_camera_height": settings.MONITOR_CAMERA_HEIGHT,
             "monitor_capture_max_dim": settings.MONITOR_CAPTURE_MAX_DIM,
@@ -470,8 +472,8 @@ async def ws_video_monitor(
                 current_user = None
         await vid.handle_monitor_ws(
             websocket,
-            det_conf,
-            person_conf,
+            settings.MONITOR_MIN_DET_CONF,
+            settings.MONITOR_PERSON_CONF,
             analysis_fps,
             lat,
             lng,

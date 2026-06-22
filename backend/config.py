@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     LIVE_IMGSZ: int = 640
     DEFAULT_DET_CONF: float = 0.30
     MONITOR_MIN_DET_CONF: float = 0.25
+    MONITOR_PERSON_CONF: float = 0.25
     # Țintă 120 = plafon larg, NU throttle. Lecție din teste: o țintă mică
     # (ex. 60) se sincronizează prost cu refresh-ul ecranului și gâtuiește
     # artificial (~46); o țintă mult peste capacitatea reală lasă bucla să
@@ -67,6 +68,7 @@ class Settings(BaseSettings):
     # (encode JPEG = bariera), ~15 pe telefon prin WiFi. Contorul afișează
     # rata reală, nu ținta.
     MONITOR_TARGET_FPS: int = 120
+    MONITOR_LOGIC_FPS: int = 25
     MONITOR_CAMERA_WIDTH: int = 1280
     MONITOR_CAMERA_HEIGHT: int = 720
     # Captură și inferență la 768 — prioritate pe CALITATEA detecției (recall

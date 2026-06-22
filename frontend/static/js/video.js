@@ -195,7 +195,7 @@ function videoApp() {
     monitorPersons: 0,
     monitorTrash: 0,
     monitorAlerts: [],
-    monitorPersonConf: 0.35,
+    monitorPersonConf: 0.25,
     monitorSendFps: 24,
     monitorCameraWidth: 1280,
     monitorCameraHeight: 720,
@@ -215,6 +215,8 @@ function videoApp() {
     async startMonitor() {
       try {
         const runtime = this.systemInfo?.runtime || {};
+        this.detConf = Number(runtime.monitor_min_det_conf || 0.25);
+        this.monitorPersonConf = Number(runtime.monitor_person_conf || 0.25);
         const configuredTargetFps = Number(runtime.monitor_target_fps || 24);
         // Adoptă mereu ținta din config (test de ceiling): clientul împinge cât
         // poate, iar contorul onest arată rata reală susținută.

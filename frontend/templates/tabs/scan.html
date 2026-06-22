@@ -586,10 +586,10 @@
           <div x-show="monitorActive && monitorState==='MONITORING'"
                style="position:absolute;bottom:0;left:0;right:0;padding:7px 12px;display:flex;align-items:center;gap:8px;background:rgba(10,14,20,.75);backdrop-filter:blur(8px)">
             <div style="flex:1;height:3px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden">
-              <div :style="`width:${(monitorProgress*100).toFixed(0)}%;height:100%;background:linear-gradient(90deg,#818cf8,#6366f1);border-radius:99px;transition:width .3s linear`"></div>
+              <div :style="`width:${Math.max(18,(monitorProgress*100).toFixed(0))}%;height:100%;background:linear-gradient(90deg,#818cf8,#6366f1);border-radius:99px;transition:width .3s linear`"></div>
             </div>
             <span style="font-size:10px;color:rgba(255,255,255,.6);font-weight:700;white-space:nowrap"
-                  x-text="'Verificare '+(monitorProgress*100).toFixed(0)+'%'"></span>
+                  x-text="'Se verifică zona'"></span>
           </div>
 
           <div x-show="!monitorActive"
@@ -645,7 +645,7 @@
             </div>
           </div>
 
-          <details class="rounded-xl overflow-hidden" style="border:1px solid var(--bg-border)">
+          <details x-show="false" class="rounded-xl overflow-hidden" style="border:1px solid var(--bg-border)">
             <summary class="flex items-center gap-2 px-3 py-2.5 text-xs font-semibold cursor-pointer select-none list-none"
                      style="background:var(--bg-surface);color:var(--tx-secondary)">
               <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i>

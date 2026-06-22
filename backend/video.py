@@ -668,10 +668,12 @@ async def handle_monitor_ws(
 
     tracker = await asyncio.to_thread(_load_tracker)
 
-    det_conf = max(det_conf, settings.MONITOR_MIN_DET_CONF)
+    det_conf = settings.MONITOR_MIN_DET_CONF
+    person_conf = settings.MONITOR_PERSON_CONF
     analysis_fps = max(5.0, min(float(analysis_fps or settings.MONITOR_TARGET_FPS), 120.0))
+    logic_fps = max(5.0, min(float(settings.MONITOR_LOGIC_FPS), 30.0))
     detector = LitteringDetector(
-        fps=analysis_fps,
+        fps=logic_fps,
         monitor_seconds=10.0,
         pre_event_seconds=5.0,
         zone_expand=0.35,
@@ -896,6 +898,12 @@ async def handle_monitor_ws(
 
                 # Clipul se salvează după fereastra post-incident (vezi _pending_clip)
                 _pending_clip = (event, event_id)
+
+                # Salvează imediat un clip cu cadrele pre-incident, ca incidentul
+                # să nu rămână temporar doar imagine. După fereastra post-incident,
+                # același fișier este rescris cu dovada completă pre+post.
+                if event.clip_frames:
+                    await _flush_pending_clip(event, event_id)
 
                 # Save thumbnail
                 thumb_rel = None
