@@ -116,14 +116,6 @@ class Settings(BaseSettings):
         return root if root.is_absolute() else self.REPO_ROOT / root
 
     @property
-    def uploads_dir(self) -> Path:
-        return self.storage_root / "uploads"
-
-    @property
-    def annotated_dir(self) -> Path:
-        return self.storage_root / "annotated"
-
-    @property
     def videos_dir(self) -> Path:
         return self.storage_root / "videos"
 
@@ -134,10 +126,8 @@ class Settings(BaseSettings):
     @property
     def runtime_dirs(self) -> list[Path]:
         """Folderele create la pornire pentru fișierele generate de aplicație."""
-        # Doar folderele scrise efectiv în mod curent. uploads/ și annotated/
-        # se creează lazy la prima scanare de imagine (vezi main.py), iar
-        # cleaned/ și thumbnails/ au fost scoase (nu erau folosite — dovezile
-        # incidentelor merg în littering/).
+        # videos/ = videourile încărcate + adnotate; littering/ = dovezile
+        # incidentelor (clip + miniatură). Atât se scrie efectiv.
         return [
             self.videos_dir,
             self.littering_dir,

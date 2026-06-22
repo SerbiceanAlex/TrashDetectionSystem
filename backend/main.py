@@ -36,8 +36,6 @@ from backend import video as vid
 STATIC_DIR = settings.REPO_ROOT / "frontend" / "static"
 TEMPLATES_DIR = settings.REPO_ROOT / "frontend" / "templates"
 
-UPLOADS_DIR = settings.uploads_dir
-ANNOTATED_DIR = settings.annotated_dir
 VIDEOS_DIR = settings.videos_dir
 LITTERING_DIR = settings.littering_dir
 
@@ -1490,8 +1488,6 @@ async def admin_storage_stats(
         return {"events": 0, "files": 0, "bytes": 0, "size_mb": 0}
 
     evidence = _dir_stats(LITTERING_DIR)
-    uploads = _dir_stats(UPLOADS_DIR)
-    annotated = _dir_stats(ANNOTATED_DIR)
     videos = _dir_stats(VIDEOS_DIR)
     status_keys = ("pending", "reviewed", "forwarded", "dismissed", "other")
     evidence_by_status = {status: _empty_status_stats() for status in status_keys}
@@ -1529,13 +1525,9 @@ async def admin_storage_stats(
         tracked_evidence_files += status_stats["files"]
 
     return {
-        "uploads": uploads,
-        "annotated": annotated,
         "videos": videos,
         "evidence": evidence,
         "evidence_by_status": evidence_by_status,
-        "uploads_bytes": uploads["bytes"],
-        "annotated_bytes": annotated["bytes"],
         "videos_bytes": videos["bytes"],
         "evidence_bytes": evidence["bytes"],
         "evidence_tracked_bytes": tracked_evidence_bytes,

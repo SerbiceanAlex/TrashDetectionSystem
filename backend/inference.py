@@ -10,11 +10,9 @@ Modele încărcate:
 
 Funcții expuse:
   load_models()         — încarcă o singură dată modelele YOLO la pornire.
-  run_pipeline()        — flux pe octeții imaginii (scanare foto).
   detect_persons()      — rulează person_det pe un cadru, întoarce casetele.
 """
 
-import time
 import threading
 
 import cv2
@@ -29,9 +27,8 @@ _classifier = None
 _person_det = None
 _cls_names: dict[int, str] = {}
 
-# Serializează apelurile la modele: YOLO/PyTorch nu este sigur pe fire de execuție
-# când aceleași ponderi sunt partajate.
-_inference_lock = threading.Lock()
+# Serializează apelurile la detectorul de persoane (YOLO/PyTorch nu e sigur pe
+# fire de execuție când aceleași ponderi sunt partajate).
 _person_lock    = threading.Lock()
 
 # Alege automat cel mai bun dispozitiv: GPU CUDA dacă există, altfel CPU
@@ -83,46 +80,6 @@ def _resize_if_needed(frame: np.ndarray) -> np.ndarray:
         return frame
     scale = settings.MAX_IMAGE_DIM / max(h, w)
     return cv2.resize(frame, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-
-
-def run_pipeline(
-    image_bytes: bytes,
-    det_conf: float = settings.DEFAULT_DET_CONF,
-    det_imgsz: int = 640,
-    cls_imgsz: int = 224,
-) -> tuple[list[dict], bytes, float]:
-    """
-    Rulează fluxul în două etape pe octeții unei imagini.
-
-    Întoarce:
-        detections  — lista de dict-uri de la detect_and_classify()
-        annotated   — imaginea adnotată, în octeți JPEG
-        elapsed_ms  — timpul de inferență, în milisecunde
-    """
-    from backend.ml.two_stage import detect_and_classify, draw_detections
-
-    # Decodează octeții → cadru numpy BGR.
-    arr = np.frombuffer(image_bytes, dtype=np.uint8)
-    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    if frame is None:
-        raise ValueError("Nu pot decoda imaginea — format neacceptat sau fișier corupt.")
-
-    frame = _resize_if_needed(frame)
-
-    t0 = time.perf_counter()
-    with _inference_lock:
-        detections = detect_and_classify(
-            frame, _detector, _classifier, det_conf, det_imgsz, cls_imgsz, _cls_names
-        )
-    elapsed_ms = (time.perf_counter() - t0) * 1000.0
-
-    fps = 1000.0 / max(elapsed_ms, 1e-3)
-    annotated = draw_detections(frame, detections, fps=fps, max_labels=5, line_width=2)
-
-    _, buf = cv2.imencode(".jpg", annotated, [cv2.IMWRITE_JPEG_QUALITY, 90])
-    annotated_bytes = buf.tobytes()
-
-    return detections, annotated_bytes, elapsed_ms
 
 
 # ─────────────────────────────────────────────────────────────────────────────
