@@ -11,8 +11,12 @@ Creează:
 Dacă utilizatorii există deja, îi sare.
 """
 
-import asyncio
 import sys
+# Diacriticele românești se afișează corect indiferent de codarea consolei.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
+import asyncio
 from pathlib import Path
 
 # Asigurăm că importă modulele din proiect

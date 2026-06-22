@@ -3,6 +3,11 @@ Antrenează clasificatorul de material (YOLOv8-cls) pentru recunoașterea tipulu
 de deșeu din decupajele de obiecte.
 """
 
+import sys
+# Diacriticele românești se afișează corect indiferent de codarea consolei.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 import argparse
 from pathlib import Path
 

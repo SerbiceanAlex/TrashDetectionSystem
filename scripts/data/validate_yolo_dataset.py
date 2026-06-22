@@ -6,6 +6,11 @@ imagini/etichete pentru fiecare split, potrivirea imagine↔etichetă și
 corectitudinea fiecărei linii YOLO (5 valori, clasă validă, coordonate în [0,1]).
 """
 
+import sys
+# Diacriticele românești se afișează corect indiferent de codarea consolei.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 import argparse
 from pathlib import Path
 

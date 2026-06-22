@@ -16,6 +16,11 @@ Exemple:
 
 from __future__ import annotations
 
+import sys
+# Diacriticele românești se afișează corect indiferent de codarea consolei.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 import argparse
 import shutil
 from pathlib import Path
