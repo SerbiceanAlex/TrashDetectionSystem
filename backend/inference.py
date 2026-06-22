@@ -1,16 +1,17 @@
 """
-Inference wrapper — loads YOLO models once at startup and exposes run_pipeline().
-Uses backend.ml.two_stage for the actual detection + classification logic.
+Strat de inferență — încarcă o singură dată modelele YOLO la pornire și expune
+funcțiile de detecție. Logica propriu-zisă detecție + clasificare e în
+backend.ml.two_stage.
 
-Models loaded:
-  _detector    — custom YOLOv8s trash detector (single class: trash)
-  _classifier  — custom YOLOv8n-cls material classifier (5 classes)
-  _person_det  — pretrained yolov8n (COCO) used only for class 0 = person
+Modele încărcate:
+  _detector    — detector de deșeuri YOLOv8s antrenat (o clasă: trash)
+  _classifier  — clasificator de material YOLOv8n-cls antrenat (5 clase)
+  _person_det  — yolov8n preantrenat (COCO), folosit doar pentru clasa 0 = persoană
 
 Funcții expuse:
   load_models()         — încarcă o singură dată modelele YOLO la pornire.
   run_pipeline()        — pipeline pe bytes de imagine (scanare foto).
-  detect_persons()      — rulează person_det pe un cadru, întoarce bbox-urile.
+  detect_persons()      — rulează person_det pe un cadru, întoarce casetele.
 """
 
 import time
@@ -22,23 +23,23 @@ from ultralytics import YOLO
 
 from backend.config import settings
 
-# ── Singleton models (populated on first load_models() call) ─────────────────
+# ── Modele singleton (populate la primul apel load_models()) ─────────────────
 _detector   = None
 _classifier = None
 _person_det = None
 _cls_names: dict[int, str] = {}
 
-# Serialise model calls — YOLO/PyTorch is not thread-safe when sharing weights
+# Serializează apelurile la modele — YOLO/PyTorch nu e thread-safe pe ponderi partajate
 _inference_lock = threading.Lock()
 _person_lock    = threading.Lock()
 
-# Auto-detect best device: CUDA GPU > CPU
+# Alege automat cel mai bun dispozitiv: GPU CUDA dacă există, altfel CPU
 import torch  # noqa: E402
 _DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def load_models():
-    """Load all YOLO models into memory on the best available device."""
+    """Încarcă toate modelele YOLO în memorie, pe cel mai bun dispozitiv disponibil."""
     import logging
     log = logging.getLogger(__name__)
     global _detector, _classifier, _cls_names, _person_det
@@ -60,8 +61,8 @@ def load_models():
                 _cls_names = {i: str(v) for i, v in enumerate(raw)}
             log.info("Classifier loaded: %s", cls_path)
         else:
-            # Classifier weights missing — material classification disabled
-            # Detection and littering monitoring still work fully
+            # Lipsesc ponderile clasificatorului — clasificarea materialului e oprită.
+            # Detecția și monitorizarea abandonării funcționează în continuare complet.
             log.warning("Classifier not found at %s — material will show as 'unknown'", cls_path)
             _cls_names = {0: "unknown"}
 
@@ -75,6 +76,7 @@ def load_models():
 
 
 def _resize_if_needed(frame: np.ndarray) -> np.ndarray:
+    """Micșorează cadrul dacă latura maximă depășește MAX_IMAGE_DIM (altfel îl lasă neschimbat)."""
     h, w = frame.shape[:2]
     if max(h, w) <= settings.MAX_IMAGE_DIM:
         return frame
@@ -89,16 +91,16 @@ def run_pipeline(
     cls_imgsz: int = 224,
 ) -> tuple[list[dict], bytes, float]:
     """
-    Run the two-stage pipeline on raw image bytes.
+    Rulează pipeline-ul în două etape pe bytes-ii unei imagini.
 
-    Returns:
-        detections  — list of dicts from detect_and_classify()
-        annotated   — JPEG bytes of the annotated image
-        elapsed_ms  — inference time in milliseconds
+    Întoarce:
+        detections  — lista de dict-uri de la detect_and_classify()
+        annotated   — imaginea adnotată, în bytes JPEG
+        elapsed_ms  — timpul de inferență, în milisecunde
     """
     from backend.ml.two_stage import detect_and_classify, draw_detections
 
-    # Decode bytes → numpy BGR frame
+    # Decodează bytes-ii → cadru numpy BGR
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
     frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if frame is None:
@@ -123,13 +125,13 @@ def run_pipeline(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Littering Detection helpers
+# Helperi pentru detecția persoanelor
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Minimum person bbox size — filters out partial-body detections (arm/leg
-# visible as person leaves the frame edge), which would falsely spike the count.
-_MIN_PERSON_W = 15   # pixels — supports distant persons in CCTV footage
-_MIN_PERSON_H = 20   # pixels — supports small persons in overhead CCTV cameras
+# Dimensiunea minimă a casetei de persoană — elimină detecțiile de corp parțial
+# (un braț/picior vizibil la marginea cadrului), care altfel ar umfla fals numărul.
+_MIN_PERSON_W = 15   # px — permite persoane la distanță în filmări CCTV
+_MIN_PERSON_H = 20   # px — permite persoane mici în camere CCTV de sus
 
 
 def detect_persons(
@@ -138,12 +140,11 @@ def detect_persons(
     imgsz: int = 640,
 ) -> list[tuple[int, int, int, int]]:
     """
-    Run person detector (yolov8n, COCO class 0) on a frame.
+    Rulează detectorul de persoane (yolov8n, clasa 0 COCO) pe un cadru.
 
-    Returns:
-        list of (x1, y1, x2, y2) integer bounding boxes for each person found.
-        Partial-body detections (limb only) are filtered out by minimum-size
-        threshold so the counter does not spike as a person exits the frame.
+    Întoarce lista de casete (x1, y1, x2, y2) pentru fiecare persoană găsită.
+    Detecțiile de corp parțial (doar un membru) sunt filtrate prin pragul de
+    mărime minimă, ca numărul să nu sară când o persoană iese din cadru.
     """
     frame = _resize_if_needed(frame)
     h, w = frame.shape[:2]
@@ -163,7 +164,7 @@ def detect_persons(
         y2 = min(h, int(xyxy[3]))
         bw = x2 - x1
         bh = y2 - y1
-        # Skip tiny / partial-body detections at frame edges
+        # Sari peste detecțiile mici / de corp parțial de la marginea cadrului
         if bw < _MIN_PERSON_W or bh < _MIN_PERSON_H:
             continue
         persons.append((x1, y1, x2, y2))
