@@ -505,16 +505,13 @@ def _iou_overlap(tb, pb) -> float:
     return inter / trash_area
 
 
-_OVERLAP_THRESH = 0.35  # overlap over this may be body false-positive (adaptive)
+# Box de deșeu care are peste atât din aria sa în interiorul siluetei (micșorate)
+# a unei persoane = fals pozitiv pe corp (ochi, umăr, haine) → suprimat.
+_OVERLAP_THRESH = 0.30
 _MIN_TRASH_AREA_FRAC = 0.00015  # ignore tiny noise boxes
 _MAX_TRASH_AREA_FRAC = 0.18     # ignore huge background regions (e.g. bed/floor)
 _TRASH_TRACK_IMGSZ = settings.MONITOR_TRASH_IMGSZ
 _PERSON_FILTER_SHRINK = 0.72     # shrink person boxes for overlap filtering only
-# Obiect suprapus cu persoana e păstrat dacă aria lui e sub acest raport din
-# aria persoanei. 0.35 acoperă cazul "sticlă ținută în mână aproape de cameră"
-# (box-ul persoanei e mic când doar fața/bustul e în cadru), dar suprimă în
-# continuare detecțiile mari de tip "corp/haine văzute ca deșeu".
-_HANDHELD_MAX_PERSON_RATIO = 0.35
 _TRASH_STABLE_SEEN = 4             # require 4 consecutive detections — reduces duplicate/ghost boxes
 _TRASH_GRACE_MISSES = 4            # keep last box for a few missed frames (visual stability)
 _MONITOR_PREWARMED = False
@@ -581,43 +578,27 @@ def _valid_trash_box(box: tuple[int, int, int, int], frame_w: int, frame_h: int)
     return True
 
 
-def _box_area(box: tuple[int, int, int, int]) -> int:
-    x1, y1, x2, y2 = box
-    return max(x2 - x1, 0) * max(y2 - y1, 0)
-
-
 def _should_suppress_overlapped_trash(
     trash_box: tuple[int, int, int, int],
     person_boxes: list[tuple[int, int, int, int]],
 ) -> bool:
     """
-    Suppress likely body false-positives while keeping handheld litter visible.
+    Suprimă detecțiile de „deșeu" care cad pe corpul persoanei (ochi, umăr,
+    haine etc. confundate cu gunoi).
 
-    If trash heavily overlaps a person but is still small relative to that person,
-    keep it (typical bag/wrapper in hand). Suppress only medium/large overlaps.
+    Orice box de deșeu care se suprapune semnificativ cu silueta unei persoane
+    (peste _OVERLAP_THRESH din aria box-ului) este suprimat. NU mai facem
+    excepție pentru obiectele mici „ținute în mână": un obiect mic adânc în
+    interiorul persoanei este aproape întotdeauna un fals pozitiv pe corp, iar
+    obiectele de tip „ochi/umăr" sunt exact mici. Incidentul oricum se
+    declanșează pe obiectul ABANDONAT pe jos (care nu mai e peste persoană),
+    deci suprimarea cât e ținut în mână nu afectează detecția aruncării.
     """
     if not person_boxes:
         return False
 
-    best_overlap = 0.0
-    best_person_box = None
-    for pb in person_boxes:
-        ov = _iou_overlap(trash_box, pb)
-        if ov > best_overlap:
-            best_overlap = ov
-            best_person_box = pb
-
-    if best_overlap <= _OVERLAP_THRESH or best_person_box is None:
-        return False
-
-    person_area = max(_box_area(best_person_box), 1)
-    ratio_vs_person = _box_area(trash_box) / person_area
-
-    # Keep small overlapping objects (likely held in hand).
-    if ratio_vs_person <= _HANDHELD_MAX_PERSON_RATIO:
-        return False
-
-    return True
+    best_overlap = max((_iou_overlap(trash_box, pb) for pb in person_boxes), default=0.0)
+    return best_overlap > _OVERLAP_THRESH
 
 
 def _shrink_box(box: tuple[int, int, int, int], factor: float) -> tuple[int, int, int, int]:
