@@ -1,4 +1,11 @@
-﻿import argparse
+"""
+Evaluează clasificatorul de material pe un split de dataset.
+
+Calculează acuratețea, precizia/recall/F1 (per clasă și macro) și matricea de
+confuzie cu scikit-learn, apoi le scrie ca CSV/JSON.
+"""
+
+import argparse
 import csv
 import json
 from pathlib import Path
@@ -13,20 +20,20 @@ DEFAULT_OUTPUT_DIR = REPO_ROOT / "runs" / "classify_eval"
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Evaluate a trained trash material classifier on a dataset split")
-    parser.add_argument("--model", required=True, help="Classifier checkpoint path")
-    parser.add_argument("--data", default="datasets/trashnet_cls", help="Classification dataset root")
-    parser.add_argument("--split", choices=("train", "val", "test"), default="test", help="Dataset split to evaluate")
-    parser.add_argument("--imgsz", type=int, default=224, help="Inference image size")
-    parser.add_argument("--device", default=None, help="Device to use: cpu, 0, 0,1, ...")
-    parser.add_argument("--workers", type=int, default=0, help="Number of dataloader workers (0=safe on Windows)")
-    parser.add_argument("--project", default=str(DEFAULT_OUTPUT_DIR), help="Directory for evaluation artifacts")
-    parser.add_argument("--name", default="trashnet-material-cls", help="Evaluation run name")
+    parser = argparse.ArgumentParser(description="Evaluează clasificatorul de material antrenat pe un split de dataset")
+    parser.add_argument("--model", required=True, help="Calea către checkpoint-ul clasificatorului")
+    parser.add_argument("--data", default="datasets/trashnet_cls", help="Rădăcina datasetului de clasificare")
+    parser.add_argument("--split", choices=("train", "val", "test"), default="test", help="Split-ul de dataset evaluat")
+    parser.add_argument("--imgsz", type=int, default=224, help="Dimensiunea imaginii la inferență")
+    parser.add_argument("--device", default=None, help="Dispozitivul: cpu, 0, 0,1, ...")
+    parser.add_argument("--workers", type=int, default=0, help="Numărul de workeri pentru dataloader (0 = sigur pe Windows)")
+    parser.add_argument("--project", default=str(DEFAULT_OUTPUT_DIR), help="Folderul pentru artefactele de evaluare")
+    parser.add_argument("--name", default="trashnet-material-cls", help="Numele rulării de evaluare")
     parser.add_argument(
         "--classes",
         nargs="+",
         default=DEFAULT_CLASSES,
-        help="Expected class folder names in evaluation order",
+        help="Numele folderelor de clase, în ordinea de evaluare",
     )
     return parser.parse_args()
 
@@ -76,13 +83,13 @@ def main():
     data_root = Path(args.data)
     split_dir = data_root / args.split
     if not model_path.exists():
-        raise FileNotFoundError(f"Classifier checkpoint not found: {model_path}")
+        raise FileNotFoundError(f"Checkpoint-ul clasificatorului negăsit: {model_path}")
     if not split_dir.exists():
-        raise FileNotFoundError(f"Dataset split not found: {split_dir}")
+        raise FileNotFoundError(f"Split-ul de dataset negăsit: {split_dir}")
 
     items = dataset_items(split_dir, args.classes)
     if not items:
-        raise SystemExit(f"No evaluation images found in {split_dir}")
+        raise SystemExit(f"Nicio imagine de evaluare în {split_dir}")
 
     model = YOLO(str(model_path))
     class_name_map = classifier_names(model)
@@ -161,14 +168,14 @@ def main():
     summary_json.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     print(f"[INFO] Split: {args.split}")
-    print(f"[INFO] Images: {len(items)}")
-    print(f"[INFO] Accuracy: {accuracy:.4f}")
-    print(f"[INFO] Macro precision: {macro_precision:.4f}")
-    print(f"[INFO] Macro recall: {macro_recall:.4f}")
-    print(f"[INFO] Macro F1: {macro_f1:.4f}")
-    print(f"[INFO] Predictions CSV: {predictions_csv}")
-    print(f"[INFO] Confusion matrix CSV: {confusion_csv}")
-    print(f"[INFO] Summary JSON: {summary_json}")
+    print(f"[INFO] Imagini: {len(items)}")
+    print(f"[INFO] Acuratețe: {accuracy:.4f}")
+    print(f"[INFO] Precizie macro: {macro_precision:.4f}")
+    print(f"[INFO] Recall macro: {macro_recall:.4f}")
+    print(f"[INFO] F1 macro: {macro_f1:.4f}")
+    print(f"[INFO] CSV predicții: {predictions_csv}")
+    print(f"[INFO] CSV matrice de confuzie: {confusion_csv}")
+    print(f"[INFO] JSON sumar: {summary_json}")
 
 
 if __name__ == "__main__":

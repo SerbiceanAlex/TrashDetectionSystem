@@ -1,21 +1,22 @@
 """
-Evaluate the final video littering pipeline on multiple test clips.
+Evaluează pipeline-ul final de detecție a aruncării ilegale pe mai multe clipuri.
 
-This is the batch version of scripts/smoke/pipeline_e2e_smoke.py. It keeps the
-same production pipeline, but writes thesis-friendly CSV/JSON summaries.
+Rulează exact pipeline-ul de producție pe un folder de clipuri de test și scrie
+sumare CSV/JSON folosite în lucrare (TP/FP/TN/FN, precizie/recall/F1, procente
+de stări). Motorul (run_clip/outcome) e folosit și de eval_ai_videos.py.
 
-Examples:
+Exemple:
     .venv\\Scripts\\python.exe scripts\\evaluation\\evaluate_video_events.py --clips all --frame-skip 2
 
     .venv\\Scripts\\python.exe scripts\\evaluation\\evaluate_video_events.py ^
         --clips littering_cctv_2024.mp4,dumping_neighbor_00001.mp4,cctv_parking_away_00001.mp4
 
-Optional manifest format (CSV):
+Format opțional de manifest (CSV):
     clip,expected_event
     littering_cctv_2024.mp4,positive
     cctv_parking_away_00001.mp4,negative
 
-expected_event can be: positive, negative, unknown.
+expected_event poate fi: positive, negative, unknown.
 """
 
 from __future__ import annotations
@@ -45,56 +46,56 @@ VALID_EXPECTED = {"positive", "negative", "unknown"}
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Batch video event evaluation")
+    parser = argparse.ArgumentParser(description="Evaluare în lot a evenimentelor video")
     parser.add_argument(
         "--clips",
         default="all",
-        help="all, or comma-separated clip names from datasets/test_videos",
+        help="all, sau nume de clipuri separate prin virgulă din datasets/test_videos",
     )
     parser.add_argument(
         "--manifest",
         default="",
-        help="Optional CSV with columns: clip,expected_event",
+        help="CSV opțional cu coloanele: clip,expected_event",
     )
     parser.add_argument(
         "--out",
         default=str(DEFAULT_OUT),
-        help="Output prefix. Writes .csv and .json",
+        help="Prefixul de ieșire. Scrie .csv și .json",
     )
     parser.add_argument(
         "--conf",
         type=float,
         default=settings.DEFAULT_DET_CONF,
-        help=f"Trash detector confidence threshold (default: {settings.DEFAULT_DET_CONF})",
+        help=f"Pragul de încredere al detectorului de deșeuri (implicit: {settings.DEFAULT_DET_CONF})",
     )
     parser.add_argument(
         "--person-conf",
         type=float,
         default=0.40,
-        help="Person detector confidence threshold (default: 0.40)",
+        help="Pragul de încredere al detectorului de persoane (implicit: 0.40)",
     )
     parser.add_argument(
         "--imgsz",
         type=int,
         default=settings.LIVE_IMGSZ,
-        help=f"Inference image size (default from settings: {settings.LIVE_IMGSZ})",
+        help=f"Dimensiunea imaginii la inferență (implicit din settings: {settings.LIVE_IMGSZ})",
     )
     parser.add_argument(
         "--frame-skip",
         type=int,
         default=1,
-        help="Process every Nth frame. Use 2 for faster diagnostic runs.",
+        help="Procesează fiecare al N-lea cadru. Folosește 2 pentru rulări mai rapide.",
     )
     parser.add_argument(
         "--max-frames",
         type=int,
         default=0,
-        help="Stop after this many processed frames per clip. 0 means full clip.",
+        help="Oprește după atâtea cadre procesate per clip. 0 = clipul întreg.",
     )
     parser.add_argument(
         "--device",
         default="0",
-        help="Ultralytics device, e.g. 0 or cpu (default: 0)",
+        help="Dispozitivul Ultralytics, ex. 0 sau cpu (implicit: 0)",
     )
     return parser.parse_args()
 
@@ -114,7 +115,7 @@ def parse_clip_selection(raw: str) -> list[Path]:
             continue
         path = VIDEOS_DIR / clean
         if not path.exists():
-            raise FileNotFoundError(f"Clip not found: {path}")
+            raise FileNotFoundError(f"Clip negăsit: {path}")
         selected.append(path)
     return selected
 
@@ -127,7 +128,7 @@ def load_manifest(path_raw: str) -> dict[str, str]:
     if not path.is_absolute():
         path = REPO / path
     if not path.exists():
-        raise FileNotFoundError(f"Manifest not found: {path}")
+        raise FileNotFoundError(f"Manifest negăsit: {path}")
 
     labels: dict[str, str] = {}
     with path.open("r", encoding="utf-8-sig", newline="") as f:
@@ -135,7 +136,7 @@ def load_manifest(path_raw: str) -> dict[str, str]:
         required = {"clip", "expected_event"}
         missing = required - set(reader.fieldnames or [])
         if missing:
-            raise ValueError(f"Manifest missing columns: {sorted(missing)}")
+            raise ValueError(f"Manifestului îi lipsesc coloane: {sorted(missing)}")
         for row in reader:
             clip = (row.get("clip") or "").strip()
             expected = (row.get("expected_event") or "unknown").strip().lower()
@@ -143,8 +144,8 @@ def load_manifest(path_raw: str) -> dict[str, str]:
                 continue
             if expected not in VALID_EXPECTED:
                 raise ValueError(
-                    f"Invalid expected_event for {clip}: {expected}. "
-                    f"Use one of {sorted(VALID_EXPECTED)}"
+                    f"expected_event invalid pentru {clip}: {expected}. "
+                    f"Folosește una din {sorted(VALID_EXPECTED)}"
                 )
             labels[clip] = expected
     return labels
@@ -183,7 +184,7 @@ def run_clip(
 ) -> dict[str, Any]:
     cap = cv2.VideoCapture(str(clip_path))
     if not cap.isOpened():
-        raise RuntimeError(f"Cannot open video: {clip_path}")
+        raise RuntimeError(f"Nu pot deschide videoul: {clip_path}")
 
     fps_src = cap.get(cv2.CAP_PROP_FPS) or 25.0
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -206,8 +207,8 @@ def run_clip(
     previous_state: str | None = None
     started = time.time()
 
-    # Match the original single-clip smoke test: each clip starts with a fresh
-    # Ultralytics predictor/tracker, then ByteTrack persists across frames.
+    # Fiecare clip pornește cu un predictor/tracker Ultralytics proaspăt, apoi
+    # ByteTrack persistă între cadre.
     if hasattr(detector_model, "predictor"):
         detector_model.predictor = None
 
@@ -358,12 +359,12 @@ def write_outputs(rows: list[dict[str, Any]], out_prefix: Path) -> None:
 
     json_path.write_text(json.dumps(rows, indent=2), encoding="utf-8")
 
-    print(f"\nSaved CSV : {csv_path}")
-    print(f"Saved JSON: {json_path}")
+    print(f"\nCSV salvat : {csv_path}")
+    print(f"JSON salvat: {json_path}")
 
 
 def print_summary(rows: list[dict[str, Any]]) -> None:
-    print("\n=== Batch Summary ===")
+    print("\n=== Sumar lot ===")
     print(f"{'clip':<34} {'exp':<8} {'out':<4} {'evt':>3} {'first':>7} {'fps':>7}")
     print("-" * 72)
     for row in rows:
@@ -388,21 +389,21 @@ def print_summary(rows: list[dict[str, Any]]) -> None:
         precision = tp / max(tp + fp, 1)
         recall = tp / max(tp + fn, 1)
         f1 = 2 * precision * recall / max(precision + recall, 1e-9)
-        print("\nKnown-label clip metrics:")
+        print("\nMetrici pe clipurile cu etichetă cunoscută:")
         print(f"  TP={tp} FP={fp} TN={tn} FN={fn}")
         print(f"  precision={precision:.3f} recall={recall:.3f} f1={f1:.3f}")
     else:
-        print("\nNo known expected_event labels were provided; outcome metrics are skipped.")
+        print("\nNu s-au dat etichete expected_event; metricile sunt omise.")
 
 
 def main() -> int:
     args = parse_args()
     if args.frame_skip < 1:
-        raise ValueError("--frame-skip must be >= 1")
+        raise ValueError("--frame-skip trebuie să fie >= 1")
 
     clips = parse_clip_selection(args.clips)
     if not clips:
-        print("No clips selected.")
+        print("Niciun clip selectat.")
         return 1
 
     expected_by_clip = load_manifest(args.manifest)
@@ -413,14 +414,14 @@ def main() -> int:
     detector_path = settings.detector_path
     person_path = settings.person_detector_path
     if not detector_path.exists():
-        raise FileNotFoundError(f"Detector not found: {detector_path}")
+        raise FileNotFoundError(f"Detector negăsit: {detector_path}")
     if not person_path.exists():
-        raise FileNotFoundError(f"Person model not found: {person_path}")
+        raise FileNotFoundError(f"Modelul de persoane negăsit: {person_path}")
 
-    print("=== Video Event Evaluation ===")
+    print("=== Evaluare evenimente video ===")
     print(f"Detector : {detector_path}")
     print(f"Person   : {person_path}")
-    print(f"Clips    : {len(clips)}")
+    print(f"Clipuri  : {len(clips)}")
     print(f"conf     : {args.conf}")
     print(f"imgsz    : {args.imgsz}")
     print(f"skip     : {args.frame_skip}")
@@ -454,7 +455,7 @@ def main() -> int:
                 "frames_processed": 0,
                 "runtime_fps": 0.0,
             }
-            print(f"  ERROR: {exc}")
+            print(f"  EROARE: {exc}")
 
         expected = expected_by_clip.get(clip.name, "unknown")
         row["expected_event"] = expected
@@ -462,7 +463,7 @@ def main() -> int:
         rows.append(row)
 
         if row.get("error"):
-            print("  -> failed")
+            print("  -> eșuat")
         else:
             print(
                 f"  -> events={row['events_detected']} "
@@ -473,7 +474,7 @@ def main() -> int:
     elapsed = time.time() - started
     write_outputs(rows, out_prefix)
     print_summary(rows)
-    print(f"\nTotal runtime: {elapsed:.1f}s")
+    print(f"\nTimp total: {elapsed:.1f}s")
     return 0
 
 
