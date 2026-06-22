@@ -1,20 +1,19 @@
 """
-Pytest configuration — shared fixtures for all tests.
-Uses an isolated in-memory SQLite database per test session.
+Configurare pytest — fixtures comune pentru toate testele.
+Folosește o bază de date SQLite izolată, în memorie, per sesiune de test.
 """
 
 import asyncio
 import os
-from pathlib import Path
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-# Override settings BEFORE importing backend modules
+# Suprascrie setările ÎNAINTE de a importa modulele din backend
 os.environ["SECRET_KEY"] = "test-secret-key-that-is-long-enough-for-hs256-validation"
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite://"  # in-memory
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite://"  # în memorie
 
 from backend import database as db
 from backend.main import app
@@ -29,7 +28,7 @@ def event_loop():
 
 @pytest_asyncio.fixture(scope="session")
 async def engine():
-    """Create a fresh in-memory database engine for the test session."""
+    """Creează un engine de DB nou, în memorie, pentru sesiunea de test."""
     _engine = create_async_engine("sqlite+aiosqlite://", echo=False)
     async with _engine.begin() as conn:
         await conn.run_sync(db.Base.metadata.create_all)
@@ -39,7 +38,7 @@ async def engine():
 
 @pytest_asyncio.fixture()
 async def session(engine):
-    """Provide a transactional database session that rolls back after each test."""
+    """Oferă o sesiune de DB tranzacțională, cu rollback după fiecare test."""
     _session_maker = async_sessionmaker(engine, expire_on_commit=False)
     async with _session_maker() as session:
         yield session
@@ -48,7 +47,7 @@ async def session(engine):
 
 @pytest_asyncio.fixture()
 async def client(engine):
-    """Async HTTP test client with dependency-overridden DB session."""
+    """Client HTTP async de test, cu sesiunea de DB suprascrisă prin dependență."""
     _session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
     async def _override_get_db():

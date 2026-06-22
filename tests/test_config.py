@@ -1,9 +1,6 @@
 """
-Tests for backend.config — verify settings load correctly.
+Teste pentru backend.config — verifică încărcarea corectă a setărilor.
 """
-
-import os
-import pytest
 
 
 def test_settings_loads():

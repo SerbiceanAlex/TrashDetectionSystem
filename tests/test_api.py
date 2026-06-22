@@ -1,8 +1,8 @@
 """
-Tests for the current B2B monitoring API surface.
+Teste pentru suprafața API curentă de monitorizare B2B.
 
-These tests intentionally avoid ML inference and focus on DB/API behavior:
-app shell, dashboard, reports export, video sessions, and incident listing.
+Aceste teste evită intenționat inferența ML și se concentrează pe comportamentul DB/API:
+shell-ul aplicației, dashboard, export rapoarte, sesiuni video și listarea incidentelor.
 """
 
 import pytest
@@ -13,11 +13,11 @@ from uuid import uuid4
 from backend import auth
 from backend import database as db
 from backend.auth_router import get_current_active_user
-from backend.main import LITTERING_DIR, VIDEOS_DIR, app
+from backend.main import LITTERING_DIR, app
 
 
 def _override_admin() -> None:
-    """Use a synthetic admin user without creating DB rows."""
+    """Folosește un admin sintetic, fără a crea rânduri în DB."""
     app.dependency_overrides[get_current_active_user] = lambda: SimpleNamespace(
         id=1,
         username="api_admin",
@@ -28,7 +28,7 @@ def _override_admin() -> None:
 
 
 def _override_operator() -> None:
-    """Use a synthetic operator user without creating DB rows."""
+    """Folosește un operator sintetic, fără a crea rânduri în DB."""
     app.dependency_overrides[get_current_active_user] = lambda: SimpleNamespace(
         id=2,
         username="api_operator",

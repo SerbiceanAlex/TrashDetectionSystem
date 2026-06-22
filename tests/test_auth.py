@@ -1,16 +1,16 @@
 """
-Tests for authentication flow: register, login, password policy.
+Teste pentru fluxul de autentificare: înregistrare, login, politica de parolă.
 """
 
 import pytest
 from httpx import AsyncClient
 
 
-# ── Registration ─────────────────────────────────────────────────────────────
+# ── Înregistrare ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_register_first_user_is_admin(client: AsyncClient):
-    """First registered user should get admin role."""
+    """Primul utilizator înregistrat trebuie să primească rolul admin."""
     resp = await client.post("/api/auth/register", json={
         "username": "admin_test",
         "email": "admin@test.local",
@@ -24,7 +24,7 @@ async def test_register_first_user_is_admin(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_register_second_user_is_regular(client: AsyncClient):
-    """Subsequent users should get 'user' role."""
+    """Următorii utilizatori trebuie să primească rolul 'user'."""
     resp = await client.post("/api/auth/register", json={
         "username": "user_test",
         "email": "user@test.local",
@@ -36,7 +36,7 @@ async def test_register_second_user_is_regular(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_register_duplicate_username(client: AsyncClient):
-    """Registering with an existing username should fail."""
+    """Înregistrarea cu un username existent trebuie să eșueze."""
     resp = await client.post("/api/auth/register", json={
         "username": "admin_test",
         "email": "other@test.local",
@@ -48,7 +48,7 @@ async def test_register_duplicate_username(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_register_duplicate_email(client: AsyncClient):
-    """Registering with an existing email should fail."""
+    """Înregistrarea cu un email existent trebuie să eșueze."""
     resp = await client.post("/api/auth/register", json={
         "username": "another_user",
         "email": "admin@test.local",
@@ -58,11 +58,11 @@ async def test_register_duplicate_email(client: AsyncClient):
     assert "email" in resp.json()["detail"].lower()
 
 
-# ── Password policy ──────────────────────────────────────────────────────────
+# ── Politica de parolă ────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_register_weak_password_rejected(client: AsyncClient):
-    """Weak passwords should be rejected with 422."""
+    """Parolele slabe trebuie respinse cu 422."""
     resp = await client.post("/api/auth/register", json={
         "username": "weak_user",
         "email": "weak@test.local",
@@ -91,7 +91,7 @@ async def test_password_rules_endpoint(client: AsyncClient):
     assert len(data["rules"]) >= 4
 
 
-# ── Login ───────────────────────────────────────────────────────────────────
+# ── Login ─────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_login_wrong_password(client: AsyncClient):
@@ -113,7 +113,7 @@ async def test_login_nonexistent_user(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_login_admin_gets_direct_token(client: AsyncClient):
-    """Admin login should return JWT directly."""
+    """Login-ul de admin trebuie să întoarcă direct un JWT."""
     resp = await client.post("/api/auth/login", data={
         "username": "admin_test",
         "password": "TestPass1!",
@@ -126,7 +126,7 @@ async def test_login_admin_gets_direct_token(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_login_regular_user_gets_direct_token(client: AsyncClient):
-    """Regular user login should also return JWT directly."""
+    """Login-ul unui user normal trebuie să întoarcă tot direct un JWT."""
     resp = await client.post("/api/auth/login", data={
         "username": "user_test",
         "password": "TestPass1!",
@@ -137,7 +137,7 @@ async def test_login_regular_user_gets_direct_token(client: AsyncClient):
     assert data["token_type"] == "bearer"
 
 
-# ── Protected endpoint ───────────────────────────────────────────────────────
+# ── Endpoint protejat ─────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_me_without_token(client: AsyncClient):
@@ -147,15 +147,15 @@ async def test_me_without_token(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_me_with_valid_token(client: AsyncClient):
-    """Admin gets direct token → access /me."""
-    # Admin login returns JWT directly
+    """Adminul primește token direct → accesează /me."""
+    # Login-ul de admin întoarce direct JWT-ul
     resp = await client.post("/api/auth/login", data={
         "username": "admin_test",
         "password": "TestPass1!",
     })
     token = resp.json()["access_token"]
 
-    # Access /me
+    # Accesează /me
     resp = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     assert resp.json()["username"] == "admin_test"
