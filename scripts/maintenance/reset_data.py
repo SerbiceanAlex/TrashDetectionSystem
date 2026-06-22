@@ -1,8 +1,8 @@
-﻿"""
-Reset generated detection data and clear runtime database rows.
-Keeps user accounts intact.
+"""
+Resetează datele generate la rulare și golește tabelele de runtime din DB.
+Păstrează conturile de utilizator.
 
-Usage:
+Utilizare:
     python -m scripts.maintenance.reset_data
 """
 
@@ -11,44 +11,31 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+# Foldere vechi (din versiuni anterioare) curățate defensiv dacă mai există.
 LEGACY_DIRS_TO_CLEAN = [
     ROOT / "backend" / "uploads",
     ROOT / "backend" / "annotated",
-    ROOT / "backend" / "cleaned",
     ROOT / "backend" / "videos",
     ROOT / "backend" / "littering",
-    ROOT / "backend" / "thumbnails",
-    ROOT / "backend" / "avatars",
 ]
 
 
 async def reset_database():
+    """Golește tabelele de runtime (incidente, sesiuni, notificări), păstrând conturile."""
     from backend.database import engine, sa_text
 
-    tables = [
-        "detection_records",
-        "video_sessions",
-        "detection_sessions",
-        "littering_events",
-    ]
+    tables = ["video_sessions", "littering_events", "notifications"]
     async with engine.begin() as conn:
         for table in tables:
             try:
                 await conn.execute(sa_text(f"DELETE FROM {table}"))
-                print(f"  Cleared table: {table}")
+                print(f"  Golit tabelul: {table}")
             except Exception:
-                pass  # Table may not exist yet
-
-    # Reset notification counters but keep user accounts
-    async with engine.begin() as conn:
-        try:
-            await conn.execute(sa_text("DELETE FROM notifications"))
-            print("  Cleared table: notifications")
-        except Exception:
-            pass
+                pass  # tabelul poate să nu existe încă
 
 
 def reset_files():
+    """Șterge fișierele generate din folderele de runtime (și cele vechi)."""
     from backend.config import settings
 
     total_deleted = 0
@@ -65,21 +52,21 @@ def reset_files():
                 shutil.rmtree(f)
                 count += 1
         total_deleted += count
-        print(f"  Deleted {count} items from {d.name}/")
-    print(f"  Total files deleted: {total_deleted}")
+        print(f"  Șterse {count} elemente din {d.name}/")
+    print(f"  Total fișiere șterse: {total_deleted}")
 
 
 def main():
-    print("=== TrashDet Data Reset ===")
+    print("=== Resetare date TrashDet ===")
     print()
-    print("[1/2] Cleaning file directories...")
+    print("[1/2] Curăț folderele de fișiere...")
     reset_files()
     print()
-    print("[2/2] Clearing database tables...")
+    print("[2/2] Golesc tabelele din baza de date...")
     asyncio.run(reset_database())
     print()
-    print("Done! All detection data has been cleared.")
-    print("User accounts have been preserved.")
+    print("Gata! Toate datele de detecție au fost șterse.")
+    print("Conturile de utilizator au fost păstrate.")
 
 
 if __name__ == "__main__":

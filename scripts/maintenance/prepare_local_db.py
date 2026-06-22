@@ -1,19 +1,16 @@
 """
-Prepare the local SQLite database for a clean thesis/local run.
+Pregătește baza de date SQLite locală pentru o rulare curată (teză/local).
 
-The script is intentionally conservative by default:
-  - creates a timestamped DB backup before any write;
-  - ensures one admin account and one standard local user account;
-  - cleans OTP/test-login junk;
-  - creates readable local organization and monitored locations;
-  - removes legacy authority/webhook rows because the final thesis build keeps
-    evidence review local instead of forwarding by email/webhook;
-  - removes stale legacy DB files from backend/ when safe.
+Scriptul e conservator implicit:
+  - face un backup cu timestamp înainte de orice scriere;
+  - asigură un cont de admin și unul de utilizator standard;
+  - curăță notificările;
+  - (opțional) resetează datele generate sau atribuie rândurile vechi userului local;
+  - mută/șterge fișiere de DB vechi din backend/ când e sigur.
 
-Destructive cleanup such as deleting extra users or runtime incidents requires
-explicit flags.
+Operațiile distructive (ștergere utilizatori în plus, resetare runtime) cer flag-uri explicite.
 
-Usage:
+Utilizare:
     .venv\\Scripts\\python.exe scripts\\maintenance\\prepare_local_db.py
     .venv\\Scripts\\python.exe scripts\\maintenance\\prepare_local_db.py --apply
     .venv\\Scripts\\python.exe scripts\\maintenance\\prepare_local_db.py --apply --prune-users
@@ -60,64 +57,41 @@ LOCAL_USERS = [
     },
 ]
 
-LOCAL_LOCATIONS = [
-    {
-        "name": "Parcul Cetate - Camera principala",
-        "address": "Alba Iulia, zona Cetate",
-        "latitude": 46.0679,
-        "longitude": 23.5708,
-    },
-    {
-        "name": "Campus universitar - Zona verde",
-        "address": "Alba Iulia, campus universitar",
-        "latitude": 46.0710,
-        "longitude": 23.5728,
-    },
-]
-
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Prepare TrashDet local database.")
-    parser.add_argument("--apply", action="store_true", help="Actually write changes. Without this, dry-run only.")
+    parser = argparse.ArgumentParser(description="Pregătește baza de date locală TrashDet.")
+    parser.add_argument("--apply", action="store_true", help="Scrie efectiv modificările. Fără el, doar simulare (dry-run).")
     parser.add_argument(
         "--prune-users",
         action="store_true",
-        help="Delete users that are not the documented local admin/user accounts. Requires --apply.",
+        help="Șterge utilizatorii care nu sunt conturile locale documentate (admin/operator). Cere --apply.",
     )
     parser.add_argument(
         "--reset-runtime",
         action="store_true",
-        help="Delete generated events/sessions/records/notifications and legacy integrations. Requires --apply.",
-    )
-    parser.add_argument(
-        "--prune-locations",
-        action="store_true",
-        help="Delete monitored locations that are not the local configured locations. Requires --apply.",
+        help="Șterge incidentele/sesiunile/notificările generate. Cere --apply.",
     )
     parser.add_argument(
         "--reset-local-passwords",
         action="store_true",
-        help="Reset local user passwords to the documented local passwords.",
+        help="Resetează parolele conturilor locale la cele documentate.",
     )
     parser.add_argument(
         "--assign-legacy-events",
         action="store_true",
-        help="Assign existing unowned littering events/video sessions to the local standard user. Requires --apply.",
+        help="Atribuie incidentele/sesiunile video fără proprietar userului local standard. Cere --apply.",
     )
     return parser.parse_args()
 
 
 def table_exists(cur: sqlite3.Cursor, name: str) -> bool:
+    """True dacă tabelul există în baza de date."""
     cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,))
     return cur.fetchone() is not None
 
 
-def column_exists(cur: sqlite3.Cursor, table: str, column: str) -> bool:
-    cur.execute(f"PRAGMA table_info({table})")
-    return any(row[1] == column for row in cur.fetchall())
-
-
 def backup_db() -> Path:
+    """Copiază baza de date într-un fișier de backup cu timestamp."""
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     dst = BACKUP_DIR / f"trash_detection_{stamp}.db"
@@ -126,6 +100,7 @@ def backup_db() -> Path:
 
 
 def count(cur: sqlite3.Cursor, table: str) -> int:
+    """Numărul de rânduri dintr-un tabel (0 dacă nu există)."""
     if not table_exists(cur, table):
         return 0
     cur.execute(f"SELECT COUNT(*) FROM {table}")
@@ -133,32 +108,21 @@ def count(cur: sqlite3.Cursor, table: str) -> int:
 
 
 def ensure_organization(cur: sqlite3.Cursor) -> None:
+    """Asigură organizația implicită (id=1)."""
     cur.execute("SELECT id FROM organizations WHERE id = 1")
     if cur.fetchone() is None:
         cur.execute(
-            """
-            INSERT INTO organizations
-                (id, name, plan, subscription_active, max_cameras, max_incidents_month, created_at)
-            VALUES
-                (1, 'TrashDet Organization', 'pro', 1, 10, 999999, ?)
-            """,
-            (datetime.now().isoformat(sep=" "),),
+            "INSERT INTO organizations (id, name, created_at) VALUES (1, ?, ?)",
+            ("TrashDet Organization", datetime.now().isoformat(sep=" ")),
         )
-        print("  [CREATE] organization #1 TrashDet Organization")
+        print("  [CREARE] organizația #1 TrashDet Organization")
     else:
-        cur.execute(
-            """
-            UPDATE organizations
-            SET name = ?, plan = ?, subscription_active = 1,
-                max_cameras = 10, max_incidents_month = 999999
-            WHERE id = 1
-            """,
-            ("TrashDet Organization", "pro"),
-        )
-        print("  [UPDATE] organization #1 -> TrashDet Organization / pro")
+        cur.execute("UPDATE organizations SET name = ? WHERE id = 1", ("TrashDet Organization",))
+        print("  [UPDATE] organizația #1 -> TrashDet Organization")
 
 
 def ensure_user(cur: sqlite3.Cursor, user: dict[str, object], reset_passwords: bool) -> None:
+    """Creează sau actualizează un cont local (rol, email, opțional parolă)."""
     cur.execute("SELECT id, role FROM users WHERE username = ?", (user["username"],))
     row = cur.fetchone()
     if row:
@@ -170,9 +134,9 @@ def ensure_user(cur: sqlite3.Cursor, user: dict[str, object], reset_passwords: b
             params.append(get_password_hash(str(user["password"])))
         params.append(user_id)
         cur.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = ?", params)
-        msg = f"  [UPDATE] user {user['username']} role {old_role!r} -> {user['role']!r}"
+        msg = f"  [UPDATE] user {user['username']} rol {old_role!r} -> {user['role']!r}"
         if reset_passwords:
-            msg += " + password reset"
+            msg += " + parolă resetată"
         print(msg)
         return
 
@@ -191,81 +155,29 @@ def ensure_user(cur: sqlite3.Cursor, user: dict[str, object], reset_passwords: b
             datetime.now().isoformat(sep=" "),
         ),
     )
-    print(f"  [CREATE] user {user['username']} role={user['role']}")
-
-
-def ensure_locations(cur: sqlite3.Cursor) -> None:
-    if not table_exists(cur, "monitored_locations"):
-        return
-
-    cur.execute("DELETE FROM monitored_locations WHERE name IN (?, ?)", tuple(loc["name"] for loc in LOCAL_LOCATIONS))
-    admin_id = get_user_id(cur, "admin")
-    for loc in LOCAL_LOCATIONS:
-        cur.execute(
-            """
-            INSERT INTO monitored_locations
-                (name, address, latitude, longitude, rtsp_url, alert_email,
-                 is_active, created_at, created_by, organization_id)
-            VALUES (?, ?, ?, ?, NULL, NULL, 1, ?, ?, 1)
-            """,
-            (
-                loc["name"],
-                loc["address"],
-                loc["latitude"],
-                loc["longitude"],
-                datetime.now().isoformat(sep=" "),
-                admin_id,
-            ),
-        )
-        print(f"  [UPSERT] location {loc['name']}")
-
-
-def keep_locations(cur: sqlite3.Cursor) -> None:
-    if not table_exists(cur, "monitored_locations"):
-        return
-    keep = tuple(loc["name"] for loc in LOCAL_LOCATIONS)
-    placeholders = ",".join("?" for _ in keep)
-    cur.execute(f"SELECT COUNT(*) FROM monitored_locations WHERE name NOT IN ({placeholders})", keep)
-    before = int(cur.fetchone()[0])
-    cur.execute(f"DELETE FROM monitored_locations WHERE name NOT IN ({placeholders})", keep)
-    print(f"  [DELETE] extra monitored locations: {before}")
+    print(f"  [CREARE] user {user['username']} rol={user['role']}")
 
 
 def get_user_id(cur: sqlite3.Cursor, username: str) -> int | None:
+    """Întoarce id-ul unui utilizator după username, sau None."""
     cur.execute("SELECT id FROM users WHERE username = ?", (username,))
     row = cur.fetchone()
     return int(row[0]) if row else None
 
 
-def clean_otp(cur: sqlite3.Cursor) -> None:
-    if table_exists(cur, "otp_codes"):
-        before = count(cur, "otp_codes")
-        cur.execute("DELETE FROM otp_codes")
-        print(f"  [DELETE] otp_codes rows: {before}")
-
-
 def clean_notifications(cur: sqlite3.Cursor) -> None:
+    """Șterge toate notificările."""
     if table_exists(cur, "notifications"):
         before = count(cur, "notifications")
         cur.execute("DELETE FROM notifications")
-        print(f"  [DELETE] notifications rows: {before}")
-
-
-def clean_legacy_integrations(cur: sqlite3.Cursor) -> None:
-    """Remove rows from discontinued integration tables, if the old DB has them."""
-    for table in ("authority_contacts", "webhook_configs"):
-        if not table_exists(cur, table):
-            continue
-        before = count(cur, table)
-        cur.execute(f"DELETE FROM {table}")
-        print(f"  [DELETE] legacy {table}: {before}")
+        print(f"  [DELETE] notificări: {before}")
 
 
 def assign_legacy_runtime_to_local_user(cur: sqlite3.Cursor) -> None:
-    """Attach old unowned runtime rows to the local standard user for a coherent run."""
+    """Atribuie rândurile vechi fără proprietar userului local, pentru o rulare coerentă."""
     local_user_id = get_user_id(cur, "operator")
     if local_user_id is None:
-        print("  [SKIP] legacy runtime assignment: local user missing")
+        print("  [SKIP] atribuire runtime vechi: userul local lipsește")
         return
 
     if table_exists(cur, "littering_events"):
@@ -273,43 +185,29 @@ def assign_legacy_runtime_to_local_user(cur: sqlite3.Cursor) -> None:
         cur.execute("SELECT COUNT(*) FROM littering_events WHERE reporter_id IS NULL")
         before = int(cur.fetchone()[0])
         cur.execute("UPDATE littering_events SET reporter_id = ? WHERE reporter_id IS NULL", (local_user_id,))
-        print(f"  [UPDATE] unowned littering events -> local user: {before}")
+        print(f"  [UPDATE] incidente fără proprietar -> user local: {before}")
 
     if table_exists(cur, "video_sessions"):
         cur.execute("UPDATE video_sessions SET organization_id = 1 WHERE organization_id IS NULL")
         cur.execute("SELECT COUNT(*) FROM video_sessions WHERE user_id IS NULL")
         before = int(cur.fetchone()[0])
         cur.execute("UPDATE video_sessions SET user_id = ? WHERE user_id IS NULL", (local_user_id,))
-        print(f"  [UPDATE] unowned video sessions -> local user: {before}")
-
-    if table_exists(cur, "detection_sessions"):
-        cur.execute("UPDATE detection_sessions SET organization_id = 1 WHERE organization_id IS NULL")
-        cur.execute("SELECT COUNT(*) FROM detection_sessions WHERE reporter_id IS NULL")
-        before = int(cur.fetchone()[0])
-        cur.execute("UPDATE detection_sessions SET reporter_id = ? WHERE reporter_id IS NULL", (local_user_id,))
-        print(f"  [UPDATE] unowned image sessions -> local user: {before}")
+        print(f"  [UPDATE] sesiuni video fără proprietar -> user local: {before}")
 
 
 def prune_users(cur: sqlite3.Cursor) -> None:
+    """Șterge utilizatorii care nu sunt conturile locale documentate."""
     keep = tuple(user["username"] for user in LOCAL_USERS)
     placeholders = ",".join("?" for _ in keep)
     cur.execute(f"SELECT COUNT(*) FROM users WHERE username NOT IN ({placeholders})", keep)
     before = int(cur.fetchone()[0])
     cur.execute(f"DELETE FROM users WHERE username NOT IN ({placeholders})", keep)
-    print(f"  [DELETE] extra users: {before}")
+    print(f"  [DELETE] utilizatori în plus: {before}")
 
 
 def reset_runtime(cur: sqlite3.Cursor) -> None:
-    tables = [
-        "detection_records",
-        "video_sessions",
-        "detection_sessions",
-        "notifications",
-        "webhook_configs",
-        "authority_contacts",
-        "littering_events",
-    ]
-    for table in tables:
+    """Șterge toate datele generate la rulare (incidente, sesiuni, notificări)."""
+    for table in ("video_sessions", "notifications", "littering_events"):
         if not table_exists(cur, table):
             continue
         n = count(cur, table)
@@ -318,46 +216,40 @@ def reset_runtime(cur: sqlite3.Cursor) -> None:
 
 
 def ensure_db_location() -> None:
+    """Mută baza de date veche din backend/ în data/ dacă lipsește cea curentă."""
     if DB_PATH.exists() or not LEGACY_DB_PATH.exists():
         return
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(LEGACY_DB_PATH, DB_PATH)
-    print(f"  [MIGRATE] copied legacy DB to {DB_PATH}")
+    print(f"  [MIGRARE] DB veche copiată în {DB_PATH}")
 
 
 def remove_stale_db() -> None:
+    """Șterge (sau arhivează) fișierele de DB vechi rămase în backend/."""
     for stale_db_path in STALE_DB_PATHS:
         if not stale_db_path.exists() or stale_db_path == DB_PATH:
             continue
         if stale_db_path.stat().st_size == 0:
             stale_db_path.unlink()
-            print(f"  [DELETE] stale empty DB: {stale_db_path}")
+            print(f"  [DELETE] DB goală veche: {stale_db_path}")
         else:
             BACKUP_DIR.mkdir(parents=True, exist_ok=True)
             stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             archived = BACKUP_DIR / f"{stale_db_path.stem}_legacy_{stamp}{stale_db_path.suffix}"
             shutil.move(str(stale_db_path), str(archived))
-            print(f"  [ARCHIVE] legacy DB moved to: {archived}")
+            print(f"  [ARHIVĂ] DB veche mutată în: {archived}")
 
 
 def print_summary(cur: sqlite3.Cursor) -> None:
-    print("\nSummary:")
-    for table in [
-        "organizations",
-        "users",
-        "monitored_locations",
-        "littering_events",
-        "video_sessions",
-        "detection_records",
-        "notifications",
-        "otp_codes",
-    ]:
+    """Afișează numărul de rânduri pe tabele și conturile locale."""
+    print("\nSumar:")
+    for table in ["organizations", "users", "littering_events", "video_sessions", "notifications"]:
         if table_exists(cur, table):
             print(f"  {table:<22} {count(cur, table)}")
 
-    print("\nLocal accounts:")
+    print("\nConturi locale:")
     for user in LOCAL_USERS:
-        print(f"  {user['username']:<8} / {user['password']:<12} / role={user['role']}")
+        print(f"  {user['username']:<8} / {user['password']:<12} / rol={user['role']}")
 
 
 def main() -> int:
@@ -365,22 +257,22 @@ def main() -> int:
 
     ensure_db_location()
     if not DB_PATH.exists():
-        print(f"ERROR: database not found: {DB_PATH}")
+        print(f"EROARE: baza de date nu există: {DB_PATH}")
         return 1
-    if (args.prune_users or args.reset_runtime or args.reset_local_passwords or args.prune_locations or args.assign_legacy_events) and not args.apply:
-        print("ERROR: destructive/reset flags require --apply")
+    if (args.prune_users or args.reset_runtime or args.reset_local_passwords or args.assign_legacy_events) and not args.apply:
+        print("EROARE: flag-urile distructive/de resetare cer --apply")
         return 2
 
-    print("TrashDet local DB preparation")
+    print("Pregătire DB locală TrashDet")
     print(f"DB: {DB_PATH}")
-    print(f"Mode: {'APPLY' if args.apply else 'DRY-RUN'}")
+    print(f"Mod: {'APPLY' if args.apply else 'DRY-RUN'}")
 
     if not args.apply:
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
         print_summary(cur)
         con.close()
-        print("\nDry-run only. Re-run with --apply to write changes.")
+        print("\nDoar simulare. Rulează din nou cu --apply pentru a scrie modificările.")
         return 0
 
     backup = backup_db()
@@ -392,16 +284,11 @@ def main() -> int:
         ensure_organization(cur)
         for user in LOCAL_USERS:
             ensure_user(cur, user, args.reset_local_passwords)
-        clean_otp(cur)
         clean_notifications(cur)
-        clean_legacy_integrations(cur)
         if args.reset_runtime:
             reset_runtime(cur)
         if args.assign_legacy_events:
             assign_legacy_runtime_to_local_user(cur)
-        ensure_locations(cur)
-        if args.prune_locations:
-            keep_locations(cur)
         if args.prune_users:
             prune_users(cur)
         con.commit()
@@ -413,7 +300,7 @@ def main() -> int:
     finally:
         con.close()
 
-    print("\nDone.")
+    print("\nGata.")
     return 0
 
 

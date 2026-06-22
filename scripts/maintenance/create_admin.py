@@ -1,4 +1,4 @@
-﻿"""
+"""
 Utility script — creare utilizatori în baza de date.
 
 Utilizare:
