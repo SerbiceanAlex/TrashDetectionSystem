@@ -761,34 +761,3 @@ def _box_iou(
     area_a = max(0, ax2 - ax1) * max(0, ay2 - ay1)
     area_b = max(0, bx2 - bx1) * max(0, by2 - by1)
     return inter / max(area_a + area_b - inter, 1)
-
-
-def _draw_dashed_rect(
-    img: np.ndarray,
-    pt1: tuple[int, int],
-    pt2: tuple[int, int],
-    color: tuple[int, int, int],
-    thickness: int,
-    dash_len: int = 10,
-) -> None:
-    x1, y1 = pt1
-    x2, y2 = pt2
-    for edge in [
-        ((x1, y1), (x2, y1)), ((x2, y1), (x2, y2)),
-        ((x2, y2), (x1, y2)), ((x1, y2), (x1, y1)),
-    ]:
-        (ex1, ey1), (ex2, ey2) = edge
-        length = int(((ex2 - ex1) ** 2 + (ey2 - ey1) ** 2) ** 0.5)
-        if length == 0:
-            continue
-        dx, dy = (ex2 - ex1) / length, (ey2 - ey1) / length
-        seg, draw = 0, True
-        while seg < length:
-            end = min(seg + dash_len, length)
-            if draw:
-                cv2.line(img,
-                         (int(ex1 + dx * seg),  int(ey1 + dy * seg)),
-                         (int(ex1 + dx * end),  int(ey1 + dy * end)),
-                         color, thickness)
-            seg  = end
-            draw = not draw

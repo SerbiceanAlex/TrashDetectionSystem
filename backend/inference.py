@@ -9,13 +9,11 @@ Models loaded:
 
 Funcții expuse:
   run_pipeline()        — pipeline pe bytes de imagine (scanare foto).
-  run_pipeline_frame()  — pipeline pe un cadru numpy (fără re-encode JPEG).
   detect_persons()      — rulează person_det pe un cadru, întoarce bbox-urile.
 """
 
 import time
 import threading
-from pathlib import Path
 
 import cv2
 import numpy as np
@@ -121,38 +119,6 @@ def run_pipeline(
     annotated_bytes = buf.tobytes()
 
     return detections, annotated_bytes, elapsed_ms
-
-
-def run_pipeline_frame(
-    frame: np.ndarray,
-    det_conf: float = settings.DEFAULT_DET_CONF,
-    det_imgsz: int = settings.LIVE_IMGSZ,
-    cls_imgsz: int = 224,
-) -> tuple[list[dict], np.ndarray, float]:
-    """
-    Run the two-stage pipeline on a numpy BGR frame (optimised for video —
-    skips the JPEG encode/decode round-trip used by run_pipeline()).
-
-    Returns:
-        detections  — list of dicts from detect_and_classify()
-        annotated   — numpy BGR annotated frame
-        elapsed_ms  — inference time in milliseconds
-    """
-    from backend.ml.two_stage import detect_and_classify, draw_detections
-
-    frame = _resize_if_needed(frame)
-
-    t0 = time.perf_counter()
-    with _inference_lock:
-        detections = detect_and_classify(
-            frame, _detector, _classifier, det_conf, det_imgsz, cls_imgsz, _cls_names
-        )
-    elapsed_ms = (time.perf_counter() - t0) * 1000.0
-
-    fps = 1000.0 / max(elapsed_ms, 1e-3)
-    annotated = draw_detections(frame, detections, fps=fps, max_labels=5, line_width=2)
-
-    return detections, annotated, elapsed_ms
 
 
 # ─────────────────────────────────────────────────────────────────────────────

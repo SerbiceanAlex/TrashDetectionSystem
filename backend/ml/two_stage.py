@@ -1,47 +1,16 @@
-﻿import argparse
-import os
-import time
+"""
+Two-stage trash pipeline: single-class YOLO detector + material classifier.
+
+Library functions used across the backend:
+  - detect_and_classify(): detect trash boxes, then classify each crop's material
+  - classify_crop():        classify a single crop's material
+  - draw_detections():      annotate a frame with boxes + material labels
+  - classifier_names():     normalize a YOLO model's class names to {index: name}
+"""
+
 from collections import Counter
-from pathlib import Path
 
 import cv2
-from ultralytics import YOLO
-
-from backend.config import settings
-
-
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-
-
-def parse_args():
-    parser = argparse.ArgumentParser("Two-stage trash detection and material classification")
-    parser.add_argument("--source", required=True, help="0 for webcam, or path to an image or video file")
-    parser.add_argument(
-        "--detector",
-        default=settings.DETECTOR_WEIGHTS,
-        help="YOLO detector checkpoint for the single-class trash detector",
-    )
-    parser.add_argument(
-        "--classifier",
-        default=settings.CLASSIFIER_WEIGHTS,
-        help="YOLO classification checkpoint for material classification",
-    )
-    parser.add_argument("--det-conf", type=float, default=0.25, help="Detector confidence threshold")
-    parser.add_argument("--det-imgsz", type=int, default=640, help="Detector inference image size")
-    parser.add_argument("--cls-imgsz", type=int, default=224, help="Classifier inference image size")
-    parser.add_argument("--show", action="store_true", help="Show preview window")
-    parser.add_argument("--save", action="store_true", help="Save annotated image or video to outputs/")
-    parser.add_argument("--max-labels", type=int, default=5, help="Number of class counts shown in overlay")
-    parser.add_argument("--line-width", type=int, default=2, help="Bounding box line width")
-    return parser.parse_args()
-
-
-def is_image_source(source):
-    return Path(source).suffix.lower() in IMAGE_EXTENSIONS
-
-
-def is_webcam_source(source):
-    return str(source).isdigit()
 
 
 def classifier_names(model):
@@ -168,115 +137,3 @@ def draw_detections(frame, detections, fps, max_labels, line_width):
         y += 28
 
     return annotated
-
-
-def ensure_output_path(source, is_image):
-    os.makedirs("outputs", exist_ok=True)
-    timestamp = int(time.time())
-    source_name = Path(str(source)).stem if not is_webcam_source(source) else "webcam"
-    suffix = ".jpg" if is_image else ".mp4"
-    return Path("outputs") / f"two_stage_{source_name}_{timestamp}{suffix}"
-
-
-def run_on_image(source_path, detector, classifier, args, class_names):
-    frame = cv2.imread(str(source_path))
-    if frame is None:
-        raise RuntimeError(f"Cannot read image: {source_path}")
-
-    start = time.time()
-    detections = detect_and_classify(
-        frame,
-        detector,
-        classifier,
-        args.det_conf,
-        args.det_imgsz,
-        args.cls_imgsz,
-        class_names,
-    )
-    fps = 1.0 / max(time.time() - start, 1e-6)
-    annotated = draw_detections(frame, detections, fps, args.max_labels, args.line_width)
-
-    if args.save:
-        out_path = ensure_output_path(source_path, is_image=True)
-        cv2.imwrite(str(out_path), annotated)
-        print(f"[INFO] Saved annotated image to: {out_path.resolve()}")
-
-    if args.show:
-        cv2.imshow("TrashDetectionSystem - Two-Stage Inference", annotated)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-
-
-def run_on_video(source, detector, classifier, args, class_names):
-    source_value = int(source) if is_webcam_source(source) else source
-    cap = cv2.VideoCapture(source_value)
-    if not cap.isOpened():
-        raise RuntimeError(f"Cannot open source: {source}")
-
-    fps_in = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1280)
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 720)
-
-    writer = None
-    if args.save:
-        out_path = ensure_output_path(source, is_image=False)
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(str(out_path), fourcc, fps_in, (width, height))
-        print(f"[INFO] Saving annotated video to: {out_path.resolve()}")
-
-    prev = time.time()
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-
-        detections = detect_and_classify(
-            frame,
-            detector,
-            classifier,
-            args.det_conf,
-            args.det_imgsz,
-            args.cls_imgsz,
-            class_names,
-        )
-        now = time.time()
-        fps = 1.0 / max(now - prev, 1e-6)
-        prev = now
-        annotated = draw_detections(frame, detections, fps, args.max_labels, args.line_width)
-
-        if writer is not None:
-            writer.write(annotated)
-
-        if args.show:
-            cv2.imshow("TrashDetectionSystem - Two-Stage Inference", annotated)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
-
-    cap.release()
-    if writer is not None:
-        writer.release()
-    cv2.destroyAllWindows()
-
-
-def main():
-    args = parse_args()
-
-    detector_path = Path(args.detector)
-    classifier_path = Path(args.classifier)
-    if not detector_path.exists():
-        raise FileNotFoundError(f"Detector checkpoint not found: {detector_path}")
-    if not classifier_path.exists():
-        raise FileNotFoundError(f"Classifier checkpoint not found: {classifier_path}")
-
-    detector = YOLO(str(detector_path))
-    classifier = YOLO(str(classifier_path))
-    class_names = classifier_names(classifier)
-
-    if is_image_source(args.source):
-        run_on_image(Path(args.source), detector, classifier, args, class_names)
-    else:
-        run_on_video(args.source, detector, classifier, args, class_names)
-
-
-if __name__ == "__main__":
-    main()

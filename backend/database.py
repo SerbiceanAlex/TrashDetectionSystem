@@ -5,7 +5,6 @@ SQLAlchemy 2.0 async database layer.
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean,
     Column,
     DateTime,
     Float,
@@ -281,20 +280,6 @@ async def create_organization(db: AsyncSession, name: str) -> "Organization":
 
 
 # ── Query helpers ────────────────────────────────────────────────────────────
-
-
-async def get_global_stats(db: AsyncSession):
-    """Returns (total_sessions, total_objects, avg_inference_ms)."""
-    result = await db.execute(
-        select(
-            func.count(DetectionSession.id),
-            func.coalesce(func.sum(DetectionSession.total_objects), 0),
-            func.coalesce(func.avg(DetectionSession.inference_ms), 0.0),
-        )
-    )
-    return result.one()
-
-
 
 
 # ── Video session helpers ──────────────────────────────────────────────────

@@ -3,7 +3,6 @@ Video processing module — WebSocket live handler + uploaded-video processor.
 """
 
 import asyncio
-import base64
 import json
 import logging
 import time
@@ -355,7 +354,7 @@ async def process_uploaded_video(
                 annotated_video_path=result["annotated_video_path"],
             )
 
-    except Exception as exc:
+    except Exception:
         import traceback
         traceback.print_exc()
         try:
@@ -629,7 +628,6 @@ async def handle_monitor_ws(
     from ultralytics import YOLO
     from backend.littering_detector import LitteringDetector
     from backend.config import settings
-    from datetime import timezone
     import torch
 
     await websocket.accept()

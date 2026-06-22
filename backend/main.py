@@ -20,14 +20,14 @@ from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Quer
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import case, delete as sa_delete, func, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend import database as db
 from backend import inference as infer
 from backend import schemas
-from backend.auth_router import router as auth_router, get_current_active_user, get_current_user_optional, oauth2_scheme
+from backend.auth_router import router as auth_router, get_current_active_user, oauth2_scheme
 from backend.auth import decode_access_token
 from backend.config import settings
 from backend.storage_retention import cleanup_littering_evidence, storage_cleanup_loop
@@ -438,8 +438,7 @@ async def detect(
 # ── Video endpoints ─────────────────────────────────────────────────────────
 
 # Singurul flux video live folosit de interfață este monitorul de incidente
-# de mai jos (/ws/video/monitor). Vechiul endpoint /ws/video/live (detecție
-# simplă pe cadru, fără logică temporală) a fost eliminat — nu mai era apelat.
+# (/ws/video/monitor): detecție + logică temporală de abandonare.
 
 @app.websocket("/ws/video/monitor")
 async def ws_video_monitor(
@@ -1250,7 +1249,7 @@ async def reports_export(
             from reportlab.platypus import (SimpleDocTemplate, Table, TableStyle,
                                             Paragraph, Spacer)
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+            from reportlab.lib.enums import TA_CENTER
             from reportlab.pdfbase import pdfmetrics
             from reportlab.pdfbase.ttfonts import TTFont
 
