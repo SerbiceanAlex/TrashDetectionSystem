@@ -400,3 +400,18 @@ async def get_video_sessions_paginated(
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
     items = (await db.execute(q.offset(skip).limit(limit))).scalars().all()
     return items, total
+
+
+# ── Notificări ─────────────────────────────────────────────────────────────────
+
+async def create_notification(
+    db: AsyncSession, user_id: int, message: str, category: str = "info"
+) -> "Notification | None":
+    """Creează o notificare în aplicație pentru un utilizator (ex. la un incident nou)."""
+    if not user_id:
+        return None
+    notif = Notification(user_id=user_id, message=message, category=category)
+    db.add(notif)
+    await db.commit()
+    await db.refresh(notif)
+    return notif

@@ -919,6 +919,18 @@ async def handle_monitor_ws(
                     event_id, event.material, event.det_score
                 )
 
+                # Notifică operatorul care monitorizează (apare la clopoțel).
+                if user_id:
+                    try:
+                        await db.create_notification(
+                            session,
+                            user_id=user_id,
+                            message=f"Incident de aruncare detectat (material: {event.material}).",
+                            category="incident",
+                        )
+                    except Exception:
+                        logger.exception("Nu am putut crea notificarea de incident")
+
                 # Trimite alerta către browser.
                 await websocket.send_text(json.dumps({
                     "type": "alert",
