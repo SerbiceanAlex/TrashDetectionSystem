@@ -318,6 +318,7 @@ function videoApp() {
             this.monitorPersons = msg.persons || 0;
             this.monitorTrash = msg.trash || 0;
             // Store msg — overlay is drawn in the RAF loop to avoid accumulation
+            msg._receivedAt = performance.now();
             this._lastMonitorMsg = msg;
           }
         } catch (_) {}
@@ -371,7 +372,7 @@ function videoApp() {
         if (overlayCanvas.height !== vh) overlayCanvas.height = vh;
         const ctx = overlayCanvas.getContext('2d');
         ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-        if (this._lastMonitorMsg) {
+        if (this._lastMonitorMsg && (performance.now() - (this._lastMonitorMsg._receivedAt || 0)) < 900) {
           this._drawMonitorOverlay(overlayCanvas, this._lastMonitorMsg);
         }
 
