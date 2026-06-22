@@ -88,7 +88,7 @@ async def test_littering_media_is_authenticated_and_owner_scoped(client: AsyncCl
 
     app.dependency_overrides[db.get_db] = _override_get_db_same_session
 
-    org = db.Organization(name="Audit org", plan="pro")
+    org = db.Organization(name="Audit org")
     admin = db.User(username="media_admin", email="media_admin@test.local", hashed_password="x", role="admin", organization=org)
     owner = db.User(username="media_owner", email="media_owner@test.local", hashed_password="x", role="user", organization=org)
     outsider = db.User(username="media_outsider", email="media_outsider@test.local", hashed_password="x", role="user", organization=org)
@@ -153,7 +153,7 @@ async def test_admin_storage_breaks_littering_evidence_down_by_status(client: As
 
     app.dependency_overrides[db.get_db] = _override_get_db_same_session
 
-    org = db.Organization(name="Storage audit org", plan="pro")
+    org = db.Organization(name="Storage audit org")
     session.add(org)
     await session.flush()
     app.dependency_overrides[get_current_active_user] = lambda: SimpleNamespace(
@@ -224,7 +224,7 @@ async def test_generated_image_media_is_authenticated(client: AsyncClient, sessi
 
     app.dependency_overrides[db.get_db] = _override_get_db_same_session
 
-    org = db.Organization(name="Detection media org", plan="pro")
+    org = db.Organization(name="Detection media org")
     admin = db.User(username="detect_admin", email="detect_admin@test.local", hashed_password="x", role="admin", organization=org)
     owner = db.User(username="detect_owner", email="detect_owner@test.local", hashed_password="x", role="user", organization=org)
     outsider = db.User(username="detect_outsider", email="detect_outsider@test.local", hashed_password="x", role="user", organization=org)

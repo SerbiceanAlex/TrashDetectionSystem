@@ -39,12 +39,6 @@ class Organization(Base):
 
     id           = Column(Integer, primary_key=True, index=True)
     name         = Column(String(200), nullable=False)
-    plan         = Column(String(20), default="trial")  # trial/starter/pro/enterprise
-    trial_ends_at = Column(DateTime, nullable=True)
-    subscription_active = Column(Boolean, default=True)
-    stripe_customer_id   = Column(String(100), nullable=True)
-    max_cameras          = Column(Integer, default=1)
-    max_incidents_month  = Column(Integer, default=500)
     created_at   = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     users = relationship("User", back_populates="organization")
@@ -271,13 +265,7 @@ async def get_or_create_default_org(db: AsyncSession) -> "Organization":
     """Return org id=1, creating it if it doesn't exist."""
     org = await get_org_by_id(db, 1)
     if org is None:
-        from datetime import timedelta
-        org = Organization(
-            id=1,
-            name="Default Organization",
-            plan="trial",
-            trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14),
-        )
+        org = Organization(id=1, name="Default Organization")
         db.add(org)
         await db.commit()
         await db.refresh(org)
@@ -285,12 +273,7 @@ async def get_or_create_default_org(db: AsyncSession) -> "Organization":
 
 
 async def create_organization(db: AsyncSession, name: str) -> "Organization":
-    from datetime import timedelta
-    org = Organization(
-        name=name,
-        plan="trial",
-        trial_ends_at=datetime.now(timezone.utc) + timedelta(days=14),
-    )
+    org = Organization(name=name)
     db.add(org)
     await db.commit()
     await db.refresh(org)

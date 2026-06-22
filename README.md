@@ -69,11 +69,9 @@ TrashDetectionSystem/
 │   ├── data/                   # pregătire dataseturi, split, validare, export cropuri
 │   ├── training/               # scripturi de antrenare
 │   ├── evaluation/             # evaluări standalone
-│   ├── presentation/           # rulare vizuală pentru profesor/prezentare
 │   ├── maintenance/            # reset DB, creare conturi locale
 │   └── smoke/                  # teste manuale rapide pe server pornit
 ├── tests/                      # teste automate pytest
-├── outputs/                    # figuri și artefacte generate local
 ├── results/                    # rezultate și metrici folosite în lucrare
 ├── start_https.py              # pornire locală HTTPS pentru camera telefonului
 └── requirements.txt
@@ -158,12 +156,6 @@ Retenția probelor video este activă implicit: fișierele din `data/runtime/lit
 ## Comenzi utile
 
 ```powershell
-# Rulare vizuală pe clip
-.\.venv\Scripts\python.exe scripts\presentation\visual_littering.py --video datasets\test_videos\clip.mp4
-
-# Rulare live camera
-.\.venv\Scripts\python.exe scripts\presentation\visual_littering.py --camera 0
-
 # Evaluare video pe clipuri selectate manual
 .\.venv\Scripts\python.exe scripts\evaluation\evaluate_video_events.py --manifest scripts\evaluation\video_manifest_template.csv --frame-skip 1
 

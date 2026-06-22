@@ -32,7 +32,6 @@ from backend.auth import decode_access_token
 from backend.config import settings
 from backend.storage_retention import cleanup_littering_evidence, storage_cleanup_loop
 from backend import video as vid
-from backend.billing_router import router as billing_router
 
 STATIC_DIR = settings.REPO_ROOT / "frontend" / "static"
 TEMPLATES_DIR = settings.REPO_ROOT / "frontend" / "templates"
@@ -199,7 +198,6 @@ app = FastAPI(
 
 # Include Routers
 app.include_router(auth_router)
-app.include_router(billing_router)
 
 # Serve the frontend SPA
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=False), name="static")
@@ -2012,32 +2010,14 @@ async def admin_storage_stats(
 
 # ── Organization endpoints ────────────────────────────────────────────────────
 
-@app.get("/api/me/organization", summary="Current user's organization info + trial status")
+@app.get("/api/me/organization", summary="Current user's organization info")
 async def get_my_organization(
     org: Annotated[db.Organization, Depends(get_current_org)],
 ):
-    from datetime import timezone as _tz
-    now = datetime.now(_tz.utc)
-    trial_days_left = None
-    trial_expired = False
-    if org.plan == "trial" and org.trial_ends_at:
-        delta = org.trial_ends_at - now
-        trial_days_left = max(0, delta.days)
-        trial_expired = delta.total_seconds() <= 0
-    return {
-        "id": org.id,
-        "name": org.name,
-        "plan": org.plan,
-        "trial_ends_at": org.trial_ends_at.isoformat() if org.trial_ends_at else None,
-        "trial_days_left": trial_days_left,
-        "trial_expired": trial_expired,
-        "subscription_active": org.subscription_active,
-        "max_cameras": org.max_cameras,
-        "max_incidents_month": org.max_incidents_month,
-    }
+    return {"id": org.id, "name": org.name}
 
 
-@app.patch("/api/admin/organization", summary="[Admin] Update organization name or plan")
+@app.patch("/api/admin/organization", summary="[Admin] Update organization name")
 async def update_organization(
     body: dict,
     current_user: Annotated[db.User, Depends(get_current_active_user)],
@@ -2048,8 +2028,6 @@ async def update_organization(
         raise HTTPException(status_code=403, detail="Doar administratorii.")
     if "name" in body and body["name"].strip():
         org.name = body["name"].strip()
-    if "plan" in body and body["plan"] in ("trial", "starter", "pro", "enterprise"):
-        org.plan = body["plan"]
     await session.commit()
     await session.refresh(org)
-    return {"id": org.id, "name": org.name, "plan": org.plan}
+    return {"id": org.id, "name": org.name}

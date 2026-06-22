@@ -32,11 +32,6 @@ function ecoApp() {
     org: null,
     systemInfo: null,
 
-    // Payment modal
-    payModalOpen: false,
-    payModalPlan: null,
-    payModalStep: 'confirm', // 'confirm' | 'processing' | 'success'
-
     // Dashboard B2B
     dashB2B: null,
     dashB2BLoading: false,
@@ -81,10 +76,9 @@ function ecoApp() {
       this.initVideo();
       this.initAdmin();
 
-      // Handle auth and billing URL params
+      // Handle auth URL params
       const _params = new URLSearchParams(window.location.search);
       const _action = _params.get('action');
-      const _checkout = _params.get('checkout');
 
       if (this.isLoggedIn) {
         await this.loadOrg();
@@ -93,10 +87,6 @@ function ecoApp() {
         if (typeof this.loadVideoSessions === 'function') this.loadVideoSessions();
         this.loadNotifications();
         this._notifInterval = setInterval(() => this.loadNotifications(), 30000);
-        if (_checkout === 'success') {
-          this.payModalStep = 'success';
-          this.payModalOpen = true;
-        }
         if (_action === 'login' || _action === 'register') {
           this.$nextTick(() => showToast(`Ești deja conectat ca ${this.user?.username || 'utilizator'}`, 'info'));
         }
@@ -281,38 +271,6 @@ function ecoApp() {
       return Number(value).toFixed(digits);
     },
 
-    get planFeatures() {
-      return {};
-    },
-
-    activatePlan(plan = 'pro') {
-      this.payModalPlan = plan;
-      this.payModalStep = 'confirm';
-      this.payModalOpen = true;
-      this.refreshIcons();
-    },
-
-    async confirmPayment() {
-      if (!this.payModalPlan) return;
-      this.payModalStep = 'processing';
-      try {
-        const result = await fetchAPI('/api/billing/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: this.payModalPlan }),
-        });
-        if (result.checkout_url) {
-          window.location.href = result.checkout_url;
-          return;
-        }
-        await this.loadOrg();
-        this.payModalStep = 'success';
-        showToast(result.message || 'Plan activat');
-      } catch (e) {
-        this.payModalStep = 'confirm';
-        showToast(e.message, 'error');
-      }
-    },
 
     /* ── Tab navigation ───────────────────────────────────────────────── */
     goTo(tab) { this.activeTab = tab; },

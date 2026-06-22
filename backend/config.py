@@ -33,11 +33,7 @@ class Settings(BaseSettings):
     MAX_LOGIN_ATTEMPTS: int = 5
     LOGIN_LOCKOUT_MINUTES: int = 15
 
-    # ── Stripe (empty = dev mode, checkout activates plans locally) ─────────
-    STRIPE_SECRET_KEY: str = ""
-    STRIPE_WEBHOOK_SECRET: str = ""
-    STRIPE_PRICE_STARTER: str = ""   # price_... from Stripe dashboard
-    STRIPE_PRICE_PRO: str = ""       # price_... from Stripe dashboard
+    # ── App base URL (printed by start_https, shown in system info) ─────────
     APP_BASE_URL: str = "http://localhost:8000"
 
     # ── Upload limits ────────────────────────────────────────────────────────
