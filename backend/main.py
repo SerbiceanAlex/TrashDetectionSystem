@@ -1,7 +1,7 @@
 """
-FastAPI application — Trash Detection System web interface.
+Aplicația FastAPI — interfața web a sistemului de detecție a gunoiului.
 
-Start with:
+Pornire:
     .venv\\Scripts\\uvicorn backend.main:app --reload --port 8000
 """
 
@@ -51,7 +51,7 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 def _resolve_littering_evidence_path(stored_path: str | None) -> Path | None:
-    """Resolve a DB evidence path while keeping access inside LITTERING_DIR."""
+    """Rezolvă o cale de dovadă din DB, păstrând accesul doar în LITTERING_DIR."""
     if not stored_path:
         return None
 
@@ -90,7 +90,7 @@ def _resolve_littering_evidence_path(stored_path: str | None) -> Path | None:
     return next((path for path in allowed if path.exists()), allowed[0])
 
 
-# ── Lifespan: load models + create DB tables on startup ──────────────────────
+# ── Ciclul de viață: încarcă modelele + creează tabelele la pornire ──────────
 
 async def _migrate_schema():
     """Adaugă coloane noi în tabelele existente (ALTER TABLE pe SQLite).
@@ -170,12 +170,12 @@ app = FastAPI(
 )
 
 # Generated media files are served through authenticated API endpoints below,
-# not as public static directories.
+# nu ca directoare statice publice.
 
 # Include Routers
 app.include_router(auth_router)
 
-# Serve the frontend SPA
+# Servește aplicația frontend (SPA)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR), html=False), name="static")
 
 @app.middleware("http")
@@ -184,7 +184,7 @@ async def no_cache_static(request: Request, call_next):
     if request.url.path.startswith("/static/js/") or request.url.path.startswith("/static/css/"):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
-    # Bypass ngrok browser warning page automatically
+    # Sare automat peste pagina de avertizare ngrok din browser
     response.headers["ngrok-skip-browser-warning"] = "true"
     return response
 
@@ -195,7 +195,7 @@ async def get_current_org(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
 ) -> db.Organization:
-    """Return the Organization for the current user (creates default if needed)."""
+    """Întoarce organizația utilizatorului curent (o creează pe cea implicită dacă lipsește)."""
     if current_user.organization_id:
         org = await db.get_org_by_id(session, current_user.organization_id)
         if org:
@@ -225,7 +225,7 @@ async def index(request: Request):
 
 @app.get("/api/system/info", summary="Public system/model metadata")
 async def system_info():
-    """Return deploy-safe runtime metadata used by the frontend system panel."""
+    """Întoarce metadate de runtime (sigure public) pentru panoul de sistem din frontend."""
     manifest_path = settings.detector_path.parent / "manifest.json"
     manifest: dict = {}
     if manifest_path.exists():
@@ -295,7 +295,7 @@ async def system_info():
     }
 
 
-# ── Video endpoints ─────────────────────────────────────────────────────────
+# ── Endpoint-uri video ───────────────────────────────────────────────────────
 
 # Singurul flux video live folosit de interfață este monitorul de incidente
 # (/ws/video/monitor): detecție + logică temporală de abandonare.
@@ -311,9 +311,9 @@ async def ws_video_monitor(
     token: Optional[str] = Query(default=None),
 ):
     """
-    WebSocket for littering-event detection (monitor mode).
-    Browser sends JPEG frames; server runs trash tracker + person detector,
-    fires alert JSON when a littering event is detected.
+    WebSocket pentru detecția incidentelor de aruncare (modul monitor).
+    Browserul trimite cadre JPEG; serverul rulează tracker-ul de gunoi +
+    detectorul de persoane și trimite o alertă JSON când apare un incident.
     """
     async with db.AsyncSessionLocal() as session:
         current_user = None
@@ -464,8 +464,8 @@ async def update_littering_event_status(
     if evt is None:
         raise HTTPException(status_code=404, detail="Eveniment negăsit.")
 
-    # In the thesis build, "forwarded" is used as a local archive/prepared status.
-    # No outbound email is sent from the application.
+    # În varianta de licență, "forwarded" e un status local de arhivă/pregătit.
+    # Aplicația nu trimite niciun email în exterior.
     if body.status == "forwarded":
         logger.info("Incident #%d arhivat local; livrarea prin email este dezactivată.", evt.id)
 
@@ -579,7 +579,7 @@ async def get_dashboard_b2b(
     pending_review = await count_where(LE.status == "pending")
     forwarded = await count_where(LE.status == "forwarded")
 
-    # Recent incidents (last 5) — scoped by org
+    # Incidente recente (ultimele 5) — limitate la organizație
     rec = (
         await session.execute(
             db.select(LE)
@@ -604,7 +604,7 @@ async def get_dashboard_b2b(
         for e in rec
     ]
 
-    # Material distribution (last 30 days) — org-scoped
+    # Distribuția materialelor (ultimele 30 zile) — pe organizație
     mat_q = await session.execute(
         db.select(LE.material, db.func.count())
         .where(role_cond, LE.detected_at >= month_start)
@@ -615,7 +615,7 @@ async def get_dashboard_b2b(
         {"material": m or "unknown", "count": c} for m, c in mat_q.all()
     ]
 
-    # Trend last 30 days — org-scoped
+    # Tendința pe ultimele 30 zile — pe organizație
     trend_q = await session.execute(
         db.select(db.func.date(LE.detected_at), db.func.count())
         .where(role_cond, LE.detected_at >= month_start)
@@ -628,7 +628,7 @@ async def get_dashboard_b2b(
         day = (today_start - timedelta(days=29 - i)).date().isoformat()
         trend_30d.append({"day": day, "count": trend_map.get(day, 0)})
 
-    # Hourly distribution — org-scoped
+    # Distribuția pe ore — pe organizație
     hour_q = await session.execute(
         db.select(db.func.strftime('%H', LE.detected_at), db.func.count())
         .where(role_cond)
@@ -637,7 +637,7 @@ async def get_dashboard_b2b(
     hour_map = {int(h): c for h, c in hour_q.all() if h is not None}
     hourly_distribution = [hour_map.get(h, 0) for h in range(24)]
 
-    # Resolution rate (reviewed + forwarded) / total — org-scoped
+    # Rata de rezolvare (reviewed + forwarded) / total — pe organizație
     resolved = await count_where(LE.status.in_(["reviewed", "forwarded", "dismissed"]))
     total_all = await count_where()
     resolution_rate = round(resolved / max(total_all, 1) * 100)
@@ -668,7 +668,7 @@ async def reports_export(
     session: AsyncSession = Depends(db.get_db),
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
 ):
-    """Export incidents as CSV, PDF, or ZIP."""
+    """Exportă incidentele ca CSV, PDF sau ZIP."""
     from datetime import datetime, timedelta, timezone
     import csv, io
     now = datetime.now(timezone.utc)
@@ -927,7 +927,7 @@ async def reports_export(
         import zipfile
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            # metadata JSON
+            # metadate JSON
             import json
             meta = [{"id": e.id, "detected_at": e.detected_at.isoformat() if e.detected_at else None,
                      "material": e.material, "status": e.status, "det_score": e.det_score,
@@ -976,7 +976,7 @@ async def upload_video(
     stem = uuid.uuid4().hex
     save_path = VIDEOS_DIR / f"{stem}{ext or '.mp4'}"
 
-    # Write to disk in 1 MB chunks — avoids loading the entire file into RAM
+    # Scrie pe disc în bucăți de 1 MB — evită încărcarea întregului fișier în RAM
     chunk_size = 1024 * 1024
     video_empty = True
     written_bytes = 0
@@ -1008,7 +1008,7 @@ async def upload_video(
     vs.organization_id = current_user.organization_id or 1
     await session.commit()
 
-    # Process in background — fire-and-forget with error logging
+    # Procesează în fundal (fire-and-forget), cu logarea erorilor
     task = asyncio.create_task(vid.process_uploaded_video(save_path, det_conf, vs.id))
     task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
 
@@ -1027,7 +1027,7 @@ async def list_video_sessions(
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
-    # Admin sees all org sessions; regular user sees only own sessions
+    # Adminul vede toate sesiunile organizației; userul normal doar pe ale lui
     user_id_filter = None if (current_user and current_user.role == "admin") else (current_user.id if current_user else None)
     org_id_filter = current_user.organization_id or 1 if current_user else None
     items, total = await db.get_video_sessions_paginated(session, skip, limit, org_id=org_id_filter, user_id=user_id_filter)
@@ -1049,7 +1049,7 @@ async def get_video_session(
     return vs
 
 
-# ── ADMIN endpoints ───────────────────────────────────────────────────────────
+# ── Endpoint-uri ADMIN ───────────────────────────────────────────────────────
 
 @app.get("/api/admin/users", summary="[Admin] List all users with stats")
 async def admin_list_users(
@@ -1115,7 +1115,7 @@ async def admin_invite_user(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
 ):
-    """Create a new user in the same org as the admin. Returns generated temp password."""
+    """Creează un utilizator nou în organizația adminului. Întoarce parola temporară generată."""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Doar administratorii pot invita.")
 
@@ -1130,14 +1130,14 @@ async def admin_invite_user(
     if not username or not email:
         raise HTTPException(status_code=422, detail="Numele de utilizator și emailul sunt obligatorii.")
 
-    # Check duplicates
+    # Verifică duplicatele
     existing = await session.execute(
         select(db.User).where(db.or_(db.User.username == username, db.User.email == email))
     )
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=400, detail="Numele de utilizator sau emailul este deja folosit.")
 
-    # Generate temp password (12 chars, mixed)
+    # Generează o parolă temporară (12 caractere, mixte)
     alphabet = string.ascii_letters + string.digits + "!@#$"
     temp_password = ''.join(secrets.choice(alphabet) for _ in range(12))
     # Ensure password meets policy: at least one upper, lower, digit, special
@@ -1215,7 +1215,7 @@ async def admin_stats(
     }
 
 
-# ── Admin: Charts data (registrations per month, reports per day, materials) ──
+# ── Admin: date pentru grafice (înregistrări/lună, rapoarte/zi, materiale) ──
 
 @app.get("/api/admin/charts", summary="[Admin] Chart data for admin dashboard")
 async def admin_charts(
@@ -1233,7 +1233,7 @@ async def admin_charts(
     today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
     thirty_days_ago = today - timedelta(days=29)
 
-    # Incidents per day (last 30 days)
+    # Incidente pe zi (ultimele 30 zile)
     reports_per_day = await session.execute(
         select(
             func.date(db.LitteringEvent.detected_at).label("day"),
@@ -1252,7 +1252,7 @@ async def admin_charts(
         for i in range(30)
     ]
 
-    # Users per month (all time)
+    # Utilizatori pe lună (din totdeauna)
     users_per_month = await session.execute(
         select(
             func.strftime("%Y-%m", db.User.created_at).label("month"),
@@ -1264,7 +1264,7 @@ async def admin_charts(
     )
     users_timeline = [{"month": r.month, "count": r.count} for r in users_per_month]
 
-    # Materials distribution (all time)
+    # Distribuția materialelor (din totdeauna)
     materials = await session.execute(
         select(
             db.LitteringEvent.material,
@@ -1298,7 +1298,7 @@ async def admin_charts(
     }
 
 
-# ── Admin: Export users CSV ───────────────────────────────────────────────────
+# ── Admin: export utilizatori în CSV ─────────────────────────────────────────
 
 @app.get("/api/admin/export/users", summary="[Admin] Export users as CSV")
 async def admin_export_users_csv(
@@ -1306,7 +1306,7 @@ async def admin_export_users_csv(
     session: AsyncSession = Depends(db.get_db),
     token: Optional[str] = Query(default=None),
 ):
-    # Accept token from Authorization header or query param (for download links)
+    # Acceptă token din antetul Authorization sau din query (pentru linkuri de descărcare)
     user = None
     auth_header = request.headers.get("Authorization", "")
     raw_token = token
@@ -1463,10 +1463,10 @@ async def download_annotated_video(
 
 
 # ---------------------------------------------------------------------------
-# Phase B: File Management
+# Faza B: gestionarea fișierelor
 # ---------------------------------------------------------------------------
 
-# ── B4: Admin storage stats ──────────────────────────────────────────────────
+# ── B4: statistici de stocare (admin) ────────────────────────────────────────
 
 @app.get("/api/admin/storage", summary="[Admin] Disk storage stats")
 async def admin_storage_stats(
