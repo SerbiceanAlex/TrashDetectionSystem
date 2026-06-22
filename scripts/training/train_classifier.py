@@ -1,4 +1,9 @@
-﻿import argparse
+"""
+Antrenează clasificatorul de material (YOLOv8-cls) pentru recunoașterea tipului
+de deșeu din decupajele de obiecte.
+"""
+
+import argparse
 from pathlib import Path
 
 from ultralytics import YOLO
@@ -10,52 +15,53 @@ DEFAULT_PROJECT_DIR = REPO_ROOT / "runs" / "classify"
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train a YOLOv8 image classifier for trash material recognition")
-    parser.add_argument("--model", default="yolov8n-cls.pt", help="Base classification checkpoint")
-    parser.add_argument("--data", default=str(DEFAULT_DATASET), help="Classification dataset root")
-    parser.add_argument("--epochs", type=int, default=100, help="Number of training epochs")
-    parser.add_argument("--imgsz", type=int, default=224, help="Training image size")
-    parser.add_argument("--batch", type=int, default=32, help="Batch size")
-    parser.add_argument("--device", default=None, help="Device to use: cpu, 0, 0,1, ...")
-    parser.add_argument("--workers", type=int, default=8, help="Number of dataloader workers")
-    parser.add_argument("--patience", type=int, default=20, help="Early stopping patience")
-    parser.add_argument("--project", default=str(DEFAULT_PROJECT_DIR), help="Directory for training runs")
-    parser.add_argument("--name", default="trashnet-material-cls", help="Run name")
-    parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--cache", action="store_true", help="Cache images for faster training")
-    parser.add_argument("--resume", action="store_true", help="Resume the latest interrupted run")
-    parser.add_argument("--val", action="store_true", help="Run validation after training")
+    parser = argparse.ArgumentParser(description="Antrenează un clasificator YOLOv8 pentru materialul deșeurilor")
+    parser.add_argument("--model", default="yolov8n-cls.pt", help="Checkpoint de bază pentru clasificare")
+    parser.add_argument("--data", default=str(DEFAULT_DATASET), help="Rădăcina datasetului de clasificare")
+    parser.add_argument("--epochs", type=int, default=100, help="Numărul de epoci de antrenare")
+    parser.add_argument("--imgsz", type=int, default=224, help="Dimensiunea imaginii la antrenare")
+    parser.add_argument("--batch", type=int, default=32, help="Dimensiunea batch-ului")
+    parser.add_argument("--device", default=None, help="Dispozitivul: cpu, 0, 0,1, ...")
+    parser.add_argument("--workers", type=int, default=8, help="Numărul de workeri pentru dataloader")
+    parser.add_argument("--patience", type=int, default=20, help="Răbdarea pentru early stopping")
+    parser.add_argument("--project", default=str(DEFAULT_PROJECT_DIR), help="Folderul pentru rulările de antrenare")
+    parser.add_argument("--name", default="trashnet-material-cls", help="Numele rulării")
+    parser.add_argument("--seed", type=int, default=42, help="Seed-ul aleator")
+    parser.add_argument("--cache", action="store_true", help="Pune imaginile în cache pentru antrenare mai rapidă")
+    parser.add_argument("--resume", action="store_true", help="Reia ultima rulare întreruptă")
+    parser.add_argument("--val", action="store_true", help="Rulează validarea după antrenare")
     parser.add_argument(
         "--val-split",
         choices=("val", "test"),
         default="val",
-        help="Dataset split to use for classifier validation during or after training",
+        help="Split-ul folosit la validarea clasificatorului (în timpul sau după antrenare)",
     )
     return parser.parse_args()
 
 
 def validate_args(args):
+    """Verifică existența split-urilor de dataset și corectitudinea hiperparametrilor."""
     data_root = Path(args.data)
     if not data_root.exists():
-        raise FileNotFoundError(f"Classification dataset root not found: {data_root}")
+        raise FileNotFoundError(f"Rădăcina datasetului de clasificare nu există: {data_root}")
 
     train_dir = data_root / "train"
     eval_dir = data_root / args.val_split
     if not train_dir.exists():
-        raise FileNotFoundError(f"Missing training split directory: {train_dir}")
+        raise FileNotFoundError(f"Lipsește folderul de split de antrenare: {train_dir}")
     if not eval_dir.exists():
-        raise FileNotFoundError(f"Missing evaluation split directory: {eval_dir}")
+        raise FileNotFoundError(f"Lipsește folderul de split de evaluare: {eval_dir}")
 
     if args.epochs <= 0:
-        raise ValueError("--epochs must be > 0")
+        raise ValueError("--epochs trebuie să fie > 0")
     if args.imgsz <= 0:
-        raise ValueError("--imgsz must be > 0")
+        raise ValueError("--imgsz trebuie să fie > 0")
     if args.batch == 0:
-        raise ValueError("--batch cannot be 0")
+        raise ValueError("--batch nu poate fi 0")
     if args.workers < 0:
-        raise ValueError("--workers must be >= 0")
+        raise ValueError("--workers trebuie să fie >= 0")
     if args.patience < 0:
-        raise ValueError("--patience must be >= 0")
+        raise ValueError("--patience trebuie să fie >= 0")
 
 
 def main():
@@ -86,7 +92,7 @@ def main():
 
     save_dir = getattr(results, "save_dir", None)
     if save_dir:
-        print(f"[DONE] Training artifacts saved to: {save_dir}")
+        print(f"[GATA] Artefactele de antrenare salvate în: {save_dir}")
 
 
 if __name__ == "__main__":

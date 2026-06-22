@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Start TrashDet over HTTPS on the local network.
+"""Pornește TrashDet peste HTTPS în rețeaua locală.
 
-This is the comfortable launcher for the local thesis setup:
+Launcher-ul comod pentru rularea locală (teză):
 
     .venv\\Scripts\\python.exe start_https.py
     .venv\\Scripts\\python.exe start_https.py --restart
 
-It prints the desktop/mobile URLs, sets APP_BASE_URL for this process, and
-prevents the common WinError 10048 by detecting an already-running server.
+Afișează URL-urile desktop/telefon, setează APP_BASE_URL pentru acest proces și
+previne eroarea WinError 10048 detectând un server deja pornit.
 """
 
 from __future__ import annotations
@@ -44,20 +44,20 @@ class C:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Start TrashDet HTTPS server")
-    parser.add_argument("--host", default="0.0.0.0", help="Bind host. Keep 0.0.0.0 for LAN/mobile access.")
-    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"HTTPS port. Default: {DEFAULT_PORT}.")
-    parser.add_argument("--ip", default="", help="Advertised LAN IP. Auto-detected when omitted.")
-    parser.add_argument("--base-url", default="", help="Override APP_BASE_URL for this run.")
-    parser.add_argument("--restart", action="store_true", help="Stop the existing TrashDet server on this port first.")
-    parser.add_argument("--stop", action="store_true", help="Stop the existing TrashDet server on this port and exit.")
-    parser.add_argument("--reuse", action="store_true", help="Reuse an already-running server instead of restarting it here.")
-    parser.add_argument("--auto-port", action="store_true", help="Use the next free port if --port is occupied. Optional fallback only.")
-    parser.add_argument("--open", dest="open_browser", action="store_true", default=True, help="Open the app URL in the default browser.")
-    parser.add_argument("--no-open", dest="open_browser", action="store_false", help="Do not open the browser automatically.")
+    parser = argparse.ArgumentParser(description="Pornește serverul HTTPS TrashDet")
+    parser.add_argument("--host", default="0.0.0.0", help="Host-ul de bind. Lasă 0.0.0.0 pentru acces din LAN/telefon.")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"Portul HTTPS. Implicit: {DEFAULT_PORT}.")
+    parser.add_argument("--ip", default="", help="IP-ul LAN anunțat. Detectat automat dacă lipsește.")
+    parser.add_argument("--base-url", default="", help="Suprascrie APP_BASE_URL pentru această rulare.")
+    parser.add_argument("--restart", action="store_true", help="Oprește mai întâi serverul TrashDet existent pe acest port.")
+    parser.add_argument("--stop", action="store_true", help="Oprește serverul TrashDet existent pe acest port și ieși.")
+    parser.add_argument("--reuse", action="store_true", help="Refolosește un server deja pornit în loc să-l repornească aici.")
+    parser.add_argument("--auto-port", action="store_true", help="Folosește următorul port liber dacă --port e ocupat. Doar fallback opțional.")
+    parser.add_argument("--open", dest="open_browser", action="store_true", default=True, help="Deschide URL-ul aplicației în browserul implicit.")
+    parser.add_argument("--no-open", dest="open_browser", action="store_false", help="Nu deschide browserul automat.")
     parser.add_argument("--open-when-ready", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--reload", dest="reload", action="store_true", default=True, help="Enable uvicorn reload.")
-    parser.add_argument("--no-reload", dest="reload", action="store_false", help="Disable uvicorn reload.")
+    parser.add_argument("--reload", dest="reload", action="store_true", default=True, help="Activează reload-ul uvicorn.")
+    parser.add_argument("--no-reload", dest="reload", action="store_false", help="Dezactivează reload-ul uvicorn.")
     return parser.parse_args()
 
 
@@ -71,7 +71,7 @@ def get_local_ip() -> str:
 
 
 def cert_matches_lan_ip(lan_ip: str) -> bool:
-    """Return True when the existing local cert is still valid for this LAN IP."""
+    """True dacă certificatul local existent e încă valid pentru acest IP LAN."""
     if not CERT_FILE.exists() or not KEY_FILE.exists():
         return False
 
@@ -100,19 +100,19 @@ def generate_self_signed_cert(lan_ip: str) -> None:
     if cert_matches_lan_ip(lan_ip):
         return
     if CERT_FILE.exists() or KEY_FILE.exists():
-        print(f"{C.YELLOW}[HTTPS]{C.RESET} Regenerating certificate for LAN IP {lan_ip}...")
+        print(f"{C.YELLOW}[HTTPS]{C.RESET} Regenerez certificatul pentru IP-ul LAN {lan_ip}...")
         CERT_FILE.unlink(missing_ok=True)
         KEY_FILE.unlink(missing_ok=True)
 
-    print("[HTTPS] Generating self-signed certificate...")
+    print("[HTTPS] Generez certificat auto-semnat...")
     try:
         from cryptography import x509
         from cryptography.hazmat.primitives import hashes, serialization
         from cryptography.hazmat.primitives.asymmetric import rsa
         from cryptography.x509.oid import NameOID
     except ImportError:
-        print(f"{C.RED}[ERROR]{C.RESET} Missing dependency: cryptography")
-        print(f"        Install it with: {C.CYAN}.venv\\Scripts\\python.exe -m pip install cryptography{C.RESET}")
+        print(f"{C.RED}[ERROR]{C.RESET} Dependență lipsă: cryptography")
+        print(f"        Instaleaz-o cu: {C.CYAN}.venv\\Scripts\\python.exe -m pip install cryptography{C.RESET}")
         raise SystemExit(1)
 
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -151,7 +151,7 @@ def generate_self_signed_cert(lan_ip: str) -> None:
 
 
 def listening_pids(port: int) -> set[int]:
-    """Return Windows PIDs listening on port using netstat."""
+    """Întoarce PID-urile Windows care ascultă pe port (via netstat)."""
     if os.name != "nt":
         return set()
     proc = subprocess.run(
@@ -177,7 +177,7 @@ def find_free_port(start_port: int, attempts: int = 10) -> int:
     for port in range(start_port, start_port + attempts):
         if not listening_pids(port):
             return port
-    raise RuntimeError(f"No free port found in range {start_port}-{start_port + attempts - 1}")
+    raise RuntimeError(f"Niciun port liber în intervalul {start_port}-{start_port + attempts - 1}")
 
 
 def process_command_line(pid: int) -> str:
@@ -209,12 +209,12 @@ def stop_existing_server(port: int, *, force: bool = False) -> None:
     for pid in sorted(pids):
         if not is_trashdet_process(pid):
             if not force:
-                print(f"{C.RED}[ERROR]{C.RESET} Port {port} is used by another process (PID {pid}).")
-                print("        Close that app or choose another port.")
+                print(f"{C.RED}[ERROR]{C.RESET} Portul {port} e folosit de alt proces (PID {pid}).")
+                print("        Închide acea aplicație sau alege alt port.")
                 raise SystemExit(1)
-            print(f"{C.YELLOW}[SERVER]{C.RESET} Trying to stop process on port {port} (PID {pid})...")
+            print(f"{C.YELLOW}[SERVER]{C.RESET} Încerc să opresc procesul de pe portul {port} (PID {pid})...")
         else:
-            print(f"{C.YELLOW}[SERVER]{C.RESET} Stopping existing TrashDet server (PID {pid})...")
+            print(f"{C.YELLOW}[SERVER]{C.RESET} Opresc serverul TrashDet existent (PID {pid})...")
         subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], check=False, capture_output=True)
     time.sleep(1.0)
 
@@ -244,25 +244,25 @@ def print_urls(lan_ip: str, port: int, base_url: str) -> None:
     health_url = f"https://{lan_ip}:{port}/api/system/info"
     print()
     print(f"{C.GREEN}{'=' * 72}{C.RESET}")
-    print(f"{C.GREEN}{C.BOLD}  TrashDet HTTPS server is ready{C.RESET}")
+    print(f"{C.GREEN}{C.BOLD}  Serverul HTTPS TrashDet e gata{C.RESET}")
     print(f"{C.GREEN}{'=' * 72}{C.RESET}")
     print(f"  Desktop local : {C.CYAN}{local_url}{C.RESET}")
     print(f"  Desktop LAN   : {C.CYAN}{app_url}{C.RESET}")
-    print(f"  Mobile        : {C.CYAN}{app_url}{C.RESET}")
+    print(f"  Telefon       : {C.CYAN}{app_url}{C.RESET}")
     print(f"  API health    : {C.CYAN}{health_url}{C.RESET}")
     print(f"  APP_BASE_URL  : {C.CYAN}{base_url}{C.RESET}")
     print()
-    print(f"  {C.YELLOW}Browser warning is expected with the local self-signed certificate.{C.RESET}")
-    print("  Chrome/Opera: Advanced/Help me understand -> Proceed.")
-    print("  If no Proceed button appears, type thisisunsafe on that warning page.")
-    print("  For phone camera access, use HTTPS and the same Wi-Fi network.")
+    print(f"  {C.YELLOW}Avertismentul din browser e normal la certificatul local auto-semnat.{C.RESET}")
+    print("  Chrome/Opera: Avansat/Ajută-mă să înțeleg -> Continuă.")
+    print("  Dacă nu apare butonul Continuă, tastează thisisunsafe pe pagina de avertizare.")
+    print("  Pentru camera telefonului, folosește HTTPS și aceeași rețea Wi-Fi.")
     print(f"{C.GREEN}{'=' * 72}{C.RESET}")
     print()
 
 
 def open_browser(lan_ip: str, port: int) -> None:
     url = f"https://{lan_ip}:{port}/app"
-    print(f"{C.GREEN}[BROWSER]{C.RESET} Opening {C.CYAN}{url}{C.RESET}")
+    print(f"{C.GREEN}[BROWSER]{C.RESET} Deschid {C.CYAN}{url}{C.RESET}")
     webbrowser.open(url)
 
 
@@ -284,7 +284,7 @@ def launch_browser_when_ready(lan_ip: str, port: int) -> None:
     if os.name == "nt":
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     subprocess.Popen(cmd, **kwargs)
-    print(f"{C.GREEN}[BROWSER]{C.RESET} Browser will open after the server is ready.")
+    print(f"{C.GREEN}[BROWSER]{C.RESET} Browserul se va deschide după ce serverul e gata.")
 
 
 def main() -> int:
@@ -301,47 +301,47 @@ def main() -> int:
 
     if args.stop:
         stop_existing_server(args.port, force=True)
-        print(f"{C.GREEN}[OK]{C.RESET} No TrashDet server is listening on port {args.port}.")
+        print(f"{C.GREEN}[OK]{C.RESET} Niciun server TrashDet nu ascultă pe portul {args.port}.")
         return 0
 
     if args.restart:
         stop_existing_server(args.port, force=True)
         if listening_pids(args.port):
             if not args.auto_port:
-                print(f"{C.RED}[ERROR]{C.RESET} Port {args.port} is still occupied after restart attempt.")
-                print(f"        Best local fallback:")
+                print(f"{C.RED}[ERROR]{C.RESET} Portul {args.port} e încă ocupat după încercarea de restart.")
+                print(f"        Cel mai bun fallback local:")
                 print(f"        {C.CYAN}.venv\\Scripts\\python.exe start_https.py --port 9444{C.RESET}")
                 return 1
             old_port = args.port
             args.port = find_free_port(args.port + 1)
-            print(f"{C.YELLOW}[PORT]{C.RESET} {old_port} is still busy, using {args.port} instead.")
+            print(f"{C.YELLOW}[PORT]{C.RESET} {old_port} e încă ocupat, folosesc {args.port} în loc.")
     elif listening_pids(args.port):
         if server_is_healthy(args.port):
             base_url = args.base_url.strip() or f"https://{lan_ip}:{args.port}"
             if args.reuse:
                 print_urls(lan_ip, args.port, base_url)
-                print(f"{C.GREEN}[OK]{C.RESET} Server already running on port {args.port}.")
-                print("     This terminal is not attached to its logs.")
-                print("     To run it here and stop with Ctrl+C, use:")
+                print(f"{C.GREEN}[OK]{C.RESET} Serverul rulează deja pe portul {args.port}.")
+                print("     Acest terminal nu e atașat la log-urile lui.")
+                print("     Ca să-l rulezi aici și să-l oprești cu Ctrl+C, folosește:")
                 print(f"     {C.CYAN}.venv\\Scripts\\python.exe start_https.py --restart --port {args.port}{C.RESET}")
                 if args.open_browser:
                     open_browser(lan_ip, args.port)
                 return 0
 
-            print(f"{C.YELLOW}[SERVER]{C.RESET} Server already runs on port {args.port}.")
-            print(f"         Restarting it in this terminal so Ctrl+C stops it and logs stay visible.")
+            print(f"{C.YELLOW}[SERVER]{C.RESET} Serverul rulează deja pe portul {args.port}.")
+            print(f"         Îl repornesc în acest terminal, ca Ctrl+C să-l oprească și log-urile să fie vizibile.")
             stop_existing_server(args.port, force=True)
             if listening_pids(args.port):
-                print(f"{C.RED}[ERROR]{C.RESET} Port {args.port} is still occupied after restart attempt.")
-                print(f"        Use fallback: {C.CYAN}.venv\\Scripts\\python.exe start_https.py --port 9444{C.RESET}")
+                print(f"{C.RED}[ERROR]{C.RESET} Portul {args.port} e încă ocupat după încercarea de restart.")
+                print(f"        Folosește fallback: {C.CYAN}.venv\\Scripts\\python.exe start_https.py --port 9444{C.RESET}")
                 return 1
         if args.auto_port:
             old_port = args.port
             args.port = find_free_port(args.port + 1)
-            print(f"{C.YELLOW}[PORT]{C.RESET} {old_port} is occupied, using {args.port} instead.")
+            print(f"{C.YELLOW}[PORT]{C.RESET} {old_port} e ocupat, folosesc {args.port} în loc.")
         else:
-            print(f"{C.RED}[ERROR]{C.RESET} Port {args.port} is already occupied.")
-            print(f"        Use a stable fallback: {C.CYAN}.venv\\Scripts\\python.exe start_https.py --port 9444{C.RESET}")
+            print(f"{C.RED}[ERROR]{C.RESET} Portul {args.port} e deja ocupat.")
+            print(f"        Folosește un fallback stabil: {C.CYAN}.venv\\Scripts\\python.exe start_https.py --port 9444{C.RESET}")
             return 1
 
     base_url = args.base_url.strip() or f"https://{lan_ip}:{args.port}"

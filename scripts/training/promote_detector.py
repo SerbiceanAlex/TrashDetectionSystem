@@ -1,12 +1,12 @@
 """
-Promote a validated detector checkpoint to the production model slot.
+Promovează un checkpoint validat de detector în slotul de producție.
 
-The backend always reads:
+Backend-ul citește mereu:
     models/detector/production/best.pt
 
-Use this script only after a candidate model passes validation.
+Folosește scriptul doar după ce un model candidat trece validarea.
 
-Example:
+Exemplu:
     .venv\\Scripts\\python.exe scripts\\training\\promote_detector.py ^
         --candidate runs\\detect\\parks-trash-final\\weights\\best.pt ^
         --name parks-trash-final
@@ -28,14 +28,15 @@ MANIFEST = REPO / "models" / "detector" / "production" / "manifest.json"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Promote detector checkpoint to production")
-    parser.add_argument("--candidate", required=True, help="Path to candidate best.pt")
-    parser.add_argument("--name", required=True, help="Human-readable model name, e.g. parks-trash-final")
-    parser.add_argument("--note", default="", help="Optional validation note")
+    parser = argparse.ArgumentParser(description="Promovează un checkpoint de detector în producție")
+    parser.add_argument("--candidate", required=True, help="Calea către best.pt candidat")
+    parser.add_argument("--name", required=True, help="Nume lizibil al modelului, ex. parks-trash-final")
+    parser.add_argument("--note", default="", help="Notă opțională de validare")
     return parser.parse_args()
 
 
 def resolve_path(raw: str) -> Path:
+    """Absolutizează o cale relativă față de rădăcina proiectului."""
     path = Path(raw)
     if not path.is_absolute():
         path = REPO / path
@@ -43,6 +44,7 @@ def resolve_path(raw: str) -> Path:
 
 
 def sha256(path: Path) -> str:
+    """Calculează hash-ul SHA-256 al unui fișier (citit în bucăți de 1 MB)."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -54,7 +56,7 @@ def main() -> int:
     args = parse_args()
     candidate = resolve_path(args.candidate)
     if not candidate.exists():
-        raise FileNotFoundError(f"Candidate checkpoint not found: {candidate}")
+        raise FileNotFoundError(f"Checkpoint-ul candidat nu există: {candidate}")
 
     PRODUCTION.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(candidate, PRODUCTION)
@@ -69,10 +71,10 @@ def main() -> int:
     }
     MANIFEST.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-    print("Promoted detector:")
-    print(f"  name       : {args.name}")
-    print(f"  source     : {candidate}")
-    print(f"  production : {PRODUCTION}")
+    print("Detector promovat:")
+    print(f"  nume       : {args.name}")
+    print(f"  sursă      : {candidate}")
+    print(f"  producție  : {PRODUCTION}")
     print(f"  sha256     : {manifest['sha256']}")
     return 0
 
