@@ -652,7 +652,10 @@ async def handle_monitor_ws(
     detector = LitteringDetector(
         fps=logic_fps,
         monitor_seconds=10.0,
-        pre_event_seconds=5.0,
+        # Pre-roll mai lung: evenimentul se declanșează la ABANDONARE (la câteva
+        # secunde după ce obiectul e lăsat), deci clipul trebuie să înceapă
+        # destul de devreme cât să prindă apropierea + aruncarea, nu doar urmarea.
+        pre_event_seconds=7.0,
         zone_expand=0.35,
     )
 
@@ -702,6 +705,14 @@ async def handle_monitor_ws(
             except Exception:
                 logger.exception("Failed to export evidence clip in background")
         task.add_done_callback(_done)
+
+    # Throttle pentru logica temporală: `detector.update()` trebuie chemat la o
+    # rată FIXĂ (logic_fps), nu la rata reală de cadre (care variază 15→55 între
+    # telefon și laptop). Altfel pragurile în secunde (pre-roll, fereastra de
+    # confirmare, abandonare) ies în timp real diferite pe fiecare dispozitiv.
+    # Cadrele YOLO + preview rămân la rata reală (FPS afișat = real, fluid).
+    _logic_interval = 1.0 / logic_fps
+    _last_logic_wall = 0.0
 
     try:
         while True:
@@ -829,14 +840,20 @@ async def handle_monitor_ws(
                 avg_fps = total_frames / max(now_wall - t_start, 0.001)
             display_fps = min(avg_fps, analysis_fps)
 
-            # Stage 3: state machine update
-            event = detector.update(frame, detector_trash_dets, smoothed_person_boxes)
+            # Stage 3: state machine update — limitat la logic_fps (wall-clock)
+            # ca timpii în secunde să fie corecți și consistenți între dispozitive.
+            # NU sărim restul buclei: clientul așteaptă un răspuns per cadru
+            # (single-flight), iar overlay-ul/preview-ul rămân la rata reală.
+            event = None
+            if now_wall - _last_logic_wall >= _logic_interval:
+                _last_logic_wall = now_wall
+                event = detector.update(frame, detector_trash_dets, smoothed_person_boxes)
 
-            # Fereastra post-incident s-a umplut — scrie clipul complet (pre+post)
-            if _pending_clip is not None and not detector._capture_post:
-                evt_to_save, evt_id_to_save = _pending_clip
-                _pending_clip = None
-                _schedule_clip_flush(evt_to_save, evt_id_to_save)
+                # Fereastra post-incident s-a umplut — scrie clipul complet (pre+post)
+                if _pending_clip is not None and not detector._capture_post:
+                    evt_to_save, evt_id_to_save = _pending_clip
+                    _pending_clip = None
+                    _schedule_clip_flush(evt_to_save, evt_id_to_save)
 
             # ── Event detected ────────────────────────────────────────────
             if event is not None:
