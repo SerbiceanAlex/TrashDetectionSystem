@@ -1,4 +1,4 @@
-"""Pydantic v2 schemas used by the current TrashDet API."""
+"""Scheme Pydantic v2 — formele de date pentru cererile și răspunsurile API."""
 
 from datetime import datetime
 from typing import Optional
@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 
-# Auth and users
+# Autentificare și utilizatori
 
 class UserCreate(BaseModel):
     username: str
@@ -26,7 +26,7 @@ class UserOut(BaseModel):
     created_at: datetime
 
 
-# Image detection
+# Detecție pe imagine (scanare foto)
 
 class DetectionRecordOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -40,31 +40,6 @@ class DetectionRecordOut(BaseModel):
     box_x2: int
     box_y2: int
     estimated_weight_kg: float = 0.0
-
-
-class DetectionSessionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    filename: str
-    upload_time: datetime
-    total_objects: int
-    inference_ms: float
-    annotated_path: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    address: Optional[str] = None
-    gps_source: Optional[str] = None
-    is_resolved: int = 0
-    resolved_at: Optional[datetime] = None
-    reporter_id: Optional[int] = None
-    resolver_id: Optional[int] = None
-    status: str = "pending"
-    verification_score: float = 0.0
-    claimed_by: Optional[int] = None
-    claimed_at: Optional[datetime] = None
-    cleaned_at: Optional[datetime] = None
-    user_note: Optional[str] = None
 
 
 class DetectResponse(BaseModel):
@@ -90,14 +65,7 @@ class DetectResponse(BaseModel):
     user_note: Optional[str] = None
 
 
-class SessionsPage(BaseModel):
-    total: int
-    skip: int
-    limit: int
-    items: list[DetectionSessionOut]
-
-
-# Video processing
+# Procesare video
 
 class VideoSessionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -133,7 +101,7 @@ class VideoUploadResponse(BaseModel):
     message: str
 
 
-# Admin, notifications and generic responses
+# Admin, notificări și răspunsuri generice
 
 class AdminStats(BaseModel):
     total_users: int
@@ -165,7 +133,7 @@ class DetailResponse(BaseModel):
     detail: str
 
 
-# Littering incidents
+# Incidente de aruncare ilegală
 
 class LitteringEventOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
