@@ -417,49 +417,11 @@ def _save_clip(frames: list, fps: float, event_id: int, trigger_box: tuple[int, 
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(str(out_path), fourcc, fps, (w, h))
 
-        import torch
-        from ultralytics import YOLO
-
-        from backend.inference import detect_persons
-        # Load detector once for the whole clip (singleton-cached)
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        det = YOLO(str(settings.detector_path))
-        det.to(device)
-
         for f_raw in frames:
             f = f_raw.copy()
             fh, fw = f.shape[:2]
             if (fw, fh) != (w, h):
                 f = cv2.resize(f, (w, h))
-
-            # Trash detections — green boxes
-            results = det.predict(
-                f, imgsz=_TRASH_TRACK_IMGSZ, conf=0.30, verbose=False, device=device
-            )
-            for r in results:
-                if r.boxes is None:
-                    continue
-                for box in r.boxes:
-                    x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-                    conf = float(box.conf[0])
-                    cv2.rectangle(f, (x1, y1), (x2, y2), (0, 220, 0), 2)
-                    cv2.putText(
-                        f, f"trash {conf:.2f}", (x1, max(y1 - 8, 18)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 220, 0), 2, cv2.LINE_AA,
-                    )
-
-            # Person detections — blue boxes (no blur)
-            person_boxes = detect_persons(f)
-            for (px1, py1, px2, py2) in person_boxes:
-                cv2.rectangle(f, (int(px1), int(py1)), (int(px2), int(py2)), (255, 128, 0), 2)
-                cv2.putText(
-                    f, "person", (int(px1), max(int(py1) - 8, 18)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 128, 0), 2, cv2.LINE_AA,
-                )
-
-            # Box-ul "declansator incident" nu se mai desenează: la distanțe mai
-            # mari de 2-3 m poziția lui devine imprecisă și induce în eroare la
-            # verificarea dovezii. Rămân detecțiile curente (verde) și persoanele.
 
             cv2.putText(
                 f, f"TrashDet incident #{event_id:06d}", (12, h - 16),
@@ -511,6 +473,7 @@ _OVERLAP_THRESH = 0.30
 # ...dar dacă încrederea detecției e cel puțin atât, e un obiect real ținut în
 # mână (cutie/sticlă/ambalaj) și se păstrează. Sub prag = fals pe corp → suprimat.
 _OVERLAP_KEEP_CONF = 0.45
+_OVERLAP_TINY_PERSON_RATIO = 0.018
 _MIN_TRASH_AREA_FRAC = 0.00015  # ignore tiny noise boxes
 _MAX_TRASH_AREA_FRAC = 0.18     # ignore huge background regions (e.g. bed/floor)
 _TRASH_TRACK_IMGSZ = settings.MONITOR_TRASH_IMGSZ
@@ -600,10 +563,24 @@ def _should_suppress_overlapped_trash(
     if not person_boxes:
         return False
 
-    best_overlap = max((_iou_overlap(trash_box, pb) for pb in person_boxes), default=0.0)
+    best_overlap = 0.0
+    best_person_box = None
+    for pb in person_boxes:
+        overlap = _iou_overlap(trash_box, pb)
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_person_box = pb
     if best_overlap <= _OVERLAP_THRESH:
         return False  # nu se suprapune destul → obiect real lângă/lângă persoană
     # Se suprapune cu persoana: suprimă doar dacă încrederea e mică (fals pe corp).
+    if best_person_box is not None:
+        tx1, ty1, tx2, ty2 = trash_box
+        px1, py1, px2, py2 = best_person_box
+        trash_area = max((tx2 - tx1) * (ty2 - ty1), 1)
+        person_area = max((px2 - px1) * (py2 - py1), 1)
+        if trash_area / person_area < _OVERLAP_TINY_PERSON_RATIO:
+            return True
+
     return det_score < _OVERLAP_KEEP_CONF
 
 
@@ -700,6 +677,7 @@ async def handle_monitor_ws(
     # alertei, event.clip_frames conține doar cadrele pre-incident, iar masina
     # de stări adaugă cadrele post-incident în iterațiile următoare.
     _pending_clip: tuple | None = None   # (event, event_id)
+    _clip_tasks: set[asyncio.Task] = set()
 
     async def _flush_pending_clip(evt, evt_id: int) -> None:
         clip_rel = await asyncio.to_thread(
@@ -713,6 +691,17 @@ async def handle_monitor_ws(
                 if evt_obj:
                     evt_obj.clip_path = clip_rel
                     await s.commit()
+
+    def _schedule_clip_flush(evt, evt_id: int) -> None:
+        task = asyncio.create_task(_flush_pending_clip(evt, evt_id))
+        _clip_tasks.add(task)
+        def _done(done_task: asyncio.Task) -> None:
+            _clip_tasks.discard(done_task)
+            try:
+                done_task.result()
+            except Exception:
+                logger.exception("Failed to export evidence clip in background")
+        task.add_done_callback(_done)
 
     try:
         while True:
@@ -847,7 +836,7 @@ async def handle_monitor_ws(
             if _pending_clip is not None and not detector._capture_post:
                 evt_to_save, evt_id_to_save = _pending_clip
                 _pending_clip = None
-                await _flush_pending_clip(evt_to_save, evt_id_to_save)
+                _schedule_clip_flush(evt_to_save, evt_id_to_save)
 
             # ── Event detected ────────────────────────────────────────────
             if event is not None:
@@ -894,7 +883,7 @@ async def handle_monitor_ws(
                 if _pending_clip is not None:
                     prev_evt, prev_id = _pending_clip
                     _pending_clip = None
-                    await _flush_pending_clip(prev_evt, prev_id)
+                    _schedule_clip_flush(prev_evt, prev_id)
 
                 # Clipul se salvează după fereastra post-incident (vezi _pending_clip)
                 _pending_clip = (event, event_id)
@@ -903,7 +892,7 @@ async def handle_monitor_ws(
                 # să nu rămână temporar doar imagine. După fereastra post-incident,
                 # același fișier este rescris cu dovada completă pre+post.
                 if event.clip_frames:
-                    await _flush_pending_clip(event, event_id)
+                    _schedule_clip_flush(event, event_id)
 
                 # Save thumbnail
                 thumb_rel = None
