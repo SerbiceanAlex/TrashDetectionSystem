@@ -42,8 +42,9 @@
           <div class="notif-panel__empty">Nicio notificare</div>
         </template>
         <template x-for="n in notifications" :key="n.id">
-          <div @click="markRead(n); if(n.category==='alert') goTo('incidents')"
-            :class="'notif-item' + (n.is_read ? '' : ' notif-item--unread')">
+          <div @click="markRead(n); notifOpen=false; if(n.event_id) openIncidentById(n.event_id); else if(n.category==='alert') goTo('incidents')"
+            :class="'notif-item' + (n.is_read ? '' : ' notif-item--unread') + (n.event_id ? ' notif-item--clickable' : '')"
+            :style="n.event_id ? 'cursor:pointer' : ''">
             <span class="notif-item__icon">
               <i :data-lucide="({
                 alert:'alert-triangle', incident:'alert-triangle',

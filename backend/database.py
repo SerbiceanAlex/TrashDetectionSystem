@@ -102,7 +102,8 @@ class Notification(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     message = Column(Text, nullable=False)
-    category = Column(String(32), default="info")   # 'incident' | 'review' | 'info'
+    category = Column(String(32), default="info")   # 'incident' | 'reviewed' | 'info'
+    event_id = Column(Integer, ForeignKey("littering_events.id"), nullable=True)  # incidentul vizat (pt. click)
     is_read = Column(Integer, default=0)             # 0=necitit, 1=citit
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -405,12 +406,16 @@ async def get_video_sessions_paginated(
 # ── Notificări ─────────────────────────────────────────────────────────────────
 
 async def create_notification(
-    db: AsyncSession, user_id: int, message: str, category: str = "info"
+    db: AsyncSession, user_id: int, message: str,
+    category: str = "info", event_id: int | None = None,
 ) -> "Notification | None":
-    """Creează o notificare în aplicație pentru un utilizator (ex. la un incident nou)."""
+    """
+    Creează o notificare în aplicație pentru un utilizator (ex. la un incident nou).
+    `event_id` leagă notificarea de un incident, ca să poată fi deschis la click.
+    """
     if not user_id:
         return None
-    notif = Notification(user_id=user_id, message=message, category=category)
+    notif = Notification(user_id=user_id, message=message, category=category, event_id=event_id)
     db.add(notif)
     await db.commit()
     await db.refresh(notif)

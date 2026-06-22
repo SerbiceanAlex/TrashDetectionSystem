@@ -927,6 +927,7 @@ async def handle_monitor_ws(
                             user_id=user_id,
                             message=f"Incident de aruncare detectat (material: {event.material}).",
                             category="incident",
+                            event_id=event_id,
                         )
                     except Exception:
                         logger.exception("Nu am putut crea notificarea de incident")

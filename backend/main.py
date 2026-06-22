@@ -112,6 +112,8 @@ async def _migrate_schema():
         "ALTER TABLE video_sessions ADD COLUMN littering_count INTEGER DEFAULT 0",
         "ALTER TABLE video_sessions ADD COLUMN user_id INTEGER REFERENCES users(id)",
         "ALTER TABLE video_sessions ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
+        # Notificări — incidentul vizat (pentru deschidere la click)
+        "ALTER TABLE notifications ADD COLUMN event_id INTEGER REFERENCES littering_events(id)",
     ]
     async with db.engine.begin() as conn:
         for stmt in alter_statements:
@@ -1367,6 +1369,7 @@ async def get_notifications(
                 "id": n.id,
                 "message": n.message,
                 "category": n.category,
+                "event_id": n.event_id,
                 "is_read": n.is_read,
                 "created_at": n.created_at.isoformat() if n.created_at else "",
             }

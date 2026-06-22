@@ -76,6 +76,7 @@ class NotificationOut(BaseModel):
     id: int
     message: str
     category: Optional[str] = None
+    event_id: Optional[int] = None
     is_read: int
     created_at: str
 
