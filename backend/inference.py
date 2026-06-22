@@ -10,7 +10,7 @@ Modele încărcate:
 
 Funcții expuse:
   load_models()         — încarcă o singură dată modelele YOLO la pornire.
-  run_pipeline()        — pipeline pe bytes de imagine (scanare foto).
+  run_pipeline()        — flux pe octeții imaginii (scanare foto).
   detect_persons()      — rulează person_det pe un cadru, întoarce casetele.
 """
 
@@ -23,13 +23,14 @@ from ultralytics import YOLO
 
 from backend.config import settings
 
-# ── Modele singleton (populate la primul apel load_models()) ─────────────────
+# ── Modele unice, populate la primul apel load_models() ──────────────────────
 _detector   = None
 _classifier = None
 _person_det = None
 _cls_names: dict[int, str] = {}
 
-# Serializează apelurile la modele — YOLO/PyTorch nu e thread-safe pe ponderi partajate
+# Serializează apelurile la modele: YOLO/PyTorch nu este sigur pe fire de execuție
+# când aceleași ponderi sunt partajate.
 _inference_lock = threading.Lock()
 _person_lock    = threading.Lock()
 
@@ -91,16 +92,16 @@ def run_pipeline(
     cls_imgsz: int = 224,
 ) -> tuple[list[dict], bytes, float]:
     """
-    Rulează pipeline-ul în două etape pe bytes-ii unei imagini.
+    Rulează fluxul în două etape pe octeții unei imagini.
 
     Întoarce:
         detections  — lista de dict-uri de la detect_and_classify()
-        annotated   — imaginea adnotată, în bytes JPEG
+        annotated   — imaginea adnotată, în octeți JPEG
         elapsed_ms  — timpul de inferență, în milisecunde
     """
     from backend.ml.two_stage import detect_and_classify, draw_detections
 
-    # Decodează bytes-ii → cadru numpy BGR
+    # Decodează octeții → cadru numpy BGR.
     arr = np.frombuffer(image_bytes, dtype=np.uint8)
     frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if frame is None:
@@ -125,7 +126,7 @@ def run_pipeline(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helperi pentru detecția persoanelor
+# Funcții ajutătoare pentru detecția persoanelor
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Dimensiunea minimă a casetei de persoană — elimină detecțiile de corp parțial

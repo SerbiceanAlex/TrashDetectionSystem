@@ -1,5 +1,5 @@
 """
-Video processing module — WebSocket live handler + uploaded-video processor.
+Procesare video pentru upload offline și monitorizarea live prin WebSocket.
 """
 
 import asyncio
@@ -24,7 +24,7 @@ VIDEOS_DIR = settings.videos_dir
 VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ── Process uploaded video file (runs in background) ──────────────────────
+# ── Procesare video încărcat în fundal ────────────────────────────────────
 
 def _process_video_sync(
     file_path: Path,
@@ -32,18 +32,14 @@ def _process_video_sync(
     progress_callback=None,
 ) -> dict:
     """
-    Synchronous video processing with integrated LitteringDetector.
+    Procesează sincron un fișier video cu LitteringDetector integrat.
 
-    Runs in a thread (asyncio.to_thread) to avoid blocking the event loop.
-    For each frame:
-      1. Tracks trash objects with a fresh per-video ByteTrack YOLO instance.
-      2. Detects persons with the shared person detector.
-      3. Applies the same temporal smoothing used by the live WebSocket monitor.
-      4. Feeds the LitteringDetector state machine — collects LitteringEvent
-         objects without touching the DB (DB writes happen in the async caller).
-      5. Draws an annotated frame with state overlay and writes it to the output video.
+    Rulează într-un thread separat, ca să nu blocheze event loop-ul. Pentru
+    fiecare cadru urmărește deșeurile, detectează persoanele, aplică netezirea
+    temporală și colectează evenimentele fără să scrie direct în baza de date.
+    Scrierea în DB se face în apelantul async.
 
-    Returns a dict with aggregated stats + collected littering_events list.
+    Întoarce statistici agregate și lista de evenimente detectate.
     """
     from ultralytics import YOLO
     from backend.littering_detector import LitteringDetector
@@ -72,23 +68,23 @@ def _process_video_sync(
     total_ms = 0.0
     t_start = time.time()
 
-    # ── Per-video fresh tracker + state machine ──────────────────────────────
+    # Tracker proaspăt pentru fiecare video și mașină de stări izolată.
     device = "cuda" if torch.cuda.is_available() else "cpu"
     tracker = YOLO(str(settings.detector_path))
     tracker.to(device)
-    # Ensure person detector is loaded (lazy singleton may not be initialized in thread)
+    # Încarcă detectorul de persoane înainte de procesarea din thread.
     infer.load_models()
     detector = LitteringDetector(fps=fps_in, monitor_seconds=8.0, pre_event_seconds=4.0)
 
-    # Temporal smoothing (mirrors handle_monitor_ws logic)
+    # Netezire temporală similară fluxului live.
     _PERSON_CONFIRM = 2
     _PERSON_CLEAR   = 8
     _person_streak  = 0
     _person_stable  = False
     _trash_tracks: dict = {}
 
-    # Collected events — DB writes happen in the async caller after the thread finishes
-    collected_events: list = []          # list of (LitteringEvent, frame_timestamp_sec)
+    # Evenimentele colectate sunt scrise în DB după terminarea thread-ului.
+    collected_events: list = []          # listă de (LitteringEvent, timestamp_sec)
 
     try:
         while True:
@@ -98,7 +94,7 @@ def _process_video_sync(
 
             t0 = time.perf_counter()
 
-            # Stage 1 — trash tracking (ByteTrack, per-video instance)
+            # Etapa 1: urmărirea deșeurilor cu ByteTrack.
             results = tracker.track(
                 frame, conf=det_conf, imgsz=_TRASH_TRACK_IMGSZ, verbose=False,
                 persist=True, tracker="bytetrack.yaml",
@@ -125,10 +121,10 @@ def _process_video_sync(
                             "material_name": "unknown",
                         })
 
-            # Stage 2 — person detection
+            # Etapa 2: detecția persoanelor.
             person_boxes = infer.detect_persons(frame, conf=0.20, imgsz=1280)
 
-            # Temporal smoothing
+            # Netezire temporală pentru persoană.
             if person_boxes:
                 _person_streak = min(_person_streak + 1, _PERSON_CONFIRM)
             else:
@@ -139,7 +135,7 @@ def _process_video_sync(
                 _person_stable = False
             smoothed_person_boxes = person_boxes if _person_stable else []
 
-            # Suppress trash bboxes that are body false-positives
+            # Elimină boxurile de deșeu care sunt false pozitive pe corp.
             if person_boxes:
                 person_filter_boxes = [_shrink_box(pb, _PERSON_FILTER_SHRINK) for pb in person_boxes]
                 trash_dets = [
@@ -147,7 +143,7 @@ def _process_video_sync(
                     if not _should_suppress_overlapped_trash(d["box"], person_filter_boxes, d["det_score"])
                 ]
 
-            # Track-level stabilizer
+            # Stabilizare la nivel de track.
             current_ids: set = set()
             for d in trash_dets:
                 tid = d["track_id"]
@@ -181,14 +177,14 @@ def _process_video_sync(
             for d in trash_dets:
                 material_counts[d["material_name"]] += 1
 
-            # Stage 3 — state machine
+            # Etapa 3: actualizarea mașinii de stări.
             event = detector.update(frame, stable_trash, smoothed_person_boxes)
             if event is not None:
                 ts_sec = total_frames / fps_in
-                event.clip_frames = list(detector._frame_buffer)   # pre-event frames
+                event.clip_frames = list(detector._frame_buffer)   # cadre pre-incident
                 collected_events.append((event, ts_sec))
 
-            # Draw annotated frame
+            # Desenează cadrul adnotat.
             annotated = frame.copy()
             for pb in smoothed_person_boxes:
                 cv2.rectangle(annotated, (pb[0], pb[1]), (pb[2], pb[3]), (255, 165, 0), 2)
@@ -206,7 +202,7 @@ def _process_video_sync(
             if progress_callback and total_frames % 30 == 0:
                 progress_callback(total_frames, total_frames_expected)
 
-        # Flush any pending events at the end of the video
+        # Finalizează orice eveniment rămas la sfârșitul video-ului.
         final_event = detector.finalize()
         if final_event is not None:
             collected_events.append((final_event, total_frames / fps_in))
@@ -215,7 +211,7 @@ def _process_video_sync(
         cap.release()
         writer.release()
 
-    # Re-encode to H.264 for browser playback
+    # Re-encodează în H.264 pentru redare în browser.
     out_path = _reencode_h264(out_path)
 
     duration = time.time() - t_start
@@ -231,7 +227,7 @@ def _process_video_sync(
         "duration_sec": duration,
         "materials_summary": json.dumps(dict(material_counts)),
         "annotated_video_path": str(out_path),
-        "littering_events": collected_events,    # list of (LitteringEvent, ts_sec)
+        "littering_events": collected_events,    # listă de (LitteringEvent, ts_sec)
         "littering_count": len(collected_events),
         "fps": fps_in,
     }
@@ -243,10 +239,9 @@ async def process_uploaded_video(
     session_id: int,
 ):
     """
-    Read a video file frame-by-frame, run inference, write annotated video,
-    and update the DB session when done.  Heavy CV work runs in a thread via
-    asyncio.to_thread() so the event loop stays responsive.
-    Progress is reported to the DB every 30 frames.
+    Citește un fișier video cadru cu cadru, rulează inferența, scrie video-ul
+    adnotat și actualizează sesiunea în DB la final. Lucrul greu de CV rulează
+    într-un thread, iar progresul este raportat periodic în DB.
     """
     loop = asyncio.get_event_loop()
 
@@ -273,7 +268,7 @@ async def process_uploaded_video(
 
         saved_event_count = 0
 
-        # ── Save littering events detected in the uploaded video ─────────────
+        # Salvează incidentele detectate în video-ul încărcat.
         async with db.AsyncSessionLocal() as owner_session:
             owner_vs = await db.get_video_session_by_id(owner_session, session_id)
             owner_user_id = owner_vs.user_id if owner_vs else None
@@ -281,10 +276,10 @@ async def process_uploaded_video(
 
         for event, ts_sec in result.get("littering_events", []):
             try:
-                # Save thumbnail to disk (blocking I/O → offload to thread)
+                # Salvează miniatura pe disc într-un thread separat.
                 thumb_rel = None
                 if event.thumbnail is not None:
-                    # Use a temporary id until the real id is created by the DB flush.
+                    # Folosește un id temporar până când DB creează id-ul real.
                     import uuid
                     tmp_id = int(uuid.uuid4().int % 1_000_000)
                     thumb_rel = await asyncio.to_thread(
@@ -304,14 +299,14 @@ async def process_uploaded_video(
                         organization_id=owner_org_id,
                     )
 
-                # Save clip frames
+                # Salvează cadrele clipului de dovadă.
                 clip_rel = None
                 if event.clip_frames:
                     clip_rel = await asyncio.to_thread(
-                        _save_clip, event.clip_frames, result.get("fps", 25.0) or 25.0, db_event.id, event.trash_box
+                        _save_clip, event.clip_frames, result.get("fps", 25.0) or 25.0, db_event.id
                     )
 
-                # Rename thumbnail + update DB with paths
+                # Redenumește miniatura și actualizează căile în DB.
                 final_thumb = thumb_rel
                 if thumb_rel:
                     old_path = LITTERING_DIR / thumb_rel
@@ -338,7 +333,7 @@ async def process_uploaded_video(
                 )
                 saved_event_count += 1
             except Exception:
-                logger.exception("Failed to save littering event from uploaded video")
+                logger.exception("Nu am putut salva incidentul detectat din video-ul încărcat")
 
         async with db.AsyncSessionLocal() as session:
             await db.finish_video_session(
@@ -368,15 +363,15 @@ async def process_uploaded_video(
             traceback.print_exc()
 
 
-# ── WebSocket: littering monitor mode ──────────────────────────────────────
+# ── Monitor live prin WebSocket ────────────────────────────────────────────
 
-# Directory where event clips and thumbnails are stored
+# Directorul în care se salvează clipurile și miniaturile incidentelor.
 LITTERING_DIR = settings.littering_dir
 LITTERING_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _reencode_h264(src: Path) -> Path:
-    """Re-encode mp4v → H.264 using imageio-ffmpeg for browser playback."""
+    """Re-encodează mp4v în H.264 pentru redare în browser."""
     try:
         import imageio_ffmpeg
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
@@ -393,20 +388,16 @@ def _reencode_h264(src: Path) -> Path:
             dst.rename(src)
         return src
     except Exception as e:
-        logger.warning("H.264 re-encode failed (mp4v kept): %s", e)
+        logger.warning("Re-encodarea H.264 a eșuat; păstrez mp4v: %s", e)
         return src
 
 
-def _save_clip(frames: list, fps: float, event_id: int, trigger_box: tuple[int, int, int, int] | None = None) -> str | None:
+def _save_clip(frames: list, fps: float, event_id: int) -> str | None:
     """
-    Encode a list of BGR numpy frames as an mp4 clip (H.264 for browser).
-    Returns the filename or None on failure.
+    Encodează cadre BGR într-un clip mp4 și întoarce numele fișierului.
 
-    Frames are annotated with:
-      - GREEN bbox + label for trash detections (run via detector)
-      - ORANGE bbox for the trigger trash region that caused the incident
-      - BLUE bbox + label for person detections (yolov8n)
-    NO face blur — visual evidence intentionally shows the perpetrator.
+    Exportul dovezii este intenționat ușor: nu rulează YOLO din nou, ca
+    monitorizarea live să continue fluid în timp ce clipul se scrie în fundal.
     """
     if not frames:
         return None
@@ -431,32 +422,32 @@ def _save_clip(frames: list, fps: float, event_id: int, trigger_box: tuple[int, 
         _reencode_h264(out_path)
         return out_path.name
     except Exception:
-        logger.exception("Failed to save littering event clip")
+        logger.exception("Nu am putut salva clipul incidentului")
         return None
 
 
 def _save_thumbnail(thumbnail_frame, event_id: int) -> str | None:
-    """Save the annotated thumbnail jpg. Returns filename or None."""
+    """Salvează miniatura JPG și întoarce numele fișierului."""
     if thumbnail_frame is None:
         return None
     try:
         out_path = LITTERING_DIR / f"event_{event_id:06d}_thumb.jpg"
         cv2.imwrite(str(out_path), thumbnail_frame, [cv2.IMWRITE_JPEG_QUALITY, 88])
-        return out_path.name   # just the filename, e.g. "event_000001_thumb.jpg"
+        return out_path.name   # doar numele fișierului, ex. "event_000001_thumb.jpg"
     except Exception:
-        logger.exception("Failed to save littering event thumbnail")
+        logger.exception("Nu am putut salva miniatura incidentului")
         return None
 
 
 def _sha256_frame(frame) -> str:
-    """Return SHA-256 hex of a numpy frame (chain-of-custody hash)."""
+    """Întoarce SHA-256 pentru un cadru numpy."""
     import hashlib
     _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
     return hashlib.sha256(buf.tobytes()).hexdigest()
 
 
 def _iou_overlap(tb, pb) -> float:
-    """Fraction of trash box area that overlaps with person box (0..1)."""
+    """Fracțiunea din boxul deșeului care se suprapune cu boxul persoanei."""
     ix1 = max(tb[0], pb[0]); iy1 = max(tb[1], pb[1])
     ix2 = min(tb[2], pb[2]); iy2 = min(tb[3], pb[3])
     if ix2 <= ix1 or iy2 <= iy1:
@@ -466,29 +457,28 @@ def _iou_overlap(tb, pb) -> float:
     return inter / trash_area
 
 
-# Box de deșeu care are peste atât din aria sa în interiorul siluetei (micșorate)
-# a unei persoane este candidat de fals pozitiv pe corp (ochi, umăr, haine).
+# Box de deșeu aflat în interiorul siluetei unei persoane: candidat de fals
+# pozitiv pe corp (ochi, umăr, haine).
 _OVERLAP_THRESH = 0.30
 # ...dar dacă încrederea detecției e cel puțin atât, e un obiect real ținut în
 # mână (cutie/sticlă/ambalaj) și se păstrează. Sub prag = fals pe corp → suprimat.
 _OVERLAP_KEEP_CONF = 0.45
 _OVERLAP_TINY_PERSON_RATIO = 0.018
-_MIN_TRASH_AREA_FRAC = 0.00015  # ignore tiny noise boxes
-_MAX_TRASH_AREA_FRAC = 0.18     # ignore huge background regions (e.g. bed/floor)
+_MIN_TRASH_AREA_FRAC = 0.00015  # ignoră zgomotul foarte mic
+_MAX_TRASH_AREA_FRAC = 0.18     # ignoră regiuni prea mari de fundal, de ex. pat/podea
 _TRASH_TRACK_IMGSZ = settings.MONITOR_TRASH_IMGSZ
-_PERSON_FILTER_SHRINK = 0.72     # shrink person boxes for overlap filtering only
-_TRASH_STABLE_SEEN = 4             # require 4 consecutive detections — reduces duplicate/ghost boxes
-_TRASH_GRACE_MISSES = 4            # keep last box for a few missed frames (visual stability)
+_PERSON_FILTER_SHRINK = 0.72     # micșorează boxurile persoanelor doar pentru filtrarea suprapunerii
+_TRASH_STABLE_SEEN = 4           # cere 4 detecții consecutive; reduce duplicatele și boxurile fantomă
+_TRASH_GRACE_MISSES = 4          # păstrează ultimul box câteva cadre ratate, pentru stabilitate vizuală
 _MONITOR_PREWARMED = False
 
 
 def prewarm_monitor_inference() -> None:
     """
-    Warm up the monitor-specific inference path once during backend startup.
+    Încălzește o singură dată inferența folosită de monitorul live.
 
-    The first YOLO/ByteTrack call pays a one-time CUDA/kernel initialization
-    cost. Doing it at startup makes the first Monitor click feel ready instead
-    of waiting several seconds for the first boxes/FPS.
+    Primul apel YOLO/ByteTrack are un cost inițial de pornire CUDA/kernel.
+    Rularea la pornirea backend-ului face primul click pe Monitor mai rapid.
     """
     global _MONITOR_PREWARMED
     if _MONITOR_PREWARMED:
@@ -515,17 +505,17 @@ def prewarm_monitor_inference() -> None:
 
         infer.detect_persons(dummy, conf=0.25, imgsz=settings.MONITOR_PERSON_IMGSZ)
         _MONITOR_PREWARMED = True
-        logger.info("Monitor inference prewarmed on %s", device)
+        logger.info("Inferența monitorului live a fost încălzită pe %s", device)
     except Exception:
-        logger.exception("Monitor inference prewarm failed")
+        logger.exception("Încălzirea inferenței monitorului live a eșuat")
 
 
 def _valid_trash_box(box: tuple[int, int, int, int], frame_w: int, frame_h: int) -> bool:
     """
-    Basic geometry sanity filter for trash detections.
+    Filtru geometric simplu pentru detecțiile de deșeuri.
 
-    Keeps small/medium object-sized boxes and rejects detections that are too
-    tiny (noise) or too large for plausible litter (background furniture/bed).
+    Păstrează boxurile de dimensiuni mici/medii și respinge detecțiile prea
+    mici (zgomot) sau prea mari pentru un deșeu plauzibil.
     """
     x1, y1, x2, y2 = box
     bw = max(x2 - x1, 0)
@@ -584,7 +574,7 @@ def _should_suppress_overlapped_trash(
 
 
 def _shrink_box(box: tuple[int, int, int, int], factor: float) -> tuple[int, int, int, int]:
-    """Return a box scaled around center; used to reduce over-suppression near people."""
+    """Micșorează un box în jurul centrului, pentru filtrarea lângă persoane."""
     x1, y1, x2, y2 = box
     if factor <= 0 or factor >= 1:
         return box
@@ -613,17 +603,17 @@ async def handle_monitor_ws(
     organization_id: int | None = None,
 ):
     """
-    WebSocket endpoint for littering detection (monitor mode).
+    Endpoint WebSocket pentru detecția live a incidentelor.
 
     Protocol:
-      Client → server: JPEG frame bytes (same as live mode)
-      Server → client: JSON payload, one of:
+      client → server: cadre JPEG ca bytes
+      server → client: payload JSON de forma:
         {"type": "frame", "state": ..., "persons": N, "trash": N, "fps": ..., "ms": ...}
         {"type": "alert", "event_id": ..., "material": ..., "det_score": ...,
          "thumbnail_url": ..., "detected_at": ...}
 
-    Each WebSocket session gets its own YOLO tracker instance (fresh, no
-    state bleed from concurrent sessions).
+    Fiecare sesiune WebSocket primește un tracker YOLO propriu, ca starea de
+    tracking să nu se amestece între sesiuni paralele.
     """
     from ultralytics import YOLO
     from backend.littering_detector import LitteringDetector
@@ -634,8 +624,7 @@ async def handle_monitor_ws(
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Load fresh tracker in a thread — avoids blocking the async event loop
-    # (YOLO model loading is synchronous and takes ~100-500ms)
+    # Încarcă trackerul într-un thread, deoarece încărcarea YOLO este sincronă.
     def _load_tracker():
         t = YOLO(str(settings.detector_path))
         t.to(device)
@@ -657,13 +646,13 @@ async def handle_monitor_ws(
         zone_expand=0.35,
     )
 
-    # Temporal smoothing counters — require N consecutive frames to confirm/clear
+    # Netezire temporală: cere N cadre consecutive pentru confirmare/ștergere.
     _PERSON_CONFIRM = max(2, int(round(0.15 * logic_fps)))
     _PERSON_CLEAR   = max(4, int(round(0.45 * logic_fps)))
     _TRASH_DETECT_STRIDE = 2 if analysis_fps >= 20 else 1
     _PERSON_DETECT_STRIDE = 3 if analysis_fps >= 20 else 2
-    _person_streak  = 0   # >0 = seen consecutively, <0 = absent consecutively
-    _person_stable  = False  # last stable person state
+    _person_streak  = 0   # >0 = văzut consecutiv, <0 = absent consecutiv
+    _person_stable  = False  # ultima stare stabilă a persoanei
     _trash_tracks: dict[int, dict] = {}
 
     total_frames = 0
@@ -671,18 +660,18 @@ async def handle_monitor_ws(
     t_start = time.time()
     recent_frame_times: deque[float] = deque(maxlen=max(8, int(round(analysis_fps * 2))))
     _cached_trash_dets: list[dict] = []
-    _cached_person_boxes: list = []   # reuse between frames for person skip
+    _cached_person_boxes: list = []   # refolosite între detecțiile de persoane
 
     resolved_address: str | None = None
     # Clipul de dovadă se scrie DUPĂ fereastra post-incident (~3s): la momentul
-    # alertei, event.clip_frames conține doar cadrele pre-incident, iar masina
+    # alertei, event.clip_frames conține doar cadrele pre-incident, iar mașina
     # de stări adaugă cadrele post-incident în iterațiile următoare.
     _pending_clip: tuple | None = None   # (event, event_id)
     _clip_tasks: set[asyncio.Task] = set()
 
     async def _flush_pending_clip(evt, evt_id: int) -> None:
         clip_rel = await asyncio.to_thread(
-            _save_clip, evt.clip_frames, detector.fps, evt_id, evt.trash_box
+            _save_clip, evt.clip_frames, detector.fps, evt_id
         )
         if clip_rel:
             # Sesiune proaspătă: flush-ul poate rula și la închiderea conexiunii,
@@ -701,7 +690,7 @@ async def handle_monitor_ws(
             try:
                 done_task.result()
             except Exception:
-                logger.exception("Failed to export evidence clip in background")
+                logger.exception("Exportul clipului de dovadă în fundal a eșuat")
         task.add_done_callback(_done)
 
     # Throttle pentru logica temporală: `detector.update()` trebuie chemat la o
@@ -723,10 +712,10 @@ async def handle_monitor_ws(
 
             t0 = time.perf_counter()
 
-            # Stage 1: trash tracking (per-session fresh tracker).
-            # For the live monitor, running YOLO every frame is overkill on a
-            # 4GB laptop GPU. On the stable FPS profile, every second frame
-            # keeps latency low while freeing enough GPU time for smoother UI.
+            # Etapa 1: urmărirea deșeurilor cu tracker proaspăt pe sesiune.
+            # În monitorul live, rularea YOLO pe fiecare cadru e prea grea
+            # pentru GPU-ul laptopului. Pe profilul stabil, fiecare al doilea
+            # cadru păstrează latența mică și lasă interfața mai fluidă.
             if total_frames % _TRASH_DETECT_STRIDE == 0:
                 results = tracker.track(
                     frame, conf=det_conf, imgsz=_TRASH_TRACK_IMGSZ, verbose=False,
@@ -751,23 +740,22 @@ async def handle_monitor_ws(
                                 "track_id": track_id,
                                 "box": (x1, y1, x2, y2),
                                 "det_score": float(det_score),
-                                "material_name": "unknown",  # classify only on event
+                                "material_name": "unknown",  # clasifică doar la incident
                             })
                 _cached_trash_dets = trash_dets
             else:
                 trash_dets = [dict(d) for d in _cached_trash_dets]
 
-            # Stage 2: person detection — run periodically and cache result between.
-            # Every 3rd frame is enough for stable person presence while keeping
-            # the detector workload smooth on a laptop GPU.
-            # Person detection is intentionally lighter in live monitor mode.
+            # Etapa 2: detecția persoanelor, rulată periodic și păstrată în cache.
+            # Fiecare al treilea cadru este suficient pentru prezență stabilă,
+            # cu sarcină mai mică pe GPU în modul monitor live.
             if total_frames % _PERSON_DETECT_STRIDE == 0:
                 _cached_person_boxes = infer.detect_persons(
                     frame, conf=max(person_conf, 0.25), imgsz=settings.MONITOR_PERSON_IMGSZ,
                 )
             person_boxes = _cached_person_boxes
 
-            # Temporal smoothing: avoid ghost persons / single-frame flicker
+            # Netezire temporală: evită persoane fantomă și flicker pe un singur cadru.
             if len(person_boxes) > 0:
                 _person_streak = min(_person_streak + 1, _PERSON_CONFIRM)
             else:
@@ -777,13 +765,13 @@ async def handle_monitor_ws(
                 _person_stable = True
             elif _person_streak <= -_PERSON_CLEAR:
                 _person_stable = False
-            # else: keep previous state (hysteresis)
+            # altfel păstrează starea anterioară (histerezis)
 
             smoothed_person_boxes = person_boxes if _person_stable else []
 
-            # ── Filter false positives: remove trash boxes that overlap
-            #    significantly with a person box (body/face detected as trash)
-            if person_boxes:  # use raw boxes for filtering (before smoothing)
+            # Filtrează falsele pozitive: elimină boxurile de deșeu care se
+            # suprapun semnificativ cu o persoană.
+            if person_boxes:  # folosește boxurile brute, înainte de netezire
                 person_filter_boxes = [
                     _shrink_box(pb, _PERSON_FILTER_SHRINK) for pb in person_boxes
                 ]
@@ -792,7 +780,7 @@ async def handle_monitor_ws(
                     if not _should_suppress_overlapped_trash(d["box"], person_filter_boxes, d["det_score"])
                 ]
 
-            # Track-level stabilizer: avoid flicker when object is briefly missed.
+            # Stabilizare pe track: evită flicker-ul când obiectul este ratat scurt.
             current_ids = set()
             for d in trash_dets:
                 tid = d["track_id"]
@@ -838,7 +826,7 @@ async def handle_monitor_ws(
                 avg_fps = total_frames / max(now_wall - t_start, 0.001)
             display_fps = min(avg_fps, analysis_fps)
 
-            # Stage 3: state machine update — limitat la logic_fps (wall-clock)
+            # Etapa 3: actualizarea mașinii de stări, limitată la logic_fps.
             # ca timpii în secunde să fie corecți și consistenți între dispozitive.
             # NU sărim restul buclei: clientul așteaptă un răspuns per cadru
             # (single-flight), iar overlay-ul/preview-ul rămân la rata reală.
@@ -855,7 +843,7 @@ async def handle_monitor_ws(
 
             # ── Event detected ────────────────────────────────────────────
             if event is not None:
-                # Classify the material of the trigger object via full pipeline
+                # Clasifică materialul obiectului declanșator prin pipeline-ul complet.
                 try:
                     tx1, ty1, tx2, ty2 = event.trash_box
                     crop = frame[ty1:ty2, tx1:tx2]
@@ -868,12 +856,12 @@ async def handle_monitor_ws(
                         event.material   = mat_name
                         event.det_score  = mat_score
                 except Exception:
-                    pass  # keep "unknown"
+                    pass  # păstrează "unknown"
 
-                # No face blur — visual evidence intentionally identifies the perpetrator
+                # Fără blur pe față: dovada vizuală identifică intenționat persoana.
                 img_hash = _sha256_frame(frame)
 
-                # Save evidence to DB first (need ID for filenames)
+                # Salvează întâi incidentul în DB, ca să avem ID pentru fișiere.
                 db_event = await db.create_littering_event(
                     session,
                     material=event.material,
@@ -909,14 +897,14 @@ async def handle_monitor_ws(
                 if event.clip_frames:
                     _schedule_clip_flush(event, event_id)
 
-                # Save thumbnail
+                # Salvează miniatura.
                 thumb_rel = None
                 if event.thumbnail is not None:
                     thumb_rel = await asyncio.to_thread(
                         _save_thumbnail, event.thumbnail, event_id
                     )
 
-                # Update DB with file paths
+                # Actualizează DB cu numele fișierelor.
                 if thumb_rel:
                     await db.update_littering_event_status(
                         session, event_id, status="pending"
@@ -927,11 +915,11 @@ async def handle_monitor_ws(
                         await session.commit()
 
                 logger.info(
-                    "Littering event #%d detected — material=%s score=%.2f",
+                    "Incident de aruncare #%d detectat — material=%s scor=%.2f",
                     event_id, event.material, event.det_score
                 )
 
-                # Send alert to browser
+                # Trimite alerta către browser.
                 await websocket.send_text(json.dumps({
                     "type": "alert",
                     "event_id": event_id,
@@ -943,7 +931,7 @@ async def handle_monitor_ws(
                 }))
 
             else:
-                # ── Normal status frame ───────────────────────────────────
+                # Cadru normal de status.
                 await websocket.send_text(json.dumps({
                     "type": "frame",
                     "state": detector.current_state,
@@ -960,7 +948,7 @@ async def handle_monitor_ws(
                     ],
                     "frame_w": frame.shape[1],
                     "frame_h": frame.shape[0],
-                    # Send last person zones when monitoring — lets UI draw the target area
+                    # Trimite ultimele zone ale persoanei ca UI-ul să poată desena aria urmărită.
                     "last_person_zones": [
                         [z.x1, z.y1, z.x2, z.y2]
                         for z in detector._person_zones
@@ -968,9 +956,9 @@ async def handle_monitor_ws(
                 }))
 
     except WebSocketDisconnect:
-        logger.info("Monitor WebSocket disconnected")
+        logger.info("Monitorul WebSocket s-a deconectat")
     except Exception:
-        logger.exception("Unexpected error in monitor WebSocket")
+        logger.exception("Eroare neașteptată în monitorul WebSocket")
     finally:
         # Conexiunea s-a închis înainte de finalul ferestrei post-incident —
         # salvează clipul cu cadrele disponibile, ca dovada să nu se piardă.
@@ -979,5 +967,5 @@ async def handle_monitor_ws(
             try:
                 await _flush_pending_clip(evt_to_save, evt_id_to_save)
             except Exception:
-                logger.exception("Failed to flush pending evidence clip on close")
+                logger.exception("Nu am putut salva clipul de dovadă rămas la închidere")
         detector.reset()

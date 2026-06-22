@@ -1,9 +1,9 @@
 """
-Local storage retention for littering evidence files.
+Retenție locală pentru fișierele de dovadă ale incidentelor.
 
-The database keeps incident metadata, but video clips and thumbnails are local
-files. This module deletes old evidence files after a configurable number of
-days so a live deployment can run for weeks without unbounded disk growth.
+Baza de date păstrează metadatele incidentelor, iar clipurile și miniaturile
+sunt fișiere locale. Modulul șterge dovezile mai vechi decât perioada
+configurată, astfel încât aplicația să nu ocupe spațiu nelimitat pe disc.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ LITTERING_DIR = settings.littering_dir
 
 
 def _safe_littering_path(relative_path: str | None) -> Path | None:
+    """Rezolvă o cale salvată în DB, permițând ștergerea doar din LITTERING_DIR."""
     if not relative_path:
         return None
 
@@ -58,7 +59,7 @@ def _safe_littering_path(relative_path: str | None) -> Path | None:
         allowed.append(resolved)
 
     if not allowed:
-        logger.warning("Refusing to delete path outside littering dir: %s", relative_path)
+        logger.warning("Refuz ștergerea unei căi din afara directorului de dovezi: %s", relative_path)
         return None
     return next((path for path in allowed if path.exists()), allowed[0])
 
@@ -66,8 +67,8 @@ def _safe_littering_path(relative_path: str | None) -> Path | None:
 def _append_retention_note(existing: str | None, retention_days: int) -> str:
     stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
     note = (
-        f"[system] Evidence files auto-deleted after "
-        f"{retention_days} days retention at {stamp}."
+        f"[sistem] Fișierele de dovadă au fost șterse automat după "
+        f"{retention_days} zile de retenție la {stamp}."
     )
     if not existing:
         return note
@@ -76,10 +77,10 @@ def _append_retention_note(existing: str | None, retention_days: int) -> str:
 
 async def cleanup_littering_evidence(retention_days: int | None = None) -> dict[str, Any]:
     """
-    Delete old littering clips/thumbnails and keep the DB incident rows.
+    Șterge clipurile/miniaturile vechi și păstrează rândurile incidentelor în DB.
 
-    Returns a small summary dict that is safe to log or expose in a maintenance
-    endpoint. If retention_days <= 0, the cleanup is treated as disabled.
+    Întoarce un rezumat sigur pentru loguri sau endpoint-uri de mentenanță.
+    Dacă retention_days <= 0, curățarea este considerată dezactivată.
     """
     days = settings.LITTERING_FILE_RETENTION_DAYS if retention_days is None else retention_days
     if days <= 0:
@@ -123,7 +124,7 @@ async def cleanup_littering_evidence(retention_days: int | None = None) -> dict[
                             files_deleted += 1
                             bytes_deleted += size
                         except OSError:
-                            logger.exception("Failed to delete retention file: %s", full_path)
+                            logger.exception("Nu am putut șterge fișierul expirat: %s", full_path)
                             continue
                     setattr(event, attr, None)
                     changed = True
@@ -145,12 +146,12 @@ async def cleanup_littering_evidence(retention_days: int | None = None) -> dict[
         "bytes_deleted": bytes_deleted,
         "mb_deleted": round(bytes_deleted / (1024 * 1024), 3),
     }
-    logger.info("Storage retention cleanup: %s", summary)
+    logger.info("Curățare retenție stocare: %s", summary)
     return summary
 
 
 async def storage_cleanup_loop() -> None:
-    """Run cleanup once per configured interval until the app shuts down."""
+    """Rulează curățarea periodică până la oprirea aplicației."""
     interval_hours = max(settings.STORAGE_CLEANUP_INTERVAL_HOURS, 1)
     interval_sec = interval_hours * 3600
     while True:
@@ -160,4 +161,4 @@ async def storage_cleanup_loop() -> None:
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.exception("Storage retention cleanup failed")
+            logger.exception("Curățarea retenției de stocare a eșuat")

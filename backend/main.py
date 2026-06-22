@@ -85,7 +85,7 @@ def _resolve_littering_evidence_path(stored_path: str | None) -> Path | None:
         allowed.append(resolved)
 
     if not allowed:
-        logger.warning("Ignoring evidence path outside littering dir: %s", stored_path)
+        logger.warning("Ignor calea de dovadă din afara directorului de incidente: %s", stored_path)
         return None
     return next((path for path in allowed if path.exists()), allowed[0])
 
@@ -105,7 +105,7 @@ async def _migrate_schema():
         "ALTER TABLE littering_events ADD COLUMN distance_at_abandonment REAL",
         "ALTER TABLE littering_events ADD COLUMN detection_method VARCHAR(32) DEFAULT 'zone'",
         "ALTER TABLE littering_events ADD COLUMN reporter_id INTEGER REFERENCES users(id)",
-        # Multi-tenant pe organizație
+        # Izolare pe organizație
         "ALTER TABLE users ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         "ALTER TABLE littering_events ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         # Izolarea sesiunilor video
@@ -146,9 +146,9 @@ async def lifespan(app: FastAPI):
     if settings.STORAGE_CLEANUP_ENABLED:
         try:
             summary = await cleanup_littering_evidence()
-            logger.info("Startup storage cleanup complete: %s", summary)
+            logger.info("Curățarea stocării la pornire s-a încheiat: %s", summary)
         except Exception:
-            logger.exception("Startup storage cleanup failed")
+            logger.exception("Curățarea stocării la pornire a eșuat")
         cleanup_task = asyncio.create_task(storage_cleanup_loop())
 
     try:
@@ -164,15 +164,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Trash Detection System",
-    description="Two-stage YOLO-based trash detection and material classification API",
+    description="API pentru detecția deșeurilor și clasificarea materialelor cu YOLO în două etape",
     version="1.0.0",
     lifespan=lifespan,
 )
 
-# Generated media files are served through authenticated API endpoints below,
-# nu ca directoare statice publice.
+# Fișierele media generate sunt servite prin endpoint-uri autentificate,
+# nu prin directoare statice publice.
 
-# Include Routers
+# Înregistrează routerele aplicației.
 app.include_router(auth_router)
 
 # Servește aplicația frontend (SPA)
@@ -223,7 +223,7 @@ async def index(request: Request):
     )
 
 
-@app.get("/api/system/info", summary="Public system/model metadata")
+@app.get("/api/system/info", summary="Metadate publice despre sistem/model")
 async def system_info():
     """Întoarce metadate de runtime (sigure public) pentru panoul de sistem din frontend."""
     manifest_path = settings.detector_path.parent / "manifest.json"
@@ -340,19 +340,19 @@ async def ws_video_monitor(
         )
 
 
-# ── Littering Events REST ─────────────────────────────────────────────────────
+# ── REST pentru incidente ─────────────────────────────────────────────────────
 
 @app.get(
     "/api/littering/events",
     response_model=schemas.LitteringEventsPage,
-    summary="List littering events scoped to the current user role",
+    summary="Listează incidentele după rolul utilizatorului curent",
 )
 async def list_littering_events(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
-    status: Optional[str] = Query(default=None, description="Filter by status: pending/reviewed/forwarded/dismissed"),
+    status: Optional[str] = Query(default=None, description="Filtrare după status: pending/reviewed/forwarded/dismissed"),
     material: Optional[str] = Query(default=None),
-    reporter_id: Optional[int] = Query(default=None, description="Admin-only filter by reporter/user id"),
+    reporter_id: Optional[int] = Query(default=None, description="Filtru disponibil doar pentru admin, după ID-ul raportorului"),
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
@@ -415,7 +415,7 @@ async def _user_from_bearer_or_query(
 @app.get(
     "/api/littering/events/{event_id}",
     response_model=schemas.LitteringEventOut,
-    summary="Get littering event by ID",
+    summary="Obține un incident după ID",
 )
 async def get_littering_event(
     event_id: int,
@@ -433,7 +433,7 @@ async def get_littering_event(
 @app.patch(
     "/api/littering/events/{event_id}/status",
     response_model=schemas.LitteringEventOut,
-    summary="[Admin] Update littering event status",
+    summary="[Admin] Actualizează statusul unui incident",
 )
 async def update_littering_event_status(
     event_id: int,
@@ -453,7 +453,7 @@ async def update_littering_event_status(
     if body.status not in allowed_statuses:
         raise HTTPException(
             status_code=400,
-            detail=f"Status invalid. Valori permise: {', '.join(sorted(allowed_statuses))}"
+            detail=f"Status nevalid. Valori permise: {', '.join(sorted(allowed_statuses))}"
         )
     evt = await db.update_littering_event_status(
         session, event_id,
@@ -475,7 +475,7 @@ async def update_littering_event_status(
 @app.patch(
     "/api/littering/events/{event_id}/notes",
     response_model=schemas.LitteringEventOut,
-    summary="[Admin] Update notes on a littering event",
+    summary="[Admin] Actualizează notele unui incident",
 )
 async def update_littering_event_notes(
     event_id: int,
@@ -496,7 +496,7 @@ async def update_littering_event_notes(
 
 @app.get(
     "/api/littering/events/{event_id}/clip",
-    summary="Download clip for a littering event",
+    summary="Descarcă clipul unui incident",
 )
 async def download_littering_clip(
     event_id: int,
@@ -524,7 +524,7 @@ async def download_littering_clip(
 
 @app.get(
     "/api/littering/events/{event_id}/thumbnail",
-    summary="Get thumbnail for a littering event",
+    summary="Obține miniatura unui incident",
 )
 async def get_littering_thumbnail(
     event_id: int,
@@ -547,10 +547,10 @@ async def get_littering_thumbnail(
 
 
 # ---------------------------------------------------------------------------
-# B2B Dashboard / Locations / Reports — endpoint-uri pentru produsul B2B
+# Dashboard B2B / locații / rapoarte — endpoint-uri pentru produsul B2B
 # ---------------------------------------------------------------------------
 
-@app.get("/api/dashboard/b2b", summary="B2B dashboard — KPI + trend + recent incidents")
+@app.get("/api/dashboard/b2b", summary="Dashboard B2B — KPI + trend + incidente recente")
 async def get_dashboard_b2b(
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
@@ -657,7 +657,7 @@ async def get_dashboard_b2b(
     }
 
 
-@app.get("/api/reports/export", summary="Export report (CSV / PDF / ZIP)")
+@app.get("/api/reports/export", summary="Exportă raport (CSV / PDF / ZIP)")
 async def reports_export(
     period: str = Query(default="week"),
     format: str = Query(default="csv"),
@@ -799,13 +799,13 @@ async def reports_export(
                     pdfmetrics.registerFont(TTFont("Arial-Bold",os.path.join(_win_fonts, "arialbd.ttf")))
                     _FONT_NORMAL, _FONT_BOLD = "Arial", "Arial-Bold"
                 except Exception:
-                    pass  # fallback la Helvetica cu diacritice stripped
+                    pass  # variantă de rezervă: Helvetica cu diacritice eliminate
 
             def _txt(s: str) -> str:
-                """Strip diacritice dacă fontul nu are suport Unicode."""
+                """Elimină diacriticele dacă fontul nu are suport Unicode."""
                 if _FONT_NORMAL == "Arial":
                     return str(s) if s else ""
-                # Helvetica fallback — înlocuim diacritice
+                # Variantă de rezervă Helvetica: înlocuim diacriticele.
                 for ro, en in [("ă","a"),("â","a"),("î","i"),("ș","s"),("ț","t"),
                                 ("Ă","A"),("Â","A"),("Î","I"),("Ș","S"),("Ț","T")]:
                     s = str(s).replace(ro, en)
@@ -955,7 +955,7 @@ async def reports_export(
 
 
 @app.post("/api/video/upload", response_model=schemas.VideoUploadResponse,
-          summary="Upload a video file for offline processing")
+          summary="Încarcă un fișier video pentru procesare offline")
 async def upload_video(
     file: UploadFile = File(...),
     det_conf: float = Query(default=settings.DEFAULT_DET_CONF, ge=0.05, le=0.95),
@@ -968,10 +968,10 @@ async def upload_video(
     }
     ct = file.content_type or ""
     fname = file.filename or "upload.mp4"
-    # Also accept by extension if mime unknown
+    # Acceptă și după extensie dacă MIME-ul lipsește sau este necunoscut.
     ext = Path(fname).suffix.lower()
     if ct not in allowed and ext not in {".mp4", ".avi", ".mov", ".mkv", ".webm"}:
-        raise HTTPException(status_code=400, detail=f"Unsupported video type: {ct}")
+        raise HTTPException(status_code=400, detail=f"Tip video neacceptat: {ct}")
 
     stem = uuid.uuid4().hex
     save_path = VIDEOS_DIR / f"{stem}{ext or '.mp4'}"
@@ -996,11 +996,11 @@ async def upload_video(
         save_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=413,
-            detail=f"Video too large. Maximum size is {settings.VIDEO_MAX_UPLOAD_MB} MB.",
+            detail=f"Video prea mare. Dimensiunea maximă este {settings.VIDEO_MAX_UPLOAD_MB} MB.",
         )
     if video_empty:
         save_path.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail="Empty file uploaded.")
+        raise HTTPException(status_code=400, detail="Fișierul încărcat este gol.")
 
     vs = await db.create_video_session(session, source_type="upload", filename=fname)
     vs.video_path = str(save_path)
@@ -1008,19 +1008,19 @@ async def upload_video(
     vs.organization_id = current_user.organization_id or 1
     await session.commit()
 
-    # Procesează în fundal (fire-and-forget), cu logarea erorilor
+    # Procesează în fundal, cu logarea erorilor.
     task = asyncio.create_task(vid.process_uploaded_video(save_path, det_conf, vs.id))
     task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
 
     return schemas.VideoUploadResponse(
         session_id=vs.id,
         status="processing",
-        message=f"Video '{fname}' is being processed. Check /api/video/sessions/{vs.id} for status.",
+        message=f"Video-ul '{fname}' se procesează. Verifică /api/video/sessions/{vs.id} pentru status.",
     )
 
 
 @app.get("/api/video/sessions", response_model=schemas.VideoSessionsPage,
-         summary="List video sessions")
+         summary="Listează sesiunile video")
 async def list_video_sessions(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
@@ -1035,7 +1035,7 @@ async def list_video_sessions(
 
 
 @app.get("/api/video/sessions/{session_id}", response_model=schemas.VideoSessionOut,
-         summary="Get video session details")
+         summary="Detaliile unei sesiuni video")
 async def get_video_session(
     session_id: int,
     current_user: Annotated[db.User, Depends(get_current_active_user)],
@@ -1043,7 +1043,7 @@ async def get_video_session(
 ):
     vs = await db.get_video_session_by_id(session, session_id)
     if vs is None:
-        raise HTTPException(status_code=404, detail="Video session not found.")
+        raise HTTPException(status_code=404, detail="Sesiunea video nu a fost găsită.")
     if not _can_view_video_session(current_user, vs):
         raise HTTPException(status_code=403, detail="Acces restricționat la această sesiune video.")
     return vs
@@ -1051,7 +1051,7 @@ async def get_video_session(
 
 # ── Endpoint-uri ADMIN ───────────────────────────────────────────────────────
 
-@app.get("/api/admin/users", summary="[Admin] List all users with stats")
+@app.get("/api/admin/users", summary="[Admin] Listează toți utilizatorii cu statistici")
 async def admin_list_users(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
@@ -1084,7 +1084,7 @@ async def admin_list_users(
     ]
 
 
-@app.patch("/api/admin/users/{user_id}", summary="[Admin] Update user role or points")
+@app.patch("/api/admin/users/{user_id}", summary="[Admin] Actualizează rolul sau punctele unui utilizator")
 async def admin_update_user(
     user_id: int,
     body: dict,
@@ -1109,7 +1109,7 @@ async def admin_update_user(
     return {"id": user.id, "username": user.username, "role": user.role, "points": user.points}
 
 
-@app.post("/api/admin/users/invite", summary="[Admin] Invite a new user to the organization")
+@app.post("/api/admin/users/invite", summary="[Admin] Invită un utilizator nou în organizație")
 async def admin_invite_user(
     body: dict,
     current_user: Annotated[db.User, Depends(get_current_active_user)],
@@ -1140,7 +1140,7 @@ async def admin_invite_user(
     # Generează o parolă temporară (12 caractere, mixte)
     alphabet = string.ascii_letters + string.digits + "!@#$"
     temp_password = ''.join(secrets.choice(alphabet) for _ in range(12))
-    # Ensure password meets policy: at least one upper, lower, digit, special
+    # Respectă politica parolei: cel puțin o literă mare, una mică, o cifră și un simbol.
     temp_password = temp_password[:8] + "Aa1!"
 
     org_id = current_user.organization_id or 1
@@ -1165,7 +1165,7 @@ async def admin_invite_user(
     }
 
 
-@app.delete("/api/admin/users/{user_id}", response_model=schemas.DetailResponse, summary="[Admin] Delete a user account")
+@app.delete("/api/admin/users/{user_id}", response_model=schemas.DetailResponse, summary="[Admin] Șterge un cont de utilizator")
 async def admin_delete_user(
     user_id: int,
     current_user: Annotated[db.User, Depends(get_current_active_user)],
@@ -1184,7 +1184,7 @@ async def admin_delete_user(
     return {"detail": f"Utilizatorul '{user.username}' a fost șters."}
 
 
-@app.get("/api/admin/stats", response_model=schemas.AdminStats, summary="[Admin] Global platform stats")
+@app.get("/api/admin/stats", response_model=schemas.AdminStats, summary="[Admin] Statistici globale ale platformei")
 async def admin_stats(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
@@ -1217,7 +1217,7 @@ async def admin_stats(
 
 # ── Admin: date pentru grafice (înregistrări/lună, rapoarte/zi, materiale) ──
 
-@app.get("/api/admin/charts", summary="[Admin] Chart data for admin dashboard")
+@app.get("/api/admin/charts", summary="[Admin] Date pentru graficele din dashboard")
 async def admin_charts(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
@@ -1276,7 +1276,7 @@ async def admin_charts(
     )
     material_dist = [{"material": r.material or "unknown", "count": r.count} for r in materials]
 
-    # Resolution rate
+    # Rata de rezolvare
     total_reports = await session.scalar(
         select(func.count(db.LitteringEvent.id)).where(event_cond)
     )
@@ -1300,7 +1300,7 @@ async def admin_charts(
 
 # ── Admin: export utilizatori în CSV ─────────────────────────────────────────
 
-@app.get("/api/admin/export/users", summary="[Admin] Export users as CSV")
+@app.get("/api/admin/export/users", summary="[Admin] Exportă utilizatorii în CSV")
 async def admin_export_users_csv(
     request: Request,
     session: AsyncSession = Depends(db.get_db),
@@ -1344,9 +1344,9 @@ async def admin_export_users_csv(
     )
 
 
-# ── Notifications ─────────────────────────────────────────────────────────────
+# ── Notificări ────────────────────────────────────────────────────────────────
 
-@app.get("/api/me/notifications", response_model=schemas.NotificationsResponse, summary="Get notifications for the current user")
+@app.get("/api/me/notifications", response_model=schemas.NotificationsResponse, summary="Obține notificările utilizatorului curent")
 async def get_notifications(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
@@ -1375,7 +1375,7 @@ async def get_notifications(
     }
 
 
-@app.post("/api/me/notifications/{notification_id}/read", response_model=schemas.OkResponse, summary="Mark a notification as read")
+@app.post("/api/me/notifications/{notification_id}/read", response_model=schemas.OkResponse, summary="Marchează o notificare ca citită")
 async def mark_notification_read(
     notification_id: int,
     current_user: Annotated[db.User, Depends(get_current_active_user)],
@@ -1394,7 +1394,7 @@ async def mark_notification_read(
     return {"ok": True}
 
 
-@app.post("/api/me/notifications/read-all", response_model=schemas.OkResponse, summary="Mark all notifications as read")
+@app.post("/api/me/notifications/read-all", response_model=schemas.OkResponse, summary="Marchează toate notificările ca citite")
 async def mark_all_notifications_read(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
@@ -1409,7 +1409,7 @@ async def mark_all_notifications_read(
     return {"ok": True}
 
 
-@app.delete("/api/video/sessions/{session_id}", response_model=schemas.DetailResponse, summary="Delete a video session and files")
+@app.delete("/api/video/sessions/{session_id}", response_model=schemas.DetailResponse, summary="Șterge o sesiune video și fișierele ei")
 async def delete_video_session(
     session_id: int,
     current_user: Annotated[db.User, Depends(get_current_active_user)],
@@ -1417,7 +1417,7 @@ async def delete_video_session(
 ):
     vs = await db.get_video_session_by_id(session, session_id)
     if vs is None:
-        raise HTTPException(status_code=404, detail="Video session not found.")
+        raise HTTPException(status_code=404, detail="Sesiunea video nu a fost găsită.")
     # Admin poate șterge orice sesiune din org; userul poate șterge doar ale lui
     is_owner = vs.user_id == current_user.id
     is_admin = current_user.role == "admin"
@@ -1433,11 +1433,11 @@ async def delete_video_session(
 
     await session.delete(vs)
     await session.commit()
-    return {"detail": f"Video session {session_id} deleted."}
+    return {"detail": f"Sesiunea video {session_id} a fost ștearsă."}
 
 
 @app.get("/api/video/sessions/{session_id}/download",
-         summary="Download the annotated video file")
+         summary="Descarcă fișierul video adnotat")
 async def download_annotated_video(
     session_id: int,
     request: Request,
@@ -1449,15 +1449,15 @@ async def download_annotated_video(
         raise HTTPException(status_code=401, detail="Autentificare necesară.")
     vs = await db.get_video_session_by_id(session, session_id)
     if vs is None:
-        raise HTTPException(status_code=404, detail="Video session not found.")
+        raise HTTPException(status_code=404, detail="Sesiunea video nu a fost găsită.")
     if not _can_view_video_session(current_user, vs):
         raise HTTPException(status_code=403, detail="Acces restricționat la această sesiune video.")
     if not vs.annotated_video_path:
-        raise HTTPException(status_code=404, detail="Annotated video not yet available.")
+        raise HTTPException(status_code=404, detail="Video-ul adnotat nu este încă disponibil.")
 
     p = Path(vs.annotated_video_path)
     if not p.exists():
-        raise HTTPException(status_code=410, detail="Annotated video file was deleted.")
+        raise HTTPException(status_code=410, detail="Fișierul video adnotat a fost șters.")
 
     return FileResponse(p, media_type="video/mp4", filename=p.name)
 
@@ -1468,7 +1468,7 @@ async def download_annotated_video(
 
 # ── B4: statistici de stocare (admin) ────────────────────────────────────────
 
-@app.get("/api/admin/storage", summary="[Admin] Disk storage stats")
+@app.get("/api/admin/storage", summary="[Admin] Statistici de stocare pe disc")
 async def admin_storage_stats(
     current_user: Annotated[db.User, Depends(get_current_active_user)],
     session: AsyncSession = Depends(db.get_db),
@@ -1541,16 +1541,16 @@ async def admin_storage_stats(
     }
 
 
-# ── Organization endpoints ────────────────────────────────────────────────────
+# ── Endpoint-uri organizație ──────────────────────────────────────────────────
 
-@app.get("/api/me/organization", summary="Current user's organization info")
+@app.get("/api/me/organization", summary="Informații despre organizația utilizatorului curent")
 async def get_my_organization(
     org: Annotated[db.Organization, Depends(get_current_org)],
 ):
     return {"id": org.id, "name": org.name}
 
 
-@app.patch("/api/admin/organization", summary="[Admin] Update organization name")
+@app.patch("/api/admin/organization", summary="[Admin] Actualizează numele organizației")
 async def update_organization(
     body: dict,
     current_user: Annotated[db.User, Depends(get_current_active_user)],

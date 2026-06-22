@@ -39,15 +39,15 @@ LOST_TIMEOUT_S        = 5.0    # secunde cât poate lipsi persoana înainte de A
 # Obiect care rămâne pe jos (static) atât timp DUPĂ ce a fost lăsat este o
 # abandonare, chiar dacă persoana nu se îndepărtează 2 m (cazul wide-shot:
 # aruncă și zăbovește în cadru). Dacă obiectul e ridicat înapoi, se mișcă și
-# tracker-ul se resetează — anularea cerută de teză rămâne validă.
+# urmărirea se resetează — anularea cerută de teză rămâne validă.
 ABANDON_STATIC_S      = 1.2    # secunde de stat nemișcat în starea DROPPED → ABANDONED
-TRASH_MISS_GRACE      = 12     # cadre de detecție lipsă tolerate înainte de a uita tracker-ul (clipire)
+TRASH_MISS_GRACE      = 12     # cadre de detecție lipsă tolerate înainte de a uita obiectul urmărit (clipire)
 PICKUP_MOVE_PX        = 55.0   # deplasare mare a obiectului lângă persoană = ridicat înapoi (anulare)
 # Raza în care un obiect NOU apărut lângă o persoană este asociat acelei
 # persoane. Mai mare decât SEPARATION_DIST_M ca să prindă și aruncarea la
 # distanță (obiectul aterizează la 2–3 m), nu doar lăsatul la picioare.
 # Precizia rămâne protejată: obiectul trebuie să fie NOU (neexistent în
-# baseline) ȘI să devină static pe jos înainte de a declanșa.
+# starea inițială) ȘI să devină static pe jos înainte de a declanșa.
 THROW_RANGE_M         = 3.0
 # Dacă peste atât din box-ul obiectului e în interiorul siluetei persoanei,
 # obiectul e ȚINUT în mână / în față, NU lăsat pe jos. Cât e ținut nu acumulăm
@@ -64,7 +64,7 @@ EVENT_COOLDOWN_S      = 8.0    # blochează alerte duplicate imediat după ce s-
 
 class DetectorState(Enum):
     """Starea globală a scenei în modul zonă."""
-    CLEAR          = auto()   # fără persoane; obiectele vizibile sunt baseline
+    CLEAR          = auto()   # fără persoane; obiectele vizibile definesc starea inițială
     PERSON_PRESENT = auto()   # persoană în cadru; îi reținem zona
     MONITORING     = auto()   # persoana a plecat; urmărim obiecte noi în zona ei
 
@@ -134,7 +134,7 @@ class LitteringEvent:
     incident_uid:            str   = field(default_factory=lambda: str(uuid.uuid4()))
     owner_person_id:         Optional[int]   = None
     distance_at_abandonment: Optional[float] = None
-    detection_method:        str  = "zone"   # "zone" | "distance"
+    detection_method:        str  = "zone"   # valori interne: "zone" | "distance"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -149,7 +149,7 @@ class LitteringDetector:
     Argumente:
         fps:               fps-ul așteptat al fluxului video.
         monitor_seconds:   mod zonă — cât timp urmărim obiecte noi după plecarea persoanei.
-        pre_event_seconds: câte secunde de cadre se păstrează în buffer-ul pre-incident.
+        pre_event_seconds: câte secunde de cadre se păstrează în memoria pre-incident.
         person_conf:       pragul de încredere pentru detectorul de persoane.
         zone_expand:       cu cât se extinde caseta persoanei la verificarea de zonă.
     """
@@ -242,9 +242,9 @@ class LitteringDetector:
 
         # Mod ZONĂ
         if self.state == DetectorState.CLEAR:
-            # Baseline-ul scenei: obiectele vizibile cât timp NU există persoane
+            # Starea inițială a scenei: obiectele vizibile cât timp NU există persoane
             # sunt preexistente și nu trebuie să declanșeze niciodată un incident.
-            # NU se adaugă nimic la baseline cât timp persoana e prezentă —
+            # NU se adaugă nimic la starea inițială cât timp persoana e prezentă —
             # un obiect apărut atunci (scos din mână, lăsat jos) rămâne candidat.
             self._known_trash_ids = set(current_trash_ids)
             if person_boxes:
@@ -333,7 +333,7 @@ class LitteringDetector:
             if tracker.state in [TrashRelState.SEPARATING, TrashRelState.DROPPED]:
                 # Videoul s-a terminat cu o abandonare în curs → o emitem forțat.
                 det = {"box": (int(tracker.last_trash_cx), int(tracker.last_trash_cy), int(tracker.last_trash_cx+10), int(tracker.last_trash_cy+10)), "material_name": "unknown", "det_score": 0.5}
-                # Folosim ultimul cadru disponibil pentru thumbnail.
+                # Folosim ultimul cadru disponibil pentru miniatură.
                 event = self._build_distance_event(
                     self._frame_buffer[-1] if self._frame_buffer else np.zeros((10,10,3), dtype=np.uint8),
                     det, tracker, tracker.max_distance_m, tracker.owner_box
@@ -356,7 +356,7 @@ class LitteringDetector:
         return min(elapsed / max(self.monitor_frames, 1), 1.0)
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Helperi mod DISTANȚĂ
+    # Funcții ajutătoare pentru modul DISTANȚĂ
     # ─────────────────────────────────────────────────────────────────────────
 
     def _update_distance_trackers(
@@ -378,7 +378,7 @@ class LitteringDetector:
         current_trash_ids = {d["track_id"] for d in trash_dets}
         trash_by_id = {d["track_id"]: d for d in trash_dets}
 
-        # Toleranță la clipirea detecției: nu uita tracker-ul la primul cadru
+        # Toleranță la clipirea detecției: nu uita obiectul urmărit la primul cadru
         # lipsă, ci abia după câteva (la fel ca pe calea de zonă). Altfel un
         # obiect lăsat pe jos care „pâlpâie" pierde tot progresul de abandonare.
         for tid, tracker in list(self._rel_trackers.items()):
@@ -479,7 +479,7 @@ class LitteringDetector:
                     del self._rel_trackers[tid]
                     return event
 
-        # Timeout pentru persoana dispărută (tracker-e în SEPARATING/DROPPED)
+        # Timeout pentru persoana dispărută (obiecte urmărite în SEPARATING/DROPPED)
         for tid, tracker in list(self._rel_trackers.items()):
             if tracker.state in [TrashRelState.SEPARATING, TrashRelState.DROPPED]:
                 if tracker.person_id not in pid_map:
@@ -507,7 +507,7 @@ class LitteringDetector:
         distance_m: float,
         person_box: tuple[int, int, int, int],
     ) -> LitteringEvent:
-        """Construiește incidentul (cu thumbnail) pentru o abandonare detectată pe distanță."""
+        """Construiește incidentul (cu miniatură) pentru o abandonare detectată pe distanță."""
         thumbnail = _make_thumbnail(
             frame, det["box"],
             PersonZone(*person_box, self.frame_idx),
@@ -560,14 +560,14 @@ class LitteringDetector:
         return best_pid, best_pb, best_d
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Helperi mod ZONĂ
+    # Funcții ajutătoare pentru modul ZONĂ
     # ─────────────────────────────────────────────────────────────────────────
 
     def _enter_person_present(
         self, person_boxes: list, current_trash_ids: set
     ) -> None:
         """Intră în starea PERSON_PRESENT și reține zonele persoanelor curente."""
-        # NOTĂ: baseline-ul (_known_trash_ids) NU se actualizează aici —
+        # NOTĂ: starea inițială (_known_trash_ids) NU se actualizează aici —
         # obiectele vizibile în timpul prezenței persoanei (inclusiv cele din
         # mână) trebuie să rămână candidate pentru fereastra de monitorizare.
         self.state = DetectorState.PERSON_PRESENT
@@ -584,14 +584,14 @@ class LitteringDetector:
         ]
 
     def _enter_monitoring(self) -> None:
-        """Persoana a plecat → intră în MONITORING și fixează baseline-ul de obiecte."""
+        """Persoana a plecat → intră în MONITORING și fixează starea inițială de obiecte."""
         self.state             = DetectorState.MONITORING
         self._monitoring_start = self.frame_idx
-        # Captură a obiectelor la plecarea persoanei — doar cele NOI de acum contează
+        # Captură a obiectelor la plecarea persoanei — doar cele NOI de acum contează.
         self._baseline_trash_ids = set(self._known_trash_ids)
 
     def _enter_clear(self) -> None:
-        """Revine la starea CLEAR și golește zonele și baseline-ul."""
+        """Revine la starea CLEAR și golește zonele și starea inițială."""
         self.state = DetectorState.CLEAR
         self._person_zones.clear()
         self._known_trash_ids.clear()
@@ -604,7 +604,7 @@ class LitteringDetector:
         frame: np.ndarray,
     ) -> Optional[LitteringEvent]:
         """Declanșează doar dacă un obiect NOU apare ÎN zona unde a stat persoana."""
-        # Un track nou în altă parte a cadrului (vehicul, fundal, re-id de tracker)
+        # Un obiect urmărit nou în altă parte a cadrului (vehicul, fundal, re-id)
         # NU e incident.
         if not self._person_zones:
             return None
@@ -686,7 +686,7 @@ class LitteringDetector:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Utilitar — generarea thumbnail-ului
+# Utilitar — generarea miniaturii
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _make_thumbnail(
@@ -709,7 +709,7 @@ def _make_thumbnail(
 
 
 def _point_in_box(x: float, y: float, box: tuple[int, int, int, int]) -> bool:
-    """True dacă punctul (x, y) e în interiorul casetei."""
+    """Întoarce True dacă punctul (x, y) este în interiorul casetei."""
     x1, y1, x2, y2 = box
     return x1 <= x <= x2 and y1 <= y <= y2
 

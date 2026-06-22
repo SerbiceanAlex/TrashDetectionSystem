@@ -1,4 +1,4 @@
-"""Scheme Pydantic v2 — formele de date pentru cererile și răspunsurile API."""
+"""Scheme Pydantic v2 pentru cererile și răspunsurile API."""
 
 from datetime import datetime
 from typing import Optional
