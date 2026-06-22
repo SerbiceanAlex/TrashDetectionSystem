@@ -27,6 +27,13 @@ import webbrowser
 from pathlib import Path
 
 
+# Forțează ieșirea pe UTF-8, ca diacriticele din mesaje să se afișeze corect
+# indiferent de codarea implicită a consolei Windows (altfel pică pe cp1252).
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
+
+
 REPO = Path(__file__).resolve().parent
 CERT_DIR = REPO / "certs"
 CERT_FILE = CERT_DIR / "cert.pem"
