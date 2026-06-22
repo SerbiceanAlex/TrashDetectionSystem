@@ -1,4 +1,13 @@
-﻿import argparse
+"""
+Exportă decupaje (crops) de obiecte dintr-un dataset YOLO de detecție.
+
+Fiecare bounding box dintr-un fișier de etichete YOLO este decupat din imaginea
+sursă și salvat ca imagine separată, plus un manifest CSV care descrie fiecare
+decupaj. Decupajele sunt apoi etichetate manual pe materiale și folosite la
+antrenarea clasificatorului de material.
+"""
+
+import argparse
 import csv
 from pathlib import Path
 
@@ -10,58 +19,61 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Export object crops from a YOLO-labeled detection dataset for later material classification"
+        description="Exportă decupaje de obiecte dintr-un dataset YOLO, pentru clasificarea ulterioară a materialului"
     )
     parser.add_argument(
         "--images-dir",
         required=True,
-        help="Directory with source images",
+        help="Folderul cu imaginile sursă",
     )
     parser.add_argument(
         "--labels-dir",
         required=True,
-        help="Directory with YOLO label files matching the source images",
+        help="Folderul cu fișiere de etichete YOLO corespunzătoare imaginilor",
     )
     parser.add_argument(
         "--out-dir",
         default="datasets/material_crops_unsorted/all",
-        help="Output directory where unlabeled crop images will be written",
+        help="Folderul de ieșire unde se scriu decupajele neetichetate",
     )
     parser.add_argument(
         "--manifest",
         default="datasets/material_crops_unsorted/crops_manifest.csv",
-        help="CSV manifest describing each generated crop",
+        help="Manifestul CSV care descrie fiecare decupaj generat",
     )
     parser.add_argument(
         "--margin",
         type=float,
         default=0.05,
-        help="Extra margin added around each crop as a fraction of box width and height",
+        help="Margine suplimentară în jurul fiecărui decupaj, ca fracțiune din lățime și înălțime",
     )
     parser.add_argument(
         "--skip-empty",
         action="store_true",
-        help="Skip images whose YOLO label file is empty",
+        help="Sare peste imaginile al căror fișier de etichete YOLO e gol",
     )
     return parser.parse_args()
 
 
 def iter_images(directory: Path):
+    """Întoarce, sortate, imaginile dintr-un folder (după extensiile acceptate)."""
     if not directory.exists():
         return []
     return sorted(path for path in directory.iterdir() if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS)
 
 
 def parse_yolo_line(line: str):
+    """Parsează o linie YOLO (class_id x_center y_center width height, normalizate)."""
     parts = line.split()
     if len(parts) != 5:
-        raise ValueError(f"Invalid YOLO line, expected 5 values: {line}")
+        raise ValueError(f"Linie YOLO invalidă, se așteptau 5 valori: {line}")
     class_id = int(parts[0])
     x_center, y_center, width, height = (float(value) for value in parts[1:])
     return class_id, x_center, y_center, width, height
 
 
 def yolo_to_xyxy(x_center: float, y_center: float, width: float, height: float, image_width: int, image_height: int):
+    """Transformă o casetă YOLO normalizată în coordonate de pixeli (x1, y1, x2, y2)."""
     x1 = (x_center - width / 2.0) * image_width
     y1 = (y_center - height / 2.0) * image_height
     x2 = (x_center + width / 2.0) * image_width
@@ -70,6 +82,7 @@ def yolo_to_xyxy(x_center: float, y_center: float, width: float, height: float, 
 
 
 def expand_box(x1: float, y1: float, x2: float, y2: float, margin: float, image_width: int, image_height: int):
+    """Extinde caseta cu o margine procentuală, fără a ieși din imagine."""
     box_width = x2 - x1
     box_height = y2 - y1
     pad_x = box_width * margin
@@ -90,18 +103,18 @@ def main():
     manifest_path = Path(args.manifest)
 
     if not images_dir.exists():
-        raise FileNotFoundError(f"Images directory not found: {images_dir}")
+        raise FileNotFoundError(f"Folderul de imagini nu există: {images_dir}")
     if not labels_dir.exists():
-        raise FileNotFoundError(f"Labels directory not found: {labels_dir}")
+        raise FileNotFoundError(f"Folderul de etichete nu există: {labels_dir}")
     if args.margin < 0:
-        raise ValueError("--margin must be >= 0")
+        raise ValueError("--margin trebuie să fie >= 0")
 
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
     images = iter_images(images_dir)
     if not images:
-        raise SystemExit(f"No images found in {images_dir}")
+        raise SystemExit(f"Nicio imagine găsită în {images_dir}")
 
     written = 0
     skipped = 0
@@ -166,10 +179,10 @@ def main():
                 )
                 written += 1
 
-    print(f"[DONE] Wrote {written} crops to {out_dir}")
-    print(f"[INFO] Manifest saved to: {manifest_path}")
+    print(f"[GATA] Scrise {written} decupaje în {out_dir}")
+    print(f"[INFO] Manifest salvat în: {manifest_path}")
     if skipped:
-        print(f"[INFO] Skipped {skipped} images due to missing labels, empty labels, or unreadable files")
+        print(f"[INFO] Sărite {skipped} imagini (etichete lipsă, goale sau fișiere necitibile)")
 
 
 if __name__ == "__main__":

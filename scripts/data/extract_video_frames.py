@@ -1,12 +1,11 @@
 """
-Extract sampled frames from a folder of videos for later annotation.
+Extrage cadre eșantionate dintr-un folder de videouri, pentru adnotare ulterioară.
 
-This is intended for open-source video sources such as Stipra or MIVIA-IWDD
-after the videos are downloaded locally. It does not create YOLO labels. The
-output frames are meant to be reviewed and annotated before being used for
-training.
+Folosit pentru surse video open-source (ex. Stipra sau MIVIA-IWDD) după ce sunt
+descărcate local. NU creează etichete YOLO — cadrele rezultate sunt menite să fie
+revizuite și adnotate manual înainte de a fi folosite la antrenare.
 
-Example:
+Exemplu:
     .venv\\Scripts\\python.exe scripts\\data\\extract_video_frames.py ^
         --videos datasets\\raw\\stipra\\videos ^
         --out datasets\\raw\\stipra\\frames ^
@@ -29,36 +28,37 @@ VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Extract sampled frames from local videos")
-    parser.add_argument("--videos", required=True, help="Input video file or directory")
-    parser.add_argument("--out", required=True, help="Output frame directory")
-    parser.add_argument("--sample-fps", type=float, default=1.0, help="Frames to save per second")
+    parser = argparse.ArgumentParser(description="Extrage cadre eșantionate din videouri locale")
+    parser.add_argument("--videos", required=True, help="Fișier video sau folder de intrare")
+    parser.add_argument("--out", required=True, help="Folderul de ieșire pentru cadre")
+    parser.add_argument("--sample-fps", type=float, default=1.0, help="Câte cadre se salvează pe secundă")
     parser.add_argument(
         "--max-frames-per-video",
         type=int,
         default=0,
-        help="Maximum saved frames per video. 0 means no limit.",
+        help="Număr maxim de cadre salvate per video. 0 = fără limită.",
     )
     parser.add_argument(
         "--recursive",
         action="store_true",
-        help="Search input directory recursively.",
+        help="Caută recursiv în folderul de intrare.",
     )
     parser.add_argument(
         "--jpeg-quality",
         type=int,
         default=92,
-        help="JPEG quality for saved frames.",
+        help="Calitatea JPEG a cadrelor salvate.",
     )
     parser.add_argument(
         "--prefix",
         default="frame",
-        help="Filename prefix for extracted frames.",
+        help="Prefixul numelui fișierelor de cadre extrase.",
     )
     return parser.parse_args()
 
 
 def resolve_path(raw: str) -> Path:
+    """Absolutizează o cale relativă față de rădăcina proiectului."""
     path = Path(raw)
     if not path.is_absolute():
         path = REPO / path
@@ -66,6 +66,7 @@ def resolve_path(raw: str) -> Path:
 
 
 def collect_videos(path: Path, recursive: bool) -> list[Path]:
+    """Adună fișierele video dintr-un folder (sau un singur fișier), sortate."""
     if path.is_file():
         return [path] if path.suffix.lower() in VIDEO_EXTENSIONS else []
     if not path.exists():
@@ -79,6 +80,7 @@ def collect_videos(path: Path, recursive: bool) -> list[Path]:
 
 
 def safe_video_id(video_path: Path) -> str:
+    """Creează un identificator unic și sigur pentru nume de fișier (stem + hash)."""
     digest = hashlib.sha1(str(video_path).encode("utf-8")).hexdigest()[:8]
     stem = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in video_path.stem)
     return f"{stem}_{digest}"
@@ -92,13 +94,15 @@ def extract_video(
     jpeg_quality: int,
     prefix: str,
 ) -> list[dict]:
+    """Extrage cadre dintr-un video la rata cerută; întoarce rândurile de manifest."""
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
-        print(f"[WARN] Cannot open video: {video_path}")
+        print(f"[ATENȚIE] Nu pot deschide videoul: {video_path}")
         return []
 
     source_fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+    # Pasul de eșantionare: din câte în câte cadre salvăm, ca să obținem sample_fps
     stride = 1
     if source_fps > 0 and sample_fps > 0:
         stride = max(1, int(round(source_fps / sample_fps)))
@@ -145,7 +149,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     videos = collect_videos(videos_path, args.recursive)
-    print(f"Videos found: {len(videos)}")
+    print(f"Videouri găsite: {len(videos)}")
     if not videos:
         return 1
 
@@ -160,7 +164,7 @@ def main() -> int:
             prefix=args.prefix,
         )
         manifest_rows.extend(rows)
-        print(f"[{idx}/{len(videos)}] {video_path.name}: saved {len(rows)} frames")
+        print(f"[{idx}/{len(videos)}] {video_path.name}: salvate {len(rows)} cadre")
 
     manifest_path = out_dir / "manifest.csv"
     if manifest_rows:
@@ -168,7 +172,7 @@ def main() -> int:
             writer = csv.DictWriter(handle, fieldnames=list(manifest_rows[0].keys()))
             writer.writeheader()
             writer.writerows(manifest_rows)
-    print(f"Total frames saved: {len(manifest_rows)}")
+    print(f"Total cadre salvate: {len(manifest_rows)}")
     print(f"Manifest: {manifest_path}")
     return 0
 

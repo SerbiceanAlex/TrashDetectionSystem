@@ -1,12 +1,12 @@
 """
-Filter a multi-class YOLO dataset into a single-class trash dataset.
+Filtrează un dataset YOLO multi-clasă într-unul cu o singură clasă (trash).
 
-This is useful for Roboflow Universe datasets where labels may include helper
-classes such as human/person. The script keeps only target waste-like classes,
-maps them to class 0, and writes empty label files for images that become
-negative samples.
+Util pentru dataseturile Roboflow Universe, unde etichetele pot include clase
+ajutătoare (ex. human/person). Scriptul păstrează doar clasele de tip deșeu, le
+mapează la clasa 0 și scrie fișiere de etichetă goale pentru imaginile devenite
+exemple negative.
 
-Examples:
+Exemple:
     .venv\\Scripts\\python.exe scripts\\data\\filter_yolo_classes.py ^
         --src datasets\\raw\\roboflow\\litter_detection ^
         --out datasets\\annotations\\roboflow_litter_detection_trash_only ^
@@ -35,19 +35,20 @@ SPLIT_ALIASES = {
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Filter YOLO classes into single-class trash labels")
-    parser.add_argument("--src", required=True, help="Source YOLO dataset directory")
-    parser.add_argument("--out", required=True, help="Output YOLO dataset directory")
+    parser = argparse.ArgumentParser(description="Filtrează clasele YOLO într-o singură clasă (trash)")
+    parser.add_argument("--src", required=True, help="Folderul datasetului YOLO sursă")
+    parser.add_argument("--out", required=True, help="Folderul datasetului YOLO de ieșire")
     parser.add_argument(
         "--keep",
         default="trash,waste,litter,garbage",
-        help="Comma-separated class-name tokens to keep, case-insensitive.",
+        help="Cuvinte-cheie de clase de păstrat, separate prin virgulă (insensibil la majuscule).",
     )
-    parser.add_argument("--overwrite", action="store_true", help="Remove existing output first")
+    parser.add_argument("--overwrite", action="store_true", help="Șterge mai întâi ieșirea existentă")
     return parser.parse_args()
 
 
 def resolve_path(raw: str) -> Path:
+    """Absolutizează o cale relativă față de rădăcina proiectului."""
     path = Path(raw)
     if not path.is_absolute():
         path = REPO / path
@@ -55,6 +56,7 @@ def resolve_path(raw: str) -> Path:
 
 
 def load_names(src_dir: Path) -> dict[int, str]:
+    """Citește numele claselor din data.yaml / dataset.yaml."""
     yaml_path = None
     for candidate in ["data.yaml", "dataset.yaml"]:
         path = src_dir / candidate
@@ -62,7 +64,7 @@ def load_names(src_dir: Path) -> dict[int, str]:
             yaml_path = path
             break
     if yaml_path is None:
-        raise SystemExit(f"No data.yaml or dataset.yaml found in {src_dir}")
+        raise SystemExit(f"Nu am găsit data.yaml sau dataset.yaml în {src_dir}")
 
     data = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
     names = data.get("names")
@@ -70,40 +72,43 @@ def load_names(src_dir: Path) -> dict[int, str]:
         return {int(k): str(v) for k, v in names.items()}
     if isinstance(names, list):
         return {idx: str(name) for idx, name in enumerate(names)}
-    raise SystemExit(f"Unsupported names format in {yaml_path}")
+    raise SystemExit(f"Format de nume neacceptat în {yaml_path}")
 
 
 def discover_split_dirs(src_dir: Path) -> dict[str, tuple[Path, Path]]:
+    """Detectează folderele de split (train/val/test) în diversele layout-uri YOLO."""
     split_dirs: dict[str, tuple[Path, Path]] = {}
 
-    # Roboflow commonly exports train/images + train/labels.
+    # Roboflow exportă de obicei train/images + train/labels.
     for alias, split in SPLIT_ALIASES.items():
         img_dir = src_dir / alias / "images"
         lbl_dir = src_dir / alias / "labels"
         if img_dir.exists():
             split_dirs[split] = (img_dir, lbl_dir)
 
-    # Ultralytics layout can also be images/train + labels/train.
+    # Layout-ul Ultralytics poate fi și images/train + labels/train.
     for split in ["train", "val", "test"]:
         img_dir = src_dir / "images" / split
         lbl_dir = src_dir / "labels" / split
         if img_dir.exists():
             split_dirs[split] = (img_dir, lbl_dir)
 
-    # Unsplit layout: images + labels.
+    # Layout fără split: images + labels.
     if not split_dirs and (src_dir / "images").exists():
         split_dirs["train"] = (src_dir / "images", src_dir / "labels")
 
     if not split_dirs:
-        raise SystemExit(f"No YOLO image directories found in {src_dir}")
+        raise SystemExit(f"Nu am găsit foldere de imagini YOLO în {src_dir}")
     return split_dirs
 
 
 def list_images(img_dir: Path) -> list[Path]:
+    """Întoarce imaginile dintr-un folder, sortate."""
     return sorted(item for item in img_dir.iterdir() if item.is_file() and item.suffix.lower() in IMAGE_EXTS)
 
 
 def copy_image(src: Path, dst: Path) -> bool:
+    """Copiază (re-encodează) o imagine; False dacă nu poate fi citită."""
     image = cv2.imread(str(src))
     if image is None:
         return False
@@ -112,6 +117,7 @@ def copy_image(src: Path, dst: Path) -> bool:
 
 
 def filter_label(label_path: Path, keep_ids: set[int]) -> tuple[list[str], int]:
+    """Păstrează doar casetele claselor dorite, remapate la clasa 0; întoarce (linii, eliminate)."""
     if not label_path.exists():
         return [], 0
 
@@ -134,7 +140,8 @@ def filter_label(label_path: Path, keep_ids: set[int]) -> tuple[list[str], int]:
 
 
 def write_dataset_yaml(out_dir: Path) -> None:
-    content = f"""# Filtered single-class trash dataset
+    """Scrie dataset.yaml pentru datasetul rezultat (o singură clasă: trash)."""
+    content = f"""# Dataset filtrat, o singură clasă (trash)
 
 path: {out_dir.as_posix()}
 train: images/train
@@ -156,7 +163,7 @@ def main() -> int:
 
     if out_dir.exists():
         if not args.overwrite:
-            raise SystemExit(f"Output exists: {out_dir}. Add --overwrite to rebuild.")
+            raise SystemExit(f"Ieșirea există: {out_dir}. Adaugă --overwrite pentru a reconstrui.")
         shutil.rmtree(out_dir)
 
     names = load_names(src_dir)
@@ -166,10 +173,10 @@ def main() -> int:
         if any(token in name.lower() for token in keep_tokens)
     }
     if not keep_ids:
-        raise SystemExit(f"No classes matched keep tokens {sorted(keep_tokens)} in names={names}")
+        raise SystemExit(f"Nicio clasă nu se potrivește cu {sorted(keep_tokens)} în names={names}")
 
-    print(f"Source classes: {names}")
-    print(f"Keeping ids: {sorted(keep_ids)} -> {[names[i] for i in sorted(keep_ids)]}")
+    print(f"Clase sursă: {names}")
+    print(f"Păstrez id-urile: {sorted(keep_ids)} -> {[names[i] for i in sorted(keep_ids)]}")
 
     split_dirs = discover_split_dirs(src_dir)
     total_images = 0
@@ -217,7 +224,7 @@ def main() -> int:
         )
 
     write_dataset_yaml(out_dir)
-    print("\nSummary")
+    print("\nSumar")
     print(f"images={total_images}, positive={total_positive}, negative={total_negative}")
     print(f"kept_boxes={total_kept_boxes}, dropped_non_target_boxes={total_dropped_boxes}")
     print(f"Dataset YAML: {out_dir / 'dataset.yaml'}")
