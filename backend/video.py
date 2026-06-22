@@ -145,7 +145,7 @@ def _process_video_sync(
                 person_filter_boxes = [_shrink_box(pb, _PERSON_FILTER_SHRINK) for pb in person_boxes]
                 trash_dets = [
                     d for d in trash_dets
-                    if not _should_suppress_overlapped_trash(d["box"], person_filter_boxes)
+                    if not _should_suppress_overlapped_trash(d["box"], person_filter_boxes, d["det_score"])
                 ]
 
             # Track-level stabilizer
@@ -506,8 +506,11 @@ def _iou_overlap(tb, pb) -> float:
 
 
 # Box de deșeu care are peste atât din aria sa în interiorul siluetei (micșorate)
-# a unei persoane = fals pozitiv pe corp (ochi, umăr, haine) → suprimat.
+# a unei persoane este candidat de fals pozitiv pe corp (ochi, umăr, haine).
 _OVERLAP_THRESH = 0.30
+# ...dar dacă încrederea detecției e cel puțin atât, e un obiect real ținut în
+# mână (cutie/sticlă/ambalaj) și se păstrează. Sub prag = fals pe corp → suprimat.
+_OVERLAP_KEEP_CONF = 0.45
 _MIN_TRASH_AREA_FRAC = 0.00015  # ignore tiny noise boxes
 _MAX_TRASH_AREA_FRAC = 0.18     # ignore huge background regions (e.g. bed/floor)
 _TRASH_TRACK_IMGSZ = settings.MONITOR_TRASH_IMGSZ
@@ -581,24 +584,27 @@ def _valid_trash_box(box: tuple[int, int, int, int], frame_w: int, frame_h: int)
 def _should_suppress_overlapped_trash(
     trash_box: tuple[int, int, int, int],
     person_boxes: list[tuple[int, int, int, int]],
+    det_score: float = 1.0,
 ) -> bool:
     """
-    Suprimă detecțiile de „deșeu" care cad pe corpul persoanei (ochi, umăr,
-    haine etc. confundate cu gunoi).
+    Suprimă falsele detecții de „deșeu" care cad pe corpul persoanei (ochi,
+    umăr, haine), DAR păstrează obiectele reale ținute în mână peste corp.
 
-    Orice box de deșeu care se suprapune semnificativ cu silueta unei persoane
-    (peste _OVERLAP_THRESH din aria box-ului) este suprimat. NU mai facem
-    excepție pentru obiectele mici „ținute în mână": un obiect mic adânc în
-    interiorul persoanei este aproape întotdeauna un fals pozitiv pe corp, iar
-    obiectele de tip „ochi/umăr" sunt exact mici. Incidentul oricum se
-    declanșează pe obiectul ABANDONAT pe jos (care nu mai e peste persoană),
-    deci suprimarea cât e ținut în mână nu afectează detecția aruncării.
+    Discriminatorul e ÎNCREDEREA, nu doar suprapunerea: un obiect real (cutie,
+    sticlă, ambalaj) are încredere mare (≥ _OVERLAP_KEEP_CONF), pe când falsele
+    pe piele/haine au încredere mică. Astfel:
+      • obiect peste persoană + încredere MARE → păstrat (gunoi ținut în mână);
+      • obiect peste persoană + încredere MICĂ → suprimat (fals pe corp).
+    Obiectele care NU se suprapun cu persoana sunt mereu păstrate.
     """
     if not person_boxes:
         return False
 
     best_overlap = max((_iou_overlap(trash_box, pb) for pb in person_boxes), default=0.0)
-    return best_overlap > _OVERLAP_THRESH
+    if best_overlap <= _OVERLAP_THRESH:
+        return False  # nu se suprapune destul → obiect real lângă/lângă persoană
+    # Se suprapune cu persoana: suprimă doar dacă încrederea e mică (fals pe corp).
+    return det_score < _OVERLAP_KEEP_CONF
 
 
 def _shrink_box(box: tuple[int, int, int, int], factor: float) -> tuple[int, int, int, int]:
@@ -783,7 +789,7 @@ async def handle_monitor_ws(
                 ]
                 trash_dets = [
                     d for d in trash_dets
-                    if not _should_suppress_overlapped_trash(d["box"], person_filter_boxes)
+                    if not _should_suppress_overlapped_trash(d["box"], person_filter_boxes, d["det_score"])
                 ]
 
             # Track-level stabilizer: avoid flicker when object is briefly missed.

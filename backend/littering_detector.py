@@ -76,6 +76,10 @@ PICKUP_MOVE_PX        = 55.0   # deplasare mare a obiectului lângă persoană =
 # Precizia rămâne protejată: obiectul trebuie să fie NOU (neexistent în
 # baseline) ȘI să devină static pe jos înainte de a declanșa.
 THROW_RANGE_M         = 3.0
+# Dacă peste atât din box-ul obiectului e în interiorul siluetei persoanei,
+# obiectul e ȚINUT în mână / în față, NU lăsat pe jos. Cât e ținut nu acumulăm
+# progres de abandonare (altfel un obiect ținut nemișcat ar declanșa fals).
+HELD_IN_PERSON_FRAC   = 0.50
 CONFIRM_EVENT_S       = 3.0    # MODE A — wait this long after candidate event; cancel if person returns
                                 # 3s = bun compromis: ignora reveniri rapide (<3s) dar prinde aruncari reale
 EVENT_COOLDOWN_S      = 8.0    # suppress duplicate alerts immediately after one incident fires
@@ -448,12 +452,15 @@ class LitteringDetector:
                 tcy - tracker.last_trash_cy,
             )
             is_static = move_px < JITTER_THRESHOLD_PX
+            # Obiectul e încă ținut în mână / în fața corpului? Atunci NU e lăsat
+            # pe jos și nu trebuie să acumuleze progres de abandonare.
+            is_held = self._trash_in_person_frac(tb, nearest_pb) > HELD_IN_PERSON_FRAC
             tracker.last_trash_cx = tcx
             tracker.last_trash_cy = tcy
             tracker.max_distance_m = max(tracker.max_distance_m, dist_m)
 
             if tracker.state == TrashRelState.NEARBY:
-                if is_static:
+                if is_static and not is_held:
                     tracker.static_frames += 1
                     # Obiect NOU devenit static pe jos, în raza unei persoane =
                     # lăsat sau aruncat. Nu mai cerem să fie sub 1.5 m, ca să
@@ -485,7 +492,7 @@ class LitteringDetector:
                     # ridicat, s-ar fi mișcat mult (ramura de mai sus). Stat
                     # nemișcat destul = abandonare, chiar dacă persoana zăbovește
                     # în cadru (cazul wide-shot: aruncă și rămâne aproape).
-                    if is_static:
+                    if is_static and not is_held:
                         tracker.dropped_static += 1
                     if tracker.dropped_static >= int(ABANDON_STATIC_S * self.fps):
                         tracker.state = TrashRelState.ABANDONED
@@ -551,6 +558,17 @@ class LitteringDetector:
         """pixels/metre estimate from the tallest person bbox height."""
         tallest = max((pb[3] - pb[1] for pb in person_boxes), default=0)
         return tallest / PERSON_HEIGHT_M if tallest > 0 else 50.0
+
+    @staticmethod
+    def _trash_in_person_frac(
+        tb: tuple[int, int, int, int], pb: tuple[int, int, int, int]
+    ) -> float:
+        """Fracțiunea din aria box-ului de gunoi aflată în interiorul persoanei."""
+        ix1, iy1 = max(tb[0], pb[0]), max(tb[1], pb[1])
+        ix2, iy2 = min(tb[2], pb[2]), min(tb[3], pb[3])
+        inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+        area = max((tb[2] - tb[0]) * (tb[3] - tb[1]), 1)
+        return inter / area
 
     @staticmethod
     def _nearest_person(
