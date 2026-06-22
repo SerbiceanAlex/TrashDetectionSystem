@@ -119,7 +119,6 @@ async def _migrate_schema():
         "ALTER TABLE littering_events ADD COLUMN reporter_id INTEGER REFERENCES users(id)",
         # Organization multi-tenant
         "ALTER TABLE users ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
-        "ALTER TABLE monitored_locations ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         "ALTER TABLE littering_events ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         # Video + detection session isolation
         "ALTER TABLE video_sessions ADD COLUMN littering_count INTEGER DEFAULT 0",
@@ -147,7 +146,7 @@ async def _migrate_schema():
     async with db.AsyncSessionLocal() as session:
         await db.get_or_create_default_org(session)
     async with db.engine.begin() as conn:
-        for tbl in ("users", "monitored_locations", "littering_events",
+        for tbl in ("users", "littering_events",
                     "video_sessions", "detection_sessions"):
             try:
                 await conn.execute(db.sa_text(
@@ -742,7 +741,6 @@ async def get_dashboard_b2b(
     month_start = today_start - timedelta(days=30)
 
     LE = db.LitteringEvent
-    ML = db.MonitoredLocation
     org_id = current_user.organization_id or 1 if current_user else 1
     org_cond = db.or_(LE.organization_id == org_id, LE.organization_id.is_(None))
     role_cond = org_cond if (current_user and current_user.role == "admin") else db.and_(org_cond, LE.reporter_id == current_user.id)
@@ -758,18 +756,6 @@ async def get_dashboard_b2b(
     incidents_month = await count_where(LE.detected_at >= month_start)
     pending_review = await count_where(LE.status == "pending")
     forwarded = await count_where(LE.status == "forwarded")
-
-    # Active locations — scoped by org
-    try:
-        ml_cond = db.or_(ML.organization_id == org_id, ML.organization_id.is_(None))
-        active_locations = (
-            await session.execute(
-                db.select(db.func.count()).select_from(ML)
-                .where(ML.is_active == 1).where(ml_cond)
-            )
-        ).scalar_one() or 0
-    except Exception:
-        active_locations = 0
 
     # Recent incidents (last 5) — scoped by org
     rec = (
@@ -840,284 +826,12 @@ async def get_dashboard_b2b(
         "incidents_month": incidents_month,
         "pending_review": pending_review,
         "forwarded": forwarded,
-        "active_locations": active_locations,
         "recent_incidents": recent_incidents,
         "material_distribution": material_distribution,
         "trend_30d": trend_30d,
         "hourly_distribution": hourly_distribution,
         "resolution_rate": resolution_rate,
         "total_all_time": total_all,
-    }
-
-
-@app.post("/api/locations/test-rtsp", summary="Test RTSP URL reachability (socket check)")
-async def test_rtsp(
-    body: dict,
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-):
-    import socket, urllib.parse
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restrictionat.")
-
-    url = (body.get("rtsp_url") or "").strip()
-    if not url:
-        return {"ok": False, "message": "URL gol"}
-    try:
-        parsed = urllib.parse.urlparse(url)
-        host = parsed.hostname
-        port = parsed.port or 554
-        if not host:
-            return {"ok": False, "message": "URL invalid — host lipsă"}
-        sock = socket.create_connection((host, port), timeout=4)
-        sock.close()
-        return {"ok": True, "message": f"Conexiune reușită la {host}:{port}"}
-    except socket.timeout:
-        return {"ok": False, "message": "Timeout — camera nu răspunde în 4s"}
-    except OSError as e:
-        return {"ok": False, "message": f"Eroare rețea: {e}"}
-
-
-@app.get("/api/locations", summary="List monitored locations (B2B)")
-async def list_locations(
-    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
-    session: AsyncSession = Depends(db.get_db),
-):
-    ML = db.MonitoredLocation
-    LE = db.LitteringEvent
-    org_id = current_user.organization_id or 1
-    locs = (await session.execute(
-        db.select(ML)
-        .where(db.or_(ML.organization_id == org_id, ML.organization_id.is_(None)))
-        .order_by(ML.created_at.desc())
-    )).scalars().all()
-
-    out = []
-    for loc in locs:
-        # incidente associate (by gps proximity ~ 100m radius — temporar simplificat)
-        incidents_count = 0
-        pending_count = 0
-        last_event_at = None
-        if loc.latitude and loc.longitude:
-            # raza ~ 0.001 deg ≈ 100m
-            r = 0.001
-            cnt_q = await session.execute(
-                db.select(db.func.count()).select_from(LE).where(
-                    LE.latitude.between(loc.latitude - r, loc.latitude + r),
-                    LE.longitude.between(loc.longitude - r, loc.longitude + r),
-                )
-            )
-            incidents_count = cnt_q.scalar_one() or 0
-            pend_q = await session.execute(
-                db.select(db.func.count()).select_from(LE).where(
-                    LE.latitude.between(loc.latitude - r, loc.latitude + r),
-                    LE.longitude.between(loc.longitude - r, loc.longitude + r),
-                    LE.status == "pending",
-                )
-            )
-            pending_count = pend_q.scalar_one() or 0
-            last_q = await session.execute(
-                db.select(db.func.max(LE.detected_at)).where(
-                    LE.latitude.between(loc.latitude - r, loc.latitude + r),
-                    LE.longitude.between(loc.longitude - r, loc.longitude + r),
-                )
-            )
-            last_event_at = last_q.scalar_one()
-
-        out.append({
-            "id": loc.id,
-            "name": loc.name,
-            "address": loc.address,
-            "lat": loc.latitude,
-            "lng": loc.longitude,
-            "rtsp_url": loc.rtsp_url,
-            "alert_email": loc.alert_email,
-            "is_active": bool(loc.is_active),
-            "created_at": loc.created_at.isoformat() if loc.created_at else None,
-            "incidents_count": incidents_count,
-            "pending_count": pending_count,
-            "last_event_at": last_event_at.isoformat() if last_event_at else None,
-        })
-    return {"locations": out}
-
-
-@app.post("/api/locations", summary="Create monitored location (B2B)")
-async def create_location(
-    payload: dict,
-    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restrictionat.")
-
-    ML = db.MonitoredLocation
-    loc = ML(
-        name=payload.get("name", "").strip(),
-        address=payload.get("address"),
-        latitude=payload.get("lat"),
-        longitude=payload.get("lng"),
-        rtsp_url=payload.get("rtsp_url"),
-        alert_email=payload.get("alert_email"),
-        is_active=1 if payload.get("is_active", True) else 0,
-        created_by=current_user.id if current_user else None,
-        organization_id=current_user.organization_id or 1 if current_user else 1,
-    )
-    if not loc.name:
-        raise HTTPException(status_code=400, detail="Numele locației este obligatoriu.")
-    session.add(loc)
-    await session.commit()
-    await session.refresh(loc)
-    return {"id": loc.id, "name": loc.name}
-
-
-@app.delete(
-    "/api/littering/events/{event_id}",
-    response_model=schemas.DetailResponse,
-    summary="[Admin] Delete a littering event completely and its associated files",
-)
-async def delete_littering_event(
-    event_id: int,
-    current_user: Annotated[db.User, Depends(get_current_active_user)],
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricționat.")
-
-    event = await session.get(db.LitteringEvent, event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Incident not found")
-    if not _same_org(current_user, event):
-        raise HTTPException(status_code=403, detail="Acces restricționat.")
-
-    for rel_path in (event.clip_path, event.thumbnail_path):
-        candidate = _resolve_littering_evidence_path(rel_path)
-        if candidate is None:
-            continue
-        if candidate.exists() and candidate.is_file():
-            candidate.unlink()
-
-    await session.delete(event)
-    await session.commit()
-    return schemas.DetailResponse(detail="Incident șters definitiv și stocarea eliberată.")
-
-
-@app.patch("/api/locations/{loc_id}", summary="Update monitored location (B2B)")
-async def update_location(
-    loc_id: int,
-    payload: dict,
-    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restrictionat.")
-
-    ML = db.MonitoredLocation
-    loc = (await session.execute(db.select(ML).where(ML.id == loc_id))).scalar_one_or_none()
-    if not loc:
-        raise HTTPException(status_code=404, detail="Locație inexistentă.")
-    if (loc.organization_id or 1) != (current_user.organization_id or 1):
-        raise HTTPException(status_code=403, detail="Acces restrictionat.")
-    if "name" in payload and payload["name"]: loc.name = payload["name"]
-    if "address" in payload: loc.address = payload["address"]
-    if "lat" in payload: loc.latitude = payload["lat"]
-    if "lng" in payload: loc.longitude = payload["lng"]
-    if "rtsp_url" in payload: loc.rtsp_url = payload["rtsp_url"]
-    if "alert_email" in payload: loc.alert_email = payload["alert_email"]
-    if "is_active" in payload: loc.is_active = 1 if payload["is_active"] else 0
-    await session.commit()
-    return {"id": loc.id, "is_active": bool(loc.is_active)}
-
-
-@app.delete("/api/locations/{loc_id}", summary="Delete monitored location (B2B)")
-async def delete_location(
-    loc_id: int,
-    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
-    session: AsyncSession = Depends(db.get_db),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restrictionat.")
-
-    ML = db.MonitoredLocation
-    loc = (await session.execute(db.select(ML).where(ML.id == loc_id))).scalar_one_or_none()
-    if not loc:
-        raise HTTPException(status_code=404, detail="Locație inexistentă.")
-    if (loc.organization_id or 1) != (current_user.organization_id or 1):
-        raise HTTPException(status_code=403, detail="Acces restrictionat.")
-    await session.delete(loc)
-    await session.commit()
-    return {"deleted": True}
-
-
-@app.get("/api/reports/stats", summary="Reports stats (B2B export)")
-async def reports_stats(
-    period: str = Query(default="week"),
-    from_: Optional[str] = Query(default=None, alias="from"),
-    to: Optional[str] = Query(default=None),
-    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
-    session: AsyncSession = Depends(db.get_db),
-):
-    from datetime import datetime, timedelta, timezone
-    now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    if period == "today":
-        start = today_start; end = now
-    elif period == "week":
-        start = today_start - timedelta(days=7); end = now
-    elif period == "month":
-        start = today_start - timedelta(days=30); end = now
-    elif period == "year":
-        start = today_start - timedelta(days=365); end = now
-    elif period == "custom" and from_ and to:
-        start = datetime.fromisoformat(from_).replace(tzinfo=timezone.utc)
-        end = datetime.fromisoformat(to).replace(tzinfo=timezone.utc) + timedelta(days=1)
-    else:
-        start = today_start - timedelta(days=7); end = now
-
-    LE = db.LitteringEvent
-    org_id_r = current_user.organization_id or 1 if current_user else 1
-    org_cond_r = db.or_(LE.organization_id == org_id_r, LE.organization_id.is_(None))
-    role_cond_r = org_cond_r if (current_user and current_user.role == "admin") else db.and_(org_cond_r, LE.reporter_id == current_user.id)
-    cond = db.and_(LE.detected_at >= start, LE.detected_at <= end, role_cond_r)
-
-    total_incidents = (await session.execute(db.select(db.func.count()).select_from(LE).where(cond))).scalar_one() or 0
-    pending = (await session.execute(db.select(db.func.count()).select_from(LE).where(cond, LE.status == "pending"))).scalar_one() or 0
-    forwarded = (await session.execute(db.select(db.func.count()).select_from(LE).where(cond, LE.status == "forwarded"))).scalar_one() or 0
-
-    # Hourly distribution (24 buckets)
-    hourly_q = await session.execute(
-        db.select(db.func.strftime("%H", LE.detected_at), db.func.count())
-        .where(cond).group_by(db.func.strftime("%H", LE.detected_at))
-    )
-    hourly_distribution = [0] * 24
-    for h_str, c in hourly_q.all():
-        try:
-            hourly_distribution[int(h_str)] = c
-        except Exception: pass
-
-    # Material distribution
-    mat_q = await session.execute(
-        db.select(LE.material, db.func.count()).where(cond).group_by(LE.material).order_by(db.func.count().desc())
-    )
-    material_distribution = [{"material": m or "unknown", "count": c} for m, c in mat_q.all()]
-
-    # Active locations count
-    try:
-        ML = db.MonitoredLocation
-        locations_active = (await session.execute(db.select(db.func.count()).select_from(ML).where(ML.is_active == 1))).scalar_one() or 0
-    except Exception:
-        locations_active = 0
-
-    return {
-        "period": period,
-        "from": start.isoformat(),
-        "to": end.isoformat(),
-        "total_incidents": total_incidents,
-        "pending": pending,
-        "forwarded": forwarded,
-        "locations_active": locations_active,
-        "hourly_distribution": hourly_distribution,
-        "material_distribution": material_distribution,
-        "top_locations": [],  # to be populated when location-incident linkage exists
     }
 
 

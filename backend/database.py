@@ -222,27 +222,6 @@ class LitteringEvent(Base):
         return self.reporter.username if self.reporter else None
 
 
-class MonitoredLocation(Base):
-    """
-    Locație fizică monitorizată (parcare mall, campus, etc.) cu cameră IP/RTSP.
-    """
-    __tablename__ = "monitored_locations"
-
-    id          = Column(Integer, primary_key=True, index=True)
-    name        = Column(String(128), nullable=False)
-    address     = Column(Text, nullable=True)
-    latitude    = Column(Float, nullable=True)
-    longitude   = Column(Float, nullable=True)
-    rtsp_url    = Column(Text, nullable=True)
-    alert_email = Column(String(128), nullable=True)
-    is_active   = Column(Integer, default=1)
-    created_at  = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    created_by  = Column(Integer, ForeignKey("users.id"), nullable=True)
-    organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
-
-    creator = relationship("User", foreign_keys=[created_by])
-
-
 async def create_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

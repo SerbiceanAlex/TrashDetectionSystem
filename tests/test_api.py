@@ -2,7 +2,7 @@
 Tests for the current B2B monitoring API surface.
 
 These tests intentionally avoid ML inference and focus on DB/API behavior:
-app shell, dashboard, locations, reports, video sessions, and incident listing.
+app shell, dashboard, reports export, video sessions, and incident listing.
 """
 
 import pytest
@@ -290,42 +290,6 @@ async def test_dashboard_b2b_empty_for_admin(client: AsyncClient):
     assert data["incidents_today"] == 0
     assert data["pending_review"] == 0
     assert isinstance(data["trend_30d"], list)
-
-
-@pytest.mark.asyncio
-async def test_locations_list_empty_for_admin(client: AsyncClient):
-    _override_admin()
-    resp = await client.get("/api/locations")
-    assert resp.status_code == 200
-    assert resp.json() == {"locations": []}
-
-
-@pytest.mark.asyncio
-async def test_location_mutations_are_admin_only(client: AsyncClient):
-    _override_operator()
-
-    create_resp = await client.post("/api/locations", json={"name": "Operator location"})
-    assert create_resp.status_code == 403
-
-    update_resp = await client.patch("/api/locations/1", json={"name": "Renamed"})
-    assert update_resp.status_code == 403
-
-    delete_resp = await client.delete("/api/locations/1")
-    assert delete_resp.status_code == 403
-
-    rtsp_resp = await client.post("/api/locations/test-rtsp", json={"rtsp_url": "rtsp://127.0.0.1/test"})
-    assert rtsp_resp.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_reports_stats_empty_for_admin(client: AsyncClient):
-    _override_admin()
-    resp = await client.get("/api/reports/stats")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["total_incidents"] == 0
-    assert data["pending"] == 0
-    assert isinstance(data["hourly_distribution"], list)
 
 
 @pytest.mark.asyncio
