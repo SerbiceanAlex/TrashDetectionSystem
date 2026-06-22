@@ -8,6 +8,7 @@ Models loaded:
   _person_det  — pretrained yolov8n (COCO) used only for class 0 = person
 
 Funcții expuse:
+  load_models()         — încarcă o singură dată modelele YOLO la pornire.
   run_pipeline()        — pipeline pe bytes de imagine (scanare foto).
   detect_persons()      — rulează person_det pe un cadru, întoarce bbox-urile.
 """

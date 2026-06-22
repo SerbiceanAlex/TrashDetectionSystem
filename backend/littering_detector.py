@@ -161,7 +161,6 @@ class LitteringEvent:
     owner_person_id:         Optional[int]   = None
     distance_at_abandonment: Optional[float] = None
     detection_method:        str  = "zone"   # "zone" | "distance"
-    proximity_score:         float = 0.5    # 0-1: how close trash was to person zone
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -647,13 +646,6 @@ class LitteringDetector:
             if zone is None:
                 continue  # new object far from the person zone — ignore
 
-            # Proximity score: 1.0 = trash centre at zone centre, 0.0 = far away
-            zw = max(zone.x2 - zone.x1, 1)
-            zh = max(zone.y2 - zone.y1, 1)
-            px = max(0.0, 1.0 - abs(tx - (zone.x1 + zone.x2) / 2) / (zw * 1.5))
-            py = max(0.0, 1.0 - abs(ty - (zone.y1 + zone.y2) / 2) / (zh * 1.5))
-            proximity_score = round(px * py, 3)
-
             thumbnail = _make_thumbnail(frame, det["box"], zone)
             return LitteringEvent(
                         detected_at_ts   = time.time(),
@@ -664,7 +656,6 @@ class LitteringDetector:
                         person_box       = (zone.x1, zone.y1, zone.x2, zone.y2),
                         thumbnail        = thumbnail,
                         detection_method = "zone",
-                        proximity_score  = proximity_score,
                     )
         return None
 
