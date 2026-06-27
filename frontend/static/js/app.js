@@ -86,6 +86,7 @@ function ecoApp() {
         this._setupAdminTab();
         if (typeof this.loadVideoSessions === 'function') this.loadVideoSessions();
         this.loadNotifications();
+        this._requestNotifPermission();
         this._notifInterval = setInterval(() => this.loadNotifications(), 30000);
         if (_action === 'login' || _action === 'register') {
           this.$nextTick(() => showToast(`Ești deja conectat ca ${this.user?.username || 'utilizator'}`, 'info'));
@@ -188,6 +189,9 @@ function ecoApp() {
     notifications: [],
     unreadNotifications: 0,
     _notifInterval: null,
+    _lastNotifId: 0,
+    _notifReady: false,
+    _audioCtx: null,
 
     async loadNotifications() {
       if (!this.token) return;
@@ -196,7 +200,16 @@ function ecoApp() {
           headers: { Authorization: 'Bearer ' + this.token }
         }).then(r => r.ok ? r.json() : null);
         if (data) {
-          this.notifications = data.notifications;
+          const list = data.notifications || [];
+          const newestId = list.length ? Math.max(...list.map(n => n.id)) : 0;
+          // Doar pentru notificări APĂRUTE după prima încărcare (nu la login)
+          if (this._notifReady && newestId > this._lastNotifId) {
+            const fresh = list.find(n => n.id === newestId);
+            if (fresh && !fresh.is_read) this._alertNewIncident(fresh);
+          }
+          this._lastNotifId = Math.max(this._lastNotifId, newestId);
+          this._notifReady = true;
+          this.notifications = list;
           this.unreadNotifications = data.unread;
           this.refreshIcons();
         }
@@ -223,6 +236,41 @@ function ecoApp() {
           method: 'POST',
           headers: { Authorization: 'Bearer ' + this.token },
         });
+      } catch (_) {}
+    },
+
+    _requestNotifPermission() {
+      try {
+        if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission().catch(() => {});
+        }
+      } catch (_) {}
+    },
+
+    _alertNewIncident(notif) {
+      // Sunet scurt (beep generat cu WebAudio — fără fișier extern)
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        const ctx = this._audioCtx || (this._audioCtx = new Ctx());
+        if (ctx.state === 'suspended') ctx.resume();
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.type = 'sine'; o.frequency.value = 880;
+        g.gain.setValueAtTime(0.0001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+        o.start(); o.stop(ctx.currentTime + 0.36);
+      } catch (_) {}
+      // Notificare desktop nativă (chiar dacă tab-ul nu e în față)
+      try {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          const n = new Notification('TrashDet — incident nou', {
+            body: notif.message || 'A fost detectat un posibil incident de aruncare.',
+            icon: '/static/favicon.svg',
+            tag: 'trashdet-' + notif.id,
+          });
+          n.onclick = () => { window.focus(); n.close(); };
+        }
       } catch (_) {}
     },
 
