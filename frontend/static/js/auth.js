@@ -105,7 +105,10 @@ function authApp() {
 
         showToast('Cont creat cu succes! Te poți autentifica acum.');
         this.authMode = 'login';
-        this.loginData.username = this.registerData.username;
+        this.loginData.username = this.registerData.username;   // login-ul rămâne pre-completat
+        this.loginData.password = '';                           // parola se reintroduce pentru logare completă
+        this.registerData = { username: '', email: '', password: '' }; // resetează formularul de înregistrare
+        this.passwordScore = 0;
         this.showPasswordRules = false;
       } catch (e) {
         showToast(e.message, 'error');
