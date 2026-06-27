@@ -97,7 +97,7 @@ def _process_video_sync(
             # Etapa 1: urmărirea deșeurilor cu ByteTrack.
             results = tracker.track(
                 frame, conf=det_conf, imgsz=_TRASH_TRACK_IMGSZ, verbose=False,
-                persist=True, tracker="bytetrack.yaml",
+                persist=True, tracker=settings.trash_tracker_cfg,
             )
             boxes = results[0].boxes
             trash_dets: list = []
@@ -121,8 +121,13 @@ def _process_video_sync(
                             "material_name": "unknown",
                         })
 
+            # Elimină casetele duplicate (același obiect, 2 track_id-uri de la tracker).
+            trash_dets = _dedup_trash_overlap(trash_dets)
+
             # Etapa 2: detecția persoanelor.
-            person_boxes = infer.detect_persons(frame, conf=0.20, imgsz=1280)
+            # imgsz 768 (nu 1280): persoanele sunt obiecte mari, 768 e suficient și
+            # de ~2-3x mai rapid pe upload — detectorul de persoane era gâtuirea aici.
+            person_boxes = infer.detect_persons(frame, conf=0.20, imgsz=768)
 
             # Netezire temporală pentru persoană.
             if person_boxes:
@@ -182,6 +187,23 @@ def _process_video_sync(
             if event is not None:
                 ts_sec = total_frames / fps_in
                 event.clip_frames = list(detector._frame_buffer)   # cadre pre-incident
+                # Clasifică materialul obiectului declanșator (ca pe monitorul live).
+                # Fără asta, incidentele din upload rămâneau mereu „unknown".
+                try:
+                    tx1, ty1, tx2, ty2 = event.trash_box
+                    fh, fw = frame.shape[:2]
+                    pad_x = int((tx2 - tx1) * 0.20); pad_y = int((ty2 - ty1) * 0.20)
+                    cx1 = max(0, tx1 - pad_x); cy1 = max(0, ty1 - pad_y)
+                    cx2 = min(fw, tx2 + pad_x); cy2 = min(fh, ty2 + pad_y)
+                    crop = frame[cy1:cy2, cx1:cx2]
+                    if crop.size > 0:
+                        from backend.ml.two_stage import classify_crop
+                        from backend.inference import _classifier, _cls_names
+                        mat_name, mat_score = classify_crop(_classifier, crop, 224, _cls_names)
+                        event.material  = mat_name
+                        event.det_score = mat_score
+                except Exception:
+                    pass  # păstrează "unknown"
                 collected_events.append((event, ts_sec))
 
             # Desenează cadrul adnotat.
@@ -218,6 +240,11 @@ def _process_video_sync(
     avg_fps = total_frames / max(duration, 0.001)
     avg_ms = total_ms / max(total_frames, 1)
 
+    incident_material_counts = Counter(
+        evt.material or "unknown"
+        for evt, _ts in collected_events
+    )
+
     return {
         "total_frames": total_frames,
         "total_frames_expected": total_frames_expected,
@@ -225,7 +252,7 @@ def _process_video_sync(
         "avg_fps": avg_fps,
         "avg_inference_ms": avg_ms,
         "duration_sec": duration,
-        "materials_summary": json.dumps(dict(material_counts)),
+        "materials_summary": json.dumps(dict(incident_material_counts)),
         "annotated_video_path": str(out_path),
         "littering_events": collected_events,    # listă de (LitteringEvent, ts_sec)
         "littering_count": len(collected_events),
@@ -268,13 +295,28 @@ async def process_uploaded_video(
 
         saved_event_count = 0
 
+        # Plasă de siguranță anti-duplicat: două detecții foarte apropiate în timp
+        # (zona + distanța pentru aceeași aruncare, sau o re-emitere la final)
+        # descriu același incident. Le colapsăm, păstrând-o pe cea cu clip de dovadă.
+        from backend.littering_detector import EVENT_COOLDOWN_S
+        raw_events = result.get("littering_events", [])
+        deduped_events: list = []
+        for event, ts_sec in sorted(raw_events, key=lambda it: it[1]):
+            prev = deduped_events[-1] if deduped_events else None
+            if prev is not None and abs(ts_sec - prev[1]) < EVENT_COOLDOWN_S:
+                # Același incident: dacă noul are clip iar cel păstrat nu, îl înlocuim.
+                if event.clip_frames and not prev[0].clip_frames:
+                    deduped_events[-1] = (event, ts_sec)
+                continue
+            deduped_events.append((event, ts_sec))
+
         # Salvează incidentele detectate în video-ul încărcat.
         async with db.AsyncSessionLocal() as owner_session:
             owner_vs = await db.get_video_session_by_id(owner_session, session_id)
             owner_user_id = owner_vs.user_id if owner_vs else None
             owner_org_id = (owner_vs.organization_id if owner_vs else None) or 1
 
-        for event, ts_sec in result.get("littering_events", []):
+        for event, ts_sec in deduped_events:
             try:
                 # Salvează miniatura pe disc într-un thread separat.
                 thumb_rel = None
@@ -457,6 +499,21 @@ def _iou_overlap(tb, pb) -> float:
     return inter / trash_area
 
 
+def _dedup_trash_overlap(dets: list, thresh: float = 0.6) -> list:
+    """Elimină casetele de deșeu DUPLICATE — același obiect căruia tracker-ul
+    (ByteTrack) i-a dat 2 track_id-uri, deci 2 casete suprapuse pe ecran. Păstrează
+    caseta cu încrederea cea mai mare din fiecare grup care se suprapune > thresh."""
+    if len(dets) < 2:
+        return dets
+    kept: list = []
+    for d in sorted(dets, key=lambda x: x["det_score"], reverse=True):
+        if any(max(_iou_overlap(d["box"], k["box"]),
+                   _iou_overlap(k["box"], d["box"])) > thresh for k in kept):
+            continue
+        kept.append(d)
+    return kept
+
+
 # Box de deșeu aflat în interiorul siluetei unei persoane: candidat de fals
 # pozitiv pe corp (ochi, umăr, haine).
 _OVERLAP_THRESH = 0.30
@@ -468,8 +525,8 @@ _MIN_TRASH_AREA_FRAC = 0.00015  # ignoră zgomotul foarte mic
 _MAX_TRASH_AREA_FRAC = 0.18     # ignoră regiuni prea mari de fundal, de ex. pat/podea
 _TRASH_TRACK_IMGSZ = settings.MONITOR_TRASH_IMGSZ
 _PERSON_FILTER_SHRINK = 0.72     # micșorează boxurile persoanelor doar pentru filtrarea suprapunerii
-_TRASH_STABLE_SEEN = 4           # cere 4 detecții consecutive; reduce duplicatele și boxurile fantomă
-_TRASH_GRACE_MISSES = 4          # păstrează ultimul box câteva cadre ratate, pentru stabilitate vizuală
+_TRASH_STABLE_SEEN = 2           # boxul apare după 2 detecții (nu 4) — continuitate la distanță
+_TRASH_GRACE_MISSES = 8          # ține boxul ~8 cadre ratate — netezește contorul (fără 0/1/0/1)
 _MONITOR_PREWARMED = False
 
 
@@ -499,7 +556,7 @@ def prewarm_monitor_inference() -> None:
             imgsz=_TRASH_TRACK_IMGSZ,
             verbose=False,
             persist=True,
-            tracker="bytetrack.yaml",
+            tracker=settings.trash_tracker_cfg,
             device=device,
         )
 
@@ -719,7 +776,7 @@ async def handle_monitor_ws(
             if total_frames % _TRASH_DETECT_STRIDE == 0:
                 results = tracker.track(
                     frame, conf=det_conf, imgsz=_TRASH_TRACK_IMGSZ, verbose=False,
-                    persist=True, tracker="bytetrack.yaml"
+                    persist=True, tracker=settings.trash_tracker_cfg
                 )
                 boxes = results[0].boxes
                 trash_dets: list[dict] = []
@@ -742,6 +799,8 @@ async def handle_monitor_ws(
                                 "det_score": float(det_score),
                                 "material_name": "unknown",  # clasifică doar la incident
                             })
+                # Elimină casetele duplicate (același obiect, 2 track_id-uri de la tracker).
+                trash_dets = _dedup_trash_overlap(trash_dets)
                 _cached_trash_dets = trash_dets
             else:
                 trash_dets = [dict(d) for d in _cached_trash_dets]
@@ -846,7 +905,15 @@ async def handle_monitor_ws(
                 # Clasifică materialul obiectului declanșator prin pipeline-ul complet.
                 try:
                     tx1, ty1, tx2, ty2 = event.trash_box
-                    crop = frame[ty1:ty2, tx1:tx2]
+                    # Lărgim caseta cu ~20% context: clasificatorul (antrenat pe
+                    # poze cu obiectul întreg) e mai precis cu puțin fundal în jur
+                    # decât pe un sub-decupaj strict al casetei de detecție.
+                    fh, fw = frame.shape[:2]
+                    pad_x = int((tx2 - tx1) * 0.20)
+                    pad_y = int((ty2 - ty1) * 0.20)
+                    cx1 = max(0, tx1 - pad_x); cy1 = max(0, ty1 - pad_y)
+                    cx2 = min(fw, tx2 + pad_x); cy2 = min(fh, ty2 + pad_y)
+                    crop = frame[cy1:cy2, cx1:cx2]
                     if crop.size > 0:
                         from backend.ml.two_stage import classify_crop
                         from backend.inference import _classifier, _cls_names

@@ -16,7 +16,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 from typing import Annotated, Optional
-from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, UploadFile, WebSocket, Request
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, WebSocket, Request
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -438,7 +438,6 @@ async def get_littering_event(
 async def update_littering_event_status(
     event_id: int,
     body: schemas.LitteringEventStatusUpdate,
-    background_tasks: BackgroundTasks,
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
@@ -489,6 +488,39 @@ async def update_littering_event_notes(
     if not _can_view_littering_event(current_user, evt):
         raise HTTPException(status_code=403, detail="Acces restricționat.")
     evt.notes = body.notes
+    await session.commit()
+    await session.refresh(evt)
+    return evt
+
+
+@app.patch(
+    "/api/littering/events/{event_id}/material",
+    response_model=schemas.LitteringEventOut,
+    summary="[Admin] Corectează materialul estimat al unui incident",
+)
+async def update_littering_event_material(
+    event_id: int,
+    body: schemas.LitteringEventMaterialUpdate,
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+    evt = await db.get_littering_event_by_id(session, event_id)
+    if evt is None:
+        raise HTTPException(status_code=404, detail="Eveniment negăsit.")
+    if not _same_org(current_user, evt):
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+
+    material = (body.material or "").strip().lower()
+    allowed_materials = {"unknown", "plastic", "paper", "glass", "metal", "other"}
+    if material not in allowed_materials:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Material nevalid. Valori permise: {', '.join(sorted(allowed_materials))}"
+        )
+
+    evt.material = material
     await session.commit()
     await session.refresh(evt)
     return evt
@@ -1137,11 +1169,14 @@ async def admin_invite_user(
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=400, detail="Numele de utilizator sau emailul este deja folosit.")
 
-    # Generează o parolă temporară (12 caractere, mixte)
-    alphabet = string.ascii_letters + string.digits + "!@#$"
-    temp_password = ''.join(secrets.choice(alphabet) for _ in range(12))
-    # Respectă politica parolei: cel puțin o literă mare, una mică, o cifră și un simbol.
-    temp_password = temp_password[:8] + "Aa1!"
+    # Generează o parolă temporară de 14 caractere, complet aleatoare, garantând
+    # politica (literă mare/mică, cifră, simbol) fără un sufix fix previzibil.
+    # Reîncearcă până când conține toate clasele cerute — fără pattern ghicibil.
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    while True:
+        temp_password = ''.join(secrets.choice(alphabet) for _ in range(14))
+        if not auth_mod.validate_password(temp_password):
+            break
 
     org_id = current_user.organization_id or 1
     new_user = db.User(
@@ -1328,9 +1363,11 @@ async def admin_export_users_csv(
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["ID", "Utilizator", "Email", "Rol", "Puncte", "Incidente", "Creat"])
+    org_id = user.organization_id or 1
     result = await session.execute(
         select(db.User, func.count(db.LitteringEvent.id).label("total_reports"))
         .outerjoin(db.LitteringEvent, db.LitteringEvent.reporter_id == db.User.id)
+        .where(db.or_(db.User.organization_id == org_id, db.User.organization_id.is_(None)))
         .group_by(db.User.id)
         .order_by(db.User.id)
     )

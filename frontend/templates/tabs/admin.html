@@ -151,7 +151,7 @@
           </div>
         </div>
       </div>
-      <div class="rounded-2xl p-4" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
+      <div x-show="false" class="rounded-2xl p-4" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
         <div class="flex items-center justify-between mb-3">
           <p class="text-xs font-bold flex items-center gap-1.5" style="color:var(--tx-primary)">
             <i data-lucide="user-plus" class="w-3.5 h-3.5" style="color:#60a5fa"></i> Utilizatori noi / lună
@@ -350,6 +350,14 @@
                     x-text="_fmtAdminDate(u.created_at)"></td>
                 <td class="px-4 py-3">
                   <div class="flex gap-1.5 justify-end">
+                    <button @click="incidentReporterFilter = u.id; incidentPage = 0; adminSubTab = 'incidents'; loadIncidents()"
+                      class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                      title="Vezi incidentele acestui utilizator"
+                      style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:#34d399"
+                      @mouseenter="$el.style.opacity='.75'"
+                      @mouseleave="$el.style.opacity='1'">
+                      <i data-lucide="file-search" class="w-3.5 h-3.5"></i>
+                    </button>
                     <button @click="adminToggleRole(u.id, u.role)"
                       class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
                       :title="u.role==='admin' ? 'Retrogradează' : 'Promovează admin'"

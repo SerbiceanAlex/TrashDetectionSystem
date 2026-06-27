@@ -53,6 +53,10 @@ THROW_RANGE_M         = 3.0
 # obiectul e ȚINUT în mână / în față, NU lăsat pe jos. Cât e ținut nu acumulăm
 # progres de abandonare (altfel un obiect ținut nemișcat ar declanșa fals).
 HELD_IN_PERSON_FRAC   = 0.50
+HELD_DISTANCE_M       = 1.50   # „ținut/lângă persoană" = mai aproape decât distanța de
+                                # separare. Sub atât, obiectul e considerat în mână (braț
+                                # întins) și NU acumulează abandonare — abia când persoana
+                                # se îndepărtează clar (peste 1.5m) începe logica de abandon.
 CONFIRM_EVENT_S       = 3.0    # mod ZONĂ — câte secunde așteptăm după un candidat; se anulează dacă
                                 # persoana se întoarce. 3s = ignoră revenirile rapide, dar prinde aruncările reale
 EVENT_COOLDOWN_S      = 8.0    # blochează alerte duplicate imediat după ce s-a declanșat un incident
@@ -319,15 +323,21 @@ class LitteringDetector:
         secunde cu o aruncare clară nu ar genera niciun incident.
         """
         if self._event_candidate is not None:
-            confirmed = self._event_candidate
+            # Nu confirmam fortat un candidat de zona doar pentru ca videoul s-a
+            # terminat. Daca fereastra de confirmare nu a expirat natural in
+            # update(), riscul de fals pozitiv este prea mare (ex.: obiect tinut
+            # in mana sau persoana care reintra imediat dupa finalul clipului).
             self._event_candidate = None
             self._event_candidate_remaining = 0
-            self._start_post_capture(confirmed)
-            return confirmed
+            return None
 
-        if self._pending_event and self._capture_post:
+        # Fereastra post-incident e încă deschisă la finalul videoului: evenimentul
+        # a fost DEJA emis de update() (și colectat). Aici doar închidem captura —
+        # NU îl re-emitem, altfel s-ar crea un al doilea incident duplicat pentru
+        # aceeași aruncare (cazul tipic: incidentul are loc în ultimele ~3s).
+        if self._pending_event is not None and self._capture_post:
             self._capture_post = False
-            return self._pending_event
+            self._pending_event = None
 
         for tid, tracker in list(self._rel_trackers.items()):
             if tracker.state in [TrashRelState.SEPARATING, TrashRelState.DROPPED]:
@@ -425,8 +435,12 @@ class LitteringDetector:
             )
             is_static = move_px < JITTER_THRESHOLD_PX
             # Obiectul e încă ținut în mână / în fața corpului? Atunci NU e lăsat
-            # pe jos și nu trebuie să acumuleze progres de abandonare.
-            is_held = self._trash_in_person_frac(tb, nearest_pb) > HELD_IN_PERSON_FRAC
+            # pe jos și nu trebuie să acumuleze progres de abandonare. „Ținut" =
+            # se suprapune cu corpul SAU e foarte aproape (braț întins, sub ~0.9m).
+            is_held = (
+                self._trash_in_person_frac(tb, nearest_pb) > HELD_IN_PERSON_FRAC
+                or dist_m <= HELD_DISTANCE_M
+            )
             tracker.last_trash_cx = tcx
             tracker.last_trash_cy = tcy
             tracker.max_distance_m = max(tracker.max_distance_m, dist_m)
@@ -447,8 +461,16 @@ class LitteringDetector:
                     tracker.static_frames = 0
 
             elif tracker.state == TrashRelState.DROPPED:
+                if is_held:
+                    # Obiectul este inca langa persoana sau revine langa ea.
+                    # Anulam progresul ca sa evitam incidente false cand
+                    # obiectul este tinut in mana cu bratul intins.
+                    tracker.dropped_static = 0
+                    tracker.static_frames = 0
+                    tracker.person_lost_at = None
+                    tracker.state = TrashRelState.NEARBY
                 # Calea rapidă: persoana chiar se îndepărtează → separare.
-                if dist_m >= SEPARATION_DIST_M:
+                elif dist_m >= SEPARATION_DIST_M:
                     tracker.state = TrashRelState.SEPARATING
                     tracker.dropped_static = 0
                 elif move_px > PICKUP_MOVE_PX:
@@ -473,7 +495,14 @@ class LitteringDetector:
                         return event
 
             elif tracker.state == TrashRelState.SEPARATING:
-                if dist_m >= ABANDON_DIST_M:
+                if is_held:
+                    # Persoana s-a apropiat din nou de obiect; anulam
+                    # separarea in loc sa declansam abandonare.
+                    tracker.dropped_static = 0
+                    tracker.static_frames = 0
+                    tracker.person_lost_at = None
+                    tracker.state = TrashRelState.NEARBY
+                elif dist_m >= ABANDON_DIST_M:
                     tracker.state = TrashRelState.ABANDONED
                     event = self._build_distance_event(frame, det, tracker, dist_m, nearest_pb)
                     del self._rel_trackers[tid]
@@ -552,9 +581,12 @@ class LitteringDetector:
         """Găsește cea mai apropiată persoană de un punct; întoarce (id, casetă, distanță_m)."""
         best_pid, best_pb, best_d = None, None, float("inf")
         for pid, pb in pid_map.items():
-            pcx = (pb[0] + pb[2]) / 2.0
-            pcy = (pb[1] + pb[3]) / 2.0
-            d_m = math.hypot(cx - pcx, cy - pcy) / max(scale, 1.0)
+            # Distanta se masoara pana la boxul persoanei, nu pana la centrul
+            # corpului. Un obiect tinut cu bratul intins poate fi departe de
+            # centrul persoanei, dar tot este aproape de silueta persoanei.
+            dx = max(pb[0] - cx, 0.0, cx - pb[2])
+            dy = max(pb[1] - cy, 0.0, cy - pb[3])
+            d_m = math.hypot(dx, dy) / max(scale, 1.0)
             if d_m < best_d:
                 best_d, best_pid, best_pb = d_m, pid, pb
         return best_pid, best_pb, best_d

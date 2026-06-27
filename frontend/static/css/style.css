@@ -2453,8 +2453,22 @@ input[type="range"].slider::-webkit-slider-thumb:active {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px 16px 10px;
+  padding: 16px 18px 12px;
 }
+
+/* Bară de scroll GLOBALĂ — neutră, adaptată light + dark (nu mai e albă pe dark) */
+* { scrollbar-width: thin; scrollbar-color: rgba(100, 116, 139, .4) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, .4);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(100, 116, 139, .65); background-clip: content-box; }
+.dark ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, .3); background-clip: content-box; }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, .55); background-clip: content-box; }
 
 .incident-chips-row {
   display: flex;
@@ -2477,9 +2491,13 @@ input[type="range"].slider::-webkit-slider-thumb:active {
 .incident-metric-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
+
+/* Săgeata + popup-ul dropdown-urilor native respectă tema (nu mai e neagră pe dark) */
+select { color-scheme: light; }
+.dark select { color-scheme: dark; }
 
 .incident-metric-card,
 .incident-evidence-card,
@@ -2490,8 +2508,8 @@ input[type="range"].slider::-webkit-slider-thumb:active {
 }
 
 .incident-metric-card {
-  min-height: 62px;
-  padding: 10px 12px;
+  min-height: 64px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;

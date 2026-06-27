@@ -199,7 +199,7 @@ function videoApp() {
     monitorSendFps: 24,
     monitorCameraWidth: 1280,
     monitorCameraHeight: 720,
-    monitorCaptureMaxDim: 640,
+    monitorCaptureMaxDim: 896,
     monitorJpegQuality: 0.75,
     monitorFacingMode: 'environment',   // 'environment' = spate, 'user' = față
     _monitorAnimFrame: null,
@@ -224,7 +224,7 @@ function videoApp() {
         this.monitorSendFps = Math.max(10, Math.min(Number(this.monitorSendFps || configuredTargetFps || 24), 120));
         this.monitorCameraWidth = Math.max(640, Math.min(Number(runtime.monitor_camera_width || this.monitorCameraWidth || 1280), 1920));
         this.monitorCameraHeight = Math.max(360, Math.min(Number(runtime.monitor_camera_height || this.monitorCameraHeight || 720), 1080));
-        this.monitorCaptureMaxDim = Math.max(416, Math.min(Number(runtime.monitor_capture_max_dim || this.monitorCaptureMaxDim || 640), 768));
+        this.monitorCaptureMaxDim = Math.max(416, Math.min(Number(runtime.monitor_capture_max_dim || this.monitorCaptureMaxDim || 896), 896));
         this.monitorJpegQuality = Math.max(0.60, Math.min(Number(runtime.monitor_jpeg_quality || this.monitorJpegQuality || 0.75), 0.90));
 
         this.monitorStream = await navigator.mediaDevices.getUserMedia({
@@ -261,11 +261,23 @@ function videoApp() {
         wsUrl += `&lat=${this.geoLat}&lng=${this.geoLng}`;
       }
 
-      this.monitorWs = new WebSocket(wsUrl);
+      this._monitorVideo = video;
+      this._monitorCanvas = canvas;
+      this._monitorWsUrl = wsUrl;
+      this._monitorUserStopped = false;
+      this._monitorReconnects = 0;
+      this._createMonitorWs();
+    },
+
+    _createMonitorWs() {
+      const video = this._monitorVideo;
+      const canvas = this._monitorCanvas;
+      this.monitorWs = new WebSocket(this._monitorWsUrl);
       this.monitorWs.binaryType = 'arraybuffer';
 
       this.monitorWs.onopen = () => {
         this.monitorActive = true;
+        this._monitorReconnects = 0;
         this._monitorCaptureCanvas = document.createElement('canvas');
         this._monitorLastSendAt = 0;
         this._monitorSending = false;
@@ -325,16 +337,23 @@ function videoApp() {
       };
 
       this.monitorWs.onerror = () => {
-        showToast('Monitor WebSocket connection error', 'error');
-        this.stopMonitor();
+        // Lăsăm onclose să decidă reconectarea (onerror precede onclose).
       };
 
       this.monitorWs.onclose = (ev) => {
-        // Only show toast for unexpected closes (not user-initiated)
-        if (this.monitorActive && ev.code !== 1000) {
-          showToast('Monitor connection interrupted', 'warning');
+        // Oprește bucla de captură curentă (nu mai trimite spre un WS închis).
+        if (this._monitorAnimFrame) { cancelAnimationFrame(this._monitorAnimFrame); this._monitorAnimFrame = null; }
+        // Închidere intenționată (user a apăsat stop) — nu reconecta.
+        if (this._monitorUserStopped || ev.code === 1000) return;
+        // Deconectare neașteptată (WiFi/timeout) — reconectează automat, păstrând camera.
+        if (this._monitorReconnects < 5 && this.monitorStream) {
+          this._monitorReconnects++;
+          showToast(`Reconectare monitor… (${this._monitorReconnects}/5)`, 'warning');
+          setTimeout(() => { if (!this._monitorUserStopped) this._createMonitorWs(); }, 700);
+        } else {
+          showToast('Monitor deconectat — pornește din nou.', 'error');
+          this.stopMonitor();
         }
-        this.stopMonitor();
       };
     },
 
@@ -389,7 +408,7 @@ function videoApp() {
               // Build the JPEG only when a frame is actually due. The preview
               // canvas still renders every animation frame, but encoding is
               // throttled to the AI rhythm.
-              const maxDim = Math.max(416, Math.min(Number(this.monitorCaptureMaxDim || 768), 896));
+              const maxDim = Math.max(416, Math.min(Number(this.monitorCaptureMaxDim || 896), 896));
               const scale = Math.min(1, maxDim / Math.max(vw, vh));
               cc.width = Math.round(vw * scale);
               cc.height = Math.round(vh * scale);
@@ -488,12 +507,9 @@ function videoApp() {
       if (msg.trash_boxes) {
         ctx.strokeStyle = 'rgba(239,68,68,0.9)';
         ctx.lineWidth = 2 * ui;
-        ctx.fillStyle = 'rgba(239,68,68,0.9)';
-        ctx.font = `${Math.round(11 * ui)}px sans-serif`;
         for (const d of msg.trash_boxes) {
           const [x1, y1, x2, y2] = d.box;
           ctx.strokeRect(x1 * scaleX, y1 * scaleY, (x2 - x1) * scaleX, (y2 - y1) * scaleY);
-          ctx.fillText('#' + d.track_id, x1 * scaleX + 2 * ui, y1 * scaleY - 3 * ui);
         }
       }
     },
@@ -528,6 +544,7 @@ function videoApp() {
 
     stopMonitor() {
       this.monitorActive = false;
+      this._monitorUserStopped = true;   // oprire intenționată — nu reconecta
       if (this._monitorAnimFrame) { cancelAnimationFrame(this._monitorAnimFrame); this._monitorAnimFrame = null; }
       // Null WS before closing to prevent onclose → stopMonitor recursion
       const ws = this.monitorWs; this.monitorWs = null;

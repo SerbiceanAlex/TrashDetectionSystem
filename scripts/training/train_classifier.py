@@ -21,7 +21,7 @@ DEFAULT_PROJECT_DIR = REPO_ROOT / "runs" / "classify"
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Antrenează un clasificator YOLOv8 pentru materialul deșeurilor")
-    parser.add_argument("--model", default="yolov8n-cls.pt", help="Checkpoint de bază pentru clasificare")
+    parser.add_argument("--model", default="models/pretrained/yolov8n-cls.pt", help="Checkpoint de bază pentru clasificare")
     parser.add_argument("--data", default=str(DEFAULT_DATASET), help="Rădăcina datasetului de clasificare")
     parser.add_argument("--epochs", type=int, default=100, help="Numărul de epoci de antrenare")
     parser.add_argument("--imgsz", type=int, default=224, help="Dimensiunea imaginii la antrenare")

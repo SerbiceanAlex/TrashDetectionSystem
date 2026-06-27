@@ -349,26 +349,17 @@
 
     <!-- State pill -->
     <div style="display:flex;align-items:center;gap:6px">
-      <!-- State badge -->
-      <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold"
-           style="backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)"
-           :style="monitorState==='CLEAR'
-              ? 'background:rgba(22,163,74,.85);color:#fff;border:1px solid rgba(255,255,255,.2)'
-              : monitorState==='PERSON_PRESENT'
-              ? 'background:rgba(217,119,6,.95);color:#fff;border:1px solid rgba(255,255,255,.2)'
-              : monitorState==='MONITORING'
-              ? 'background:rgba(79,70,229,.95);color:#fff;border:1px solid rgba(255,255,255,.2)'
-              : 'background:rgba(0,0,0,.6);color:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.1)'">
-        <span class="w-1.5 h-1.5 rounded-full shrink-0"
-              :class="monitorState!=='CLEAR' ? 'cctv-rec-dot' : ''"
-              :style="monitorState==='CLEAR' ? 'background:#fff'
-                : monitorState==='PERSON_PRESENT' ? 'background:#fde68a'
-                : 'background:#a5b4fc'"></span>
-        <span x-text="monitorState==='CLEAR' ? 'LIBER'
-          : monitorState==='PERSON_PRESENT' ? 'PERSOANA'
-          : monitorState==='MONITORING' ? 'VERIFICARE'
-          : '...'"></span>
+      <!-- FPS (grupat cu starea, sus-dreapta) -->
+      <div style="display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.15)">
+        <span class="w-1.5 h-1.5 rounded-full"
+              :style="monitorFpsDisplay>=20 ? 'background:#4ade80;box-shadow:0 0 6px #4ade80'
+                     : monitorFpsDisplay>=12 ? 'background:#fbbf24' : 'background:#ef4444'"></span>
+        <span style="font-size:13px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums"
+              x-text="monitorFpsDisplay + ' FPS'"></span>
       </div>
+      <!-- Badge de stare eliminat (redundant cu contoarele de jos + bara de
+           progres a verificării). Starea VERIFICARE rămâne vizibilă prin bara
+           de progres de sus și cardul „Verificare" din bara de jos. -->
       <!-- Flip camera -->
       <button @click="flipMonitorCamera()"
               class="flex items-center justify-center rounded-full"
@@ -381,16 +372,6 @@
     </div>
   </div>
 
-  <!-- ── FPS counter (colț stânga-jos) ── -->
-  <div style="position:absolute;left:12px;bottom:120px;z-index:12;display:flex;align-items:center;gap:6px;
-              padding:5px 10px;border-radius:999px;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);
-              border:1px solid rgba(255,255,255,.15)">
-    <span class="w-1.5 h-1.5 rounded-full"
-          :style="monitorFpsDisplay>=20 ? 'background:#4ade80;box-shadow:0 0 6px #4ade80'
-                 : monitorFpsDisplay>=12 ? 'background:#fbbf24' : 'background:#ef4444'"></span>
-    <span style="font-size:13px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums"
-          x-text="monitorFpsDisplay + ' FPS'"></span>
-  </div>
 
   <!-- ── PROGRESS BAR (MONITORING state) ── -->
   <div x-show="monitorState==='MONITORING'"
@@ -483,7 +464,7 @@
     </div>
     <div class="flex-1 min-w-0">
       <p class="text-base font-bold" style="color:#fff">Camere de monitorizare</p>
-      <p class="text-sm mt-0.5" style="color:rgba(255,255,255,.65)">Supraveghere automată · detecție AI acte ilegale de aruncare</p>
+      <p class="text-sm mt-0.5" style="color:rgba(255,255,255,.65)">Supraveghere automată · detecție acte ilegale de aruncare</p>
     </div>
     <div class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold"
          style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.85)">

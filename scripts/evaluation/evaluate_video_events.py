@@ -3,7 +3,7 @@ Evaluează pipeline-ul final de detecție a aruncării ilegale pe mai multe clip
 
 Rulează exact pipeline-ul de producție pe un folder de clipuri de test și scrie
 sumare CSV/JSON folosite în lucrare (TP/FP/TN/FN, precizie/recall/F1, procente
-de stări). Motorul (run_clip/outcome) e folosit și de eval_ai_videos.py.
+de stări).
 
 Exemple:
     .venv\\Scripts\\python.exe scripts\\evaluation\\evaluate_video_events.py --clips all --frame-skip 2

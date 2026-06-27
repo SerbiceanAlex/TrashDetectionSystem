@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     REPO_ROOT: Path = Path(__file__).parent.parent      # rădăcina proiectului
     STORAGE_ROOT: str = "data/runtime"                  # unde se scriu fișierele generate
     DETECTOR_WEIGHTS: str = "models/detector/production/best.pt"   # YOLOv8 deșeuri (antrenat)
-    CLASSIFIER_WEIGHTS: str = "models/classify/B2/best.pt"         # clasificator material
+    CLASSIFIER_WEIGHTS: str = "models/classify/B2/best.pt"         # clasificator material final adaptat pe domeniul real
     PERSON_DETECTOR_WEIGHTS: str = "models/pretrained/yolov8n.pt"  # detector persoane (COCO)
 
     # ── JWT / Autentificare ──────────────────────────────────────────────────
@@ -67,14 +67,11 @@ class Settings(BaseSettings):
     MONITOR_LOGIC_FPS: int = 25
     MONITOR_CAMERA_WIDTH: int = 1280   # rezoluția cerută camerei (orientativ)
     MONITOR_CAMERA_HEIGHT: int = 720
-    # Captură și inferență la 768 — prioritate pe CALITATEA detecției (recall
-    # bun pe obiecte mici la 1–3 m), decizia autorului. Pe laptop encode-ul de
-    # 768 limitează la ~26-27 FPS, suficient pentru un act de câteva secunde;
-    # afișajul FPS e stabilizat ca să nu pâlpâie. Evaluarea pe 19 clipuri AI
-    # confirmă imgsz 768 ca optim (recall 0,81 vs 0,69 la 1024).
-    MONITOR_CAPTURE_MAX_DIM: int = 768
+    # Captură și inferență la ~900px: păstrează mai mult detaliu pentru obiecte
+    # mici la distanță, fără costul mare al unei rezoluții full-HD.
+    MONITOR_CAPTURE_MAX_DIM: int = 896
     MONITOR_JPEG_QUALITY: float = 0.75
-    MONITOR_TRASH_IMGSZ: int = 768
+    MONITOR_TRASH_IMGSZ: int = 896
     MONITOR_PERSON_IMGSZ: int = 416
 
     # ── Valori derivate (căi absolute + conversii) ───────────────────────────
@@ -84,6 +81,11 @@ class Settings(BaseSettings):
     def detector_path(self) -> Path:
         """Calea absolută către modelul de detecție a deșeurilor."""
         return self.REPO_ROOT / self.DETECTOR_WEIGHTS
+
+    @property
+    def trash_tracker_cfg(self) -> str:
+        """Profilul ByteTrack reglat pentru deșeuri (continuitate/anti-churn)."""
+        return str(self.REPO_ROOT / "backend" / "trackers" / "bytetrack_trash.yaml")
 
     @property
     def classifier_path(self) -> Path:

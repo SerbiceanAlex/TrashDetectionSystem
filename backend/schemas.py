@@ -139,3 +139,7 @@ class LitteringEventStatusUpdate(BaseModel):
 
 class LitteringEventNotesUpdate(BaseModel):
     notes: str
+
+
+class LitteringEventMaterialUpdate(BaseModel):
+    material: str

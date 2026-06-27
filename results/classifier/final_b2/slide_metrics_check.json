@@ -1,0 +1,147 @@
+{
+  "trashnet_test": {
+    "correct": 236,
+    "total": 257,
+    "accuracy": 0.9183,
+    "per_class": {
+      "glass": {
+        "correct": 46,
+        "total": 51,
+        "accuracy": 0.902
+      },
+      "metal": {
+        "correct": 38,
+        "total": 41,
+        "accuracy": 0.9268
+      },
+      "other": {
+        "correct": 14,
+        "total": 15,
+        "accuracy": 0.9333
+      },
+      "paper": {
+        "correct": 93,
+        "total": 101,
+        "accuracy": 0.9208
+      },
+      "plastic": {
+        "correct": 45,
+        "total": 49,
+        "accuracy": 0.9184
+      }
+    }
+  },
+  "real_material_test": {
+    "correct": 87,
+    "total": 90,
+    "accuracy": 0.9667,
+    "per_class": {
+      "glass": {
+        "correct": 20,
+        "total": 20,
+        "accuracy": 1.0
+      },
+      "metal": {
+        "correct": 29,
+        "total": 32,
+        "accuracy": 0.9062
+      },
+      "other": {
+        "correct": 0,
+        "total": 0,
+        "accuracy": 0.0
+      },
+      "paper": {
+        "correct": 11,
+        "total": 11,
+        "accuracy": 1.0
+      },
+      "plastic": {
+        "correct": 27,
+        "total": 27,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "domain_v2_test": {
+    "correct": 101,
+    "total": 105,
+    "accuracy": 0.9619,
+    "per_class": {
+      "glass": {
+        "correct": 20,
+        "total": 20,
+        "accuracy": 1.0
+      },
+      "metal": {
+        "correct": 29,
+        "total": 32,
+        "accuracy": 0.9062
+      },
+      "other": {
+        "correct": 14,
+        "total": 15,
+        "accuracy": 0.9333
+      },
+      "paper": {
+        "correct": 11,
+        "total": 11,
+        "accuracy": 1.0
+      },
+      "plastic": {
+        "correct": 27,
+        "total": 27,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "domain_v2_test_distance": {
+    "correct": 525,
+    "total": 555,
+    "accuracy": 0.9459,
+    "per_class": {
+      "glass": {
+        "correct": 120,
+        "total": 120,
+        "accuracy": 1.0
+      },
+      "metal": {
+        "correct": 164,
+        "total": 192,
+        "accuracy": 0.8542
+      },
+      "other": {
+        "correct": 13,
+        "total": 15,
+        "accuracy": 0.8667
+      },
+      "paper": {
+        "correct": 66,
+        "total": 66,
+        "accuracy": 1.0
+      },
+      "plastic": {
+        "correct": 162,
+        "total": 162,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "real_material_distance_runs": [
+    [
+      87,
+      90,
+      0.9667
+    ],
+    [
+      87,
+      90,
+      0.9667
+    ],
+    [
+      86,
+      90,
+      0.9556
+    ]
+  ]
+}

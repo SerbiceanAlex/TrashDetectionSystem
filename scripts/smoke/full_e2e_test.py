@@ -29,6 +29,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 import asyncio
 import json
+import os
 import time
 from pathlib import Path
 
@@ -39,7 +40,10 @@ import websockets
 ROOT = Path(__file__).resolve().parents[2]
 BASE = "http://127.0.0.1:8010"
 WS_BASE = "ws://127.0.0.1:8010"
-CLIP = ROOT / "datasets" / "ai_videos2" / "ai2_bottle_high.mp4"
+# Clip de test cu o aruncare (persoana lasă obiectul și pleacă). NU e versionat —
+# videourile sunt mari. Setează calea prin variabila de mediu SMOKE_CLIP, ex.:
+#   $env:SMOKE_CLIP="D:/cale/catre/clip_aruncare.mp4"
+CLIP = Path(os.environ["SMOKE_CLIP"]) if os.environ.get("SMOKE_CLIP") else ROOT / "data" / "smoke_clip.mp4"
 
 USER1 = {"username": "e2e_operator", "email": "e2e_op@test.local", "password": "Test!Parola9"}
 USER2 = {"username": "e2e_altcineva", "email": "e2e_alt@test.local", "password": "Test!Parola9"}

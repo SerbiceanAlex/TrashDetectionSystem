@@ -1,0 +1,115 @@
+{
+  "model": "D:\\TrashDetectionSystem\\models\\classify\\B2\\best.pt",
+  "test_real": {
+    "images": 105,
+    "accuracy": 0.981,
+    "per_class": {
+      "glass": {
+        "total": 20,
+        "correct": 20,
+        "accuracy": 1.0
+      },
+      "metal": {
+        "total": 32,
+        "correct": 30,
+        "accuracy": 0.9375
+      },
+      "other": {
+        "total": 15,
+        "correct": 15,
+        "accuracy": 1.0
+      },
+      "paper": {
+        "total": 11,
+        "correct": 11,
+        "accuracy": 1.0
+      },
+      "plastic": {
+        "total": 27,
+        "correct": 27,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "test_distance": {
+    "images": 555,
+    "accuracy": 0.973,
+    "per_class": {
+      "glass": {
+        "total": 120,
+        "correct": 120,
+        "accuracy": 1.0
+      },
+      "metal": {
+        "total": 192,
+        "correct": 182,
+        "accuracy": 0.9479
+      },
+      "other": {
+        "total": 15,
+        "correct": 11,
+        "accuracy": 0.7333
+      },
+      "paper": {
+        "total": 66,
+        "correct": 65,
+        "accuracy": 0.9848
+      },
+      "plastic": {
+        "total": 162,
+        "correct": 162,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "video_material_clips": {
+    "glass": {
+      "clip": "sticla.MOV",
+      "crops": 50,
+      "skipped": 37,
+      "correct": 50,
+      "accuracy": 1.0,
+      "counts": {
+        "glass": 50
+      }
+    },
+    "plastic": {
+      "clip": "plastic.MOV",
+      "crops": 68,
+      "skipped": 39,
+      "correct": 68,
+      "accuracy": 1.0,
+      "counts": {
+        "plastic": 68
+      }
+    },
+    "paper": {
+      "clip": "hartie.MOV",
+      "crops": 29,
+      "skipped": 57,
+      "correct": 29,
+      "accuracy": 1.0,
+      "counts": {
+        "paper": 29
+      }
+    },
+    "metal": {
+      "clip": "metal.MOV",
+      "crops": 78,
+      "skipped": 33,
+      "correct": 76,
+      "accuracy": 0.9744,
+      "counts": {
+        "metal": 76,
+        "glass": 1,
+        "other": 1
+      }
+    }
+  },
+  "artifacts": [
+    "confusion_matrix_real.png",
+    "confusion_matrix_distance.png",
+    "per_class_accuracy.png",
+    "video_material_accuracy.png"
+  ]
+}
