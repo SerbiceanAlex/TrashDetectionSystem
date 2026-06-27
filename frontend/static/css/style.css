@@ -2499,6 +2499,17 @@ input[type="range"].slider::-webkit-slider-thumb:active {
 select { color-scheme: light; }
 .dark select { color-scheme: dark; }
 
+/* Săgeată custom pentru select-ul de material — elimină cutia albă nativă pe dark */
+.incident-evidence-card select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 14px !important;
+  padding-right: 34px !important;
+}
+
 .incident-metric-card,
 .incident-evidence-card,
 .incident-note-card {
@@ -2506,6 +2517,10 @@ select { color-scheme: light; }
   background: var(--bg-raised);
   border: 1px solid var(--bg-border);
 }
+
+/* Spațiu vertical între secțiunile modalului (material / SHA / notă) — nu se mai lipesc */
+.incident-evidence-card,
+.incident-note-card { margin-bottom: 14px; }
 
 .incident-metric-card {
   min-height: 64px;
