@@ -20,6 +20,7 @@ function videoApp() {
     videoSessionsTotal: 0,
     videoSessionsPage: 0,
     isLoadingVideoSessions: false,
+    videoClearingHistory: false,
     selectedVideoSession: null,
 
     // ── Init ──────────────────────────────────────────────────────────────
@@ -164,6 +165,31 @@ function videoApp() {
       await this.loadVideoSessions();
     },
 
+    async clearVideoHistory() {
+      if (this.videoClearingHistory || !(this.videoSessionsTotal || this.videoSessions.length)) return;
+      const ok = await this.showConfirm(
+        'Curăță istoricul video',
+        'Vor fi șterse sesiunile de upload finalizate și fișierele video asociate. Incidentele existente se șterg separat din lista de incidente.',
+        { confirmText: 'Curăță istoricul', confirmColor: '#dc2626', iconColor: '#dc2626', icon: 'trash-2' }
+      );
+      if (!ok) return;
+      this.videoClearingHistory = true;
+      try {
+        const res = await fetchAPI('/api/video/sessions', { method: 'DELETE' });
+        this.videoSessions = [];
+        this.videoSessionsTotal = 0;
+        this.videoSessionsPage = 0;
+        this.selectedVideoSession = null;
+        showToast(res.detail || 'Istoricul video a fost curățat.');
+        await this.loadVideoSessions();
+        if (typeof this.loadAdminStats === 'function') this.loadAdminStats();
+      } catch (e) {
+        showToast('Eroare la curățarea istoricului: ' + e.message, 'error');
+      } finally {
+        this.videoClearingHistory = false;
+      }
+    },
+
     getVideoDownloadUrl(session) {
       const token = getAuthToken();
       const qs = token ? `?token=${encodeURIComponent(token)}` : '';
@@ -202,6 +228,9 @@ function videoApp() {
     monitorCaptureMaxDim: 896,
     monitorJpegQuality: 0.75,
     monitorFacingMode: 'environment',   // 'environment' = spate, 'user' = față
+    monitorSourceMode: 'local',         // 'local' = cameră browser, 'ip' = cameră IP/RTSP
+    monitorIpUrl: '',                   // URL rtsp://… sau http://… al camerei IP
+    _monitorIpMode: false,
     _monitorAnimFrame: null,
     _monitorCaptureCanvas: null,
     _lastMonitorMsg: null,
@@ -213,6 +242,10 @@ function videoApp() {
     _monitorFpsLastDisplayAt: 0,
 
     async startMonitor() {
+      // Cameră IP/RTSP: flux separat — serverul deschide stream-ul, nu browserul.
+      if (this.monitorSourceMode === 'ip') {
+        return this._startMonitorIp();
+      }
       try {
         const runtime = this.systemInfo?.runtime || {};
         this.detConf = Number(runtime.monitor_min_det_conf || 0.25);
@@ -269,6 +302,32 @@ function videoApp() {
       this._createMonitorWs();
     },
 
+    // ── Cameră IP/RTSP: serverul deschide stream-ul și trimite cadrele adnotate ──
+    async _startMonitorIp() {
+      const url = (this.monitorIpUrl || '').trim();
+      if (!url) { showToast('Introdu URL-ul camerei IP (rtsp://… sau http://…).', 'error'); return; }
+      const canvas = this.$refs.monitorCanvas;
+      if (!canvas) { showToast('Element canvas lipsă — reîncarcă pagina.', 'error'); return; }
+
+      const runtime = this.systemInfo?.runtime || {};
+      this.detConf = Number(runtime.monitor_min_det_conf || 0.25);
+      this.monitorPersonConf = Number(runtime.monitor_person_conf || 0.25);
+      this.monitorSendFps = 12;  // rată moderată pentru stream IP
+
+      this._monitorCanvas = canvas;
+      this._monitorVideo = this.$refs.monitorVideo;
+      this._monitorIpMode = true;
+      this._monitorUserStopped = false;
+      this._monitorReconnects = 0;
+
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      let wsUrl = `${proto}://${location.host}/ws/video/monitor?det_conf=${this.detConf}&person_conf=${this.monitorPersonConf}&analysis_fps=${this.monitorSendFps}&source_url=${encodeURIComponent(url)}`;
+      const authToken = getAuthToken();
+      if (authToken) wsUrl += `&token=${encodeURIComponent(authToken)}`;
+      this._monitorWsUrl = wsUrl;
+      this._createMonitorWs();
+    },
+
     _createMonitorWs() {
       const video = this._monitorVideo;
       const canvas = this._monitorCanvas;
@@ -278,6 +337,8 @@ function videoApp() {
       this.monitorWs.onopen = () => {
         this.monitorActive = true;
         this._monitorReconnects = 0;
+        // Cameră IP: serverul trimite cadrele; nu capturăm/trimitem din browser.
+        if (this._monitorIpMode) return;
         this._monitorCaptureCanvas = document.createElement('canvas');
         this._monitorLastSendAt = 0;
         this._monitorSending = false;
@@ -288,8 +349,27 @@ function videoApp() {
 
       this.monitorWs.onmessage = (ev) => {
         try {
+          // Cameră IP: cadru binar adnotat de server → îl desenăm pe canvas.
+          if (typeof ev.data !== 'string') {
+            const cnv = this._monitorCanvas;
+            if (cnv) {
+              const blob = new Blob([ev.data], { type: 'image/jpeg' });
+              createImageBitmap(blob).then((bmp) => {
+                if (cnv.width !== bmp.width) cnv.width = bmp.width;
+                if (cnv.height !== bmp.height) cnv.height = bmp.height;
+                cnv.getContext('2d').drawImage(bmp, 0, 0, cnv.width, cnv.height);
+                bmp.close();
+              }).catch(() => {});
+            }
+            return;
+          }
           this._releaseMonitorFrame();
           const msg = JSON.parse(ev.data);
+          if (msg.type === 'error' || msg.type === 'stream_end') {
+            showToast(msg.message || 'Stream cameră încheiat.', msg.type === 'error' ? 'error' : 'warning');
+            this.stopMonitor();
+            return;
+          }
           if (msg.type === 'alert') {
             this.monitorAlerts.push(msg);
             const material = msg.material || 'unknown';
@@ -346,7 +426,7 @@ function videoApp() {
         // Închidere intenționată (user a apăsat stop) — nu reconecta.
         if (this._monitorUserStopped || ev.code === 1000) return;
         // Deconectare neașteptată (WiFi/timeout) — reconectează automat, păstrând camera.
-        if (this._monitorReconnects < 5 && this.monitorStream) {
+        if (this._monitorReconnects < 5 && (this.monitorStream || this._monitorIpMode)) {
           this._monitorReconnects++;
           showToast(`Reconectare monitor… (${this._monitorReconnects}/5)`, 'warning');
           setTimeout(() => { if (!this._monitorUserStopped) this._createMonitorWs(); }, 700);
@@ -550,6 +630,12 @@ function videoApp() {
       const ws = this.monitorWs; this.monitorWs = null;
       if (ws && ws.readyState !== WebSocket.CLOSED) ws.close(1000, 'User stopped');
       if (this.monitorStream) { this.monitorStream.getTracks().forEach(t => t.stop()); this.monitorStream = null; }
+      // Cameră IP: curăță canvas-ul cu ultimul cadru și resetează modul.
+      if (this._monitorIpMode && this._monitorCanvas) {
+        const c = this._monitorCanvas;
+        try { c.getContext('2d').clearRect(0, 0, c.width, c.height); } catch (_) {}
+      }
+      this._monitorIpMode = false;
       this.monitorState = 'CLEAR';
       this.monitorFps = 0;
       this.monitorFpsDisplay = 0;

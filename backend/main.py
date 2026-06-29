@@ -310,11 +310,13 @@ async def ws_video_monitor(
     lat: Optional[float] = Query(default=None),
     lng: Optional[float] = Query(default=None),
     token: Optional[str] = Query(default=None),
+    source_url: Optional[str] = Query(default=None, description="URL RTSP/HTTP al unei camere IP; dacă lipsește, se folosesc cadrele trimise de browser"),
 ):
     """
     WebSocket pentru detecția incidentelor de aruncare (modul monitor).
-    Browserul trimite cadre JPEG; serverul rulează tracker-ul de gunoi +
-    detectorul de persoane și trimite o alertă JSON când apare un incident.
+    Browserul trimite cadre JPEG (cameră locală) SAU, dacă e dat `source_url`,
+    serverul deschide direct stream-ul unei camere IP/RTSP și trimite înapoi
+    cadrele adnotate. În ambele cazuri rulează aceeași logică de incident.
     """
     async with db.AsyncSessionLocal() as session:
         current_user = None
@@ -338,6 +340,7 @@ async def ws_video_monitor(
             session,
             user_id=current_user.id if current_user else None,
             organization_id=(current_user.organization_id or 1) if current_user else 1,
+            source_url=source_url,
         )
 
 

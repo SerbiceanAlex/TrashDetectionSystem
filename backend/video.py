@@ -667,6 +667,7 @@ async def handle_monitor_ws(
     session: AsyncSession,
     user_id: int | None = None,
     organization_id: int | None = None,
+    source_url: str | None = None,
 ):
     """
     Endpoint WebSocket pentru detecția live a incidentelor.
@@ -687,6 +688,24 @@ async def handle_monitor_ws(
     import torch
 
     await websocket.accept()
+
+    # Cameră IP/RTSP: serverul deschide direct stream-ul (browserul nu poate citi RTSP).
+    cap = None
+    if source_url:
+        cap = await asyncio.to_thread(cv2.VideoCapture, source_url)
+        if not cap or not cap.isOpened():
+            try:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": "Nu am putut deschide stream-ul camerei IP. Verifică URL-ul și rețeaua.",
+                }))
+            except Exception:
+                pass
+            try:
+                await websocket.close()
+            except Exception:
+                pass
+            return
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -769,12 +788,27 @@ async def handle_monitor_ws(
 
     try:
         while True:
-            data = await websocket.receive_bytes()
-
-            arr = np.frombuffer(data, dtype=np.uint8)
-            frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-            if frame is None:
-                continue
+            if cap is not None:
+                # Cameră IP: citim cadrul din stream într-un thread (cap.read e sincron).
+                ret, frame = await asyncio.to_thread(cap.read)
+                if not ret or frame is None:
+                    # Întrerupere scurtă — mai încercăm o dată înainte să renunțăm.
+                    await asyncio.sleep(0.4)
+                    ret, frame = await asyncio.to_thread(cap.read)
+                    if not ret or frame is None:
+                        try:
+                            await websocket.send_text(json.dumps({"type": "stream_end"}))
+                        except Exception:
+                            pass
+                        break
+                # Limităm rata de procesare ca să nu saturăm CPU/rețeaua.
+                await asyncio.sleep(max(0.0, 1.0 / analysis_fps))
+            else:
+                data = await websocket.receive_bytes()
+                arr = np.frombuffer(data, dtype=np.uint8)
+                frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                if frame is None:
+                    continue
 
             t0 = time.perf_counter()
 
@@ -908,6 +942,30 @@ async def handle_monitor_ws(
                     evt_to_save, evt_id_to_save = _pending_clip
                     _pending_clip = None
                     _schedule_clip_flush(evt_to_save, evt_id_to_save)
+
+            # Cameră IP: serverul desenează casetele și trimite cadrul adnotat
+            # (browserul nu are sursă video proprie ca la camera locală).
+            if cap is not None:
+                annotated = frame.copy()
+                for _pb in smoothed_person_boxes:
+                    cv2.rectangle(
+                        annotated, (int(_pb[0]), int(_pb[1])), (int(_pb[2]), int(_pb[3])),
+                        (255, 150, 0), 2,
+                    )
+                for _d in display_trash_dets:
+                    _bx = _d["box"]
+                    cv2.rectangle(
+                        annotated, (int(_bx[0]), int(_bx[1])), (int(_bx[2]), int(_bx[3])),
+                        (0, 0, 255), 2,
+                    )
+                _ok_enc, _jpg = cv2.imencode(
+                    ".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), 72]
+                )
+                if _ok_enc:
+                    try:
+                        await websocket.send_bytes(_jpg.tobytes())
+                    except Exception:
+                        break
 
             # ── Event detected ────────────────────────────────────────────
             if event is not None:
@@ -1050,6 +1108,11 @@ async def handle_monitor_ws(
     except Exception:
         logger.exception("Eroare neașteptată în monitorul WebSocket")
     finally:
+        if cap is not None:
+            try:
+                cap.release()
+            except Exception:
+                pass
         # Conexiunea s-a închis înainte de finalul ferestrei post-incident —
         # salvează clipul cu cadrele disponibile, ca dovada să nu se piardă.
         if _pending_clip is not None:
