@@ -504,8 +504,8 @@
         <select x-model="incidentReporterFilter" @change="incidentPage=0; loadIncidents()"
           class="px-3 py-1.5 rounded-xl text-xs font-semibold outline-none transition-all"
           style="border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary)"
-          @focus="$el.style.borderColor='#ef4444'"
-          @blur="$el.style.borderColor='var(--bg-border)'">
+          @focus="$el.style.borderColor='#6366f1';$el.style.boxShadow='0 0 0 3px rgba(99,102,241,.15)'"
+          @blur="$el.style.borderColor='var(--bg-border)';$el.style.boxShadow='none'">
           <option value="">Toți utilizatorii</option>
           <template x-for="u in adminUsers" :key="u.id">
             <option :value="u.id" x-text="u.username + (u.role === 'admin' ? ' (admin)' : '')"></option>
@@ -514,8 +514,8 @@
         <select x-model="incidentStatusFilter" @change="loadIncidents()"
           class="px-3 py-1.5 rounded-xl text-xs font-semibold outline-none transition-all"
           style="border:1px solid var(--bg-border);background:var(--bg-surface);color:var(--tx-primary)"
-          @focus="$el.style.borderColor='#ef4444'"
-          @blur="$el.style.borderColor='var(--bg-border)'">
+          @focus="$el.style.borderColor='#6366f1';$el.style.boxShadow='0 0 0 3px rgba(99,102,241,.15)'"
+          @blur="$el.style.borderColor='var(--bg-border)';$el.style.boxShadow='none'">
           <option value="">Toate statusurile</option>
           <option value="pending">De verificat</option>
           <option value="reviewed">Confirmate</option>
@@ -525,7 +525,7 @@
         <button @click="loadIncidents()"
           class="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
           style="background:var(--bg-surface);border:1px solid var(--bg-border);color:var(--tx-muted)"
-          @mouseenter="$el.style.borderColor='#ef4444'"
+          @mouseenter="$el.style.borderColor='#6366f1'"
           @mouseleave="$el.style.borderColor='var(--bg-border)'">
           <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
         </button>
