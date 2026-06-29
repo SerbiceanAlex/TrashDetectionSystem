@@ -46,6 +46,69 @@
     </div>
   </div>
 
+  <!-- ── Modal editare utilizator ──────────────────────────────────────── -->
+  <div x-show="adminEditOpen" x-cloak
+    @click="adminEditOpen=false"
+    class="fixed inset-0 z-[400] flex items-center justify-center p-4"
+    style="background:rgba(0,0,0,.65);backdrop-filter:blur(6px)"
+    x-transition:enter="transition ease-out duration-150"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100">
+    <div @click.stop class="rounded-2xl overflow-hidden w-full"
+         style="max-width:420px;background:var(--bg-surface);border:1px solid var(--bg-border);box-shadow:0 24px 64px rgba(0,0,0,.4)"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
+      <div class="p-5 space-y-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+               style="background:rgba(99,102,241,.12)">
+            <i data-lucide="user-pen" class="w-5 h-5" style="color:#818cf8"></i>
+          </div>
+          <div>
+            <p class="text-sm font-bold" style="color:var(--tx-primary)">Editează utilizator</p>
+            <p class="text-xs" style="color:var(--tx-muted)">Poți modifica numele și emailul contului.</p>
+          </div>
+        </div>
+
+        <label class="block">
+          <span class="text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Nume utilizator</span>
+          <input x-model="adminEditForm.username"
+            class="mt-1 w-full px-3 py-2 rounded-xl text-sm outline-none"
+            style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-primary)">
+        </label>
+        <label class="block">
+          <span class="text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Email</span>
+          <input x-model="adminEditForm.email" type="email"
+            class="mt-1 w-full px-3 py-2 rounded-xl text-sm outline-none"
+            style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-primary)">
+        </label>
+        <div class="flex items-center justify-between rounded-xl px-3 py-2"
+             style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+          <span class="text-xs font-semibold" style="color:var(--tx-muted)">Rol</span>
+          <span class="text-[11px] font-bold px-2 py-0.5 rounded-full"
+            :style="adminEditUser?.role==='admin'
+              ? 'background:rgba(99,102,241,.15);color:#818cf8;border:1px solid rgba(99,102,241,.25)'
+              : 'background:rgba(148,163,184,.12);color:var(--tx-muted);border:1px solid var(--bg-border)'"
+            x-text="roleLabel(adminEditUser?.role || 'user')"></span>
+        </div>
+
+        <div class="flex gap-2">
+          <button @click="adminEditOpen=false"
+            class="flex-1 py-2 rounded-xl text-sm font-semibold transition-all"
+            style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-secondary)">
+            Anulează
+          </button>
+          <button @click="adminSaveUser()" :disabled="adminEditSaving"
+            class="flex-1 py-2 rounded-xl text-sm font-bold"
+            :style="adminEditSaving ? 'background:#64748b;color:#fff;cursor:not-allowed' : 'background:#4f46e5;color:#fff'">
+            <span x-text="adminEditSaving ? 'Se salvează...' : 'Salvează'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Hero ──────────────────────────────────────────────────────────── -->
   <div class="rounded-2xl p-5 flex items-center gap-4 flex-wrap"
        style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 55%,#3730a3 100%);box-shadow:0 4px 24px rgba(99,102,241,.25)">
@@ -180,15 +243,17 @@
         <div style="min-height:200px;position:relative">
           <div x-show="adminChartsLoading" class="rounded-xl animate-pulse h-full" style="background:var(--bg-raised)"></div>
           <div x-show="!adminChartsLoading && adminCharts" class="space-y-3">
-            <template x-for="m in adminCharts.material_distribution" :key="m.material">
+            <template x-for="cat in ['plastic','paper','glass','metal','other']" :key="cat">
               <div>
                 <div class="flex items-center justify-between text-xs mb-1">
-                  <span class="font-semibold" style="color:var(--tx-secondary)" x-text="_materialLabel(m.material)"></span>
-                  <span class="font-bold" style="color:var(--tx-primary)" x-text="m.count"></span>
+                  <span class="font-semibold" style="color:var(--tx-secondary)" x-text="_materialLabel(cat)"></span>
+                  <span class="font-bold"
+                        :style="(adminCharts.material_distribution.find(m=>m.material===cat)?.count||0)>0 ? 'color:var(--tx-primary)' : 'color:var(--tx-muted)'"
+                        x-text="adminCharts.material_distribution.find(m=>m.material===cat)?.count || 0"></span>
                 </div>
                 <div class="h-2 rounded-full overflow-hidden" style="background:var(--bg-raised)">
                   <div class="h-full rounded-full"
-                       :style="'width:'+Math.max(4, Math.round((Number(m.count||0)/_chartMax(adminCharts.material_distribution))*100))+'%;background:linear-gradient(90deg,#818cf8,#22c55e)'"></div>
+                       :style="(function(){const c=adminCharts.material_distribution.find(m=>m.material===cat)?.count||0;const mx=_chartMax(adminCharts.material_distribution)||1;const w=c>0?Math.max(4,Math.round(c/mx*100)):0;return 'width:'+w+'%;background:linear-gradient(90deg,#818cf8,#22c55e)'})()"></div>
                 </div>
               </div>
             </template>
@@ -314,67 +379,116 @@
       <p x-show="!adminUsersLoading && adminUsers.length === 0"
          class="text-sm text-center py-10" style="color:var(--tx-muted)">Niciun utilizator.</p>
 
-      <div x-show="!adminUsersLoading && adminUsers.length > 0" class="overflow-x-auto">
-        <table style="width:100%;border-collapse:collapse;min-width:600px;font-size:13px">
+      <div x-show="!adminUsersLoading && adminUsers.length > 0" class="overflow-hidden">
+        <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px">
+          <colgroup>
+            <col style="width:16%">
+            <col style="width:17%">
+            <col style="width:10%">
+            <col style="width:9%">
+            <col style="width:9%">
+            <col style="width:8%">
+            <col style="width:12%">
+            <col style="width:19%">
+          </colgroup>
           <thead>
             <tr style="background:var(--bg-raised);border-bottom:1px solid var(--bg-border)">
-              <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">#</th>
-              <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Utilizator</th>
-              <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Email</th>
-              <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Rol</th>
-              <th class="px-4 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Înregistrat</th>
-              <th class="px-4 py-2.5 text-right text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Acțiuni</th>
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Utilizator</th>
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Email</th>
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Rol</th>
+              <th class="px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Incidente</th>
+              <th class="px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Confirmate</th>
+              <th class="px-2 py-2.5 text-center text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Așteptare</th>
+              <th class="px-3 py-2.5 text-left text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Ultima activitate</th>
+              <th class="px-3 py-2.5 text-right text-[10px] font-bold uppercase tracking-wide" style="color:var(--tx-muted)">Acțiuni</th>
             </tr>
           </thead>
           <tbody>
             <template x-for="(u, idx) in adminUsers" :key="u.id">
               <tr style="border-bottom:1px solid var(--bg-border)">
-                <td class="px-4 py-3 font-mono text-xs" style="color:var(--tx-muted)" x-text="idx + 1"></td>
-                <td class="px-4 py-3">
+                <td class="px-3 py-2.5">
                   <div class="flex items-center gap-2">
                     <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0"
                          style="background:rgba(99,102,241,.1);color:#818cf8"
                          x-text="u.username.slice(0,2).toUpperCase()"></div>
-                    <span class="font-semibold text-sm" style="color:var(--tx-primary)" x-text="u.username"></span>
+                    <span class="font-semibold text-sm truncate" style="color:var(--tx-primary)" x-text="u.username"></span>
                   </div>
                 </td>
-                <td class="px-4 py-3 text-xs" style="color:var(--tx-muted)" x-text="u.email"></td>
-                <td class="px-4 py-3">
+                <td class="px-3 py-2.5 text-xs truncate" style="color:var(--tx-muted)" :title="u.email" x-text="u.email"></td>
+                <td class="px-3 py-2.5">
                   <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
                     :style="u.role==='admin'
                       ? 'background:rgba(99,102,241,.15);color:#818cf8;border:1px solid rgba(99,102,241,.25)'
                       : 'background:var(--bg-raised);color:var(--tx-muted);border:1px solid var(--bg-border)'"
                     x-text="roleLabel(u.role)"></span>
                 </td>
-                <td class="px-4 py-3 text-xs" style="color:var(--tx-muted)"
-                    x-text="_fmtAdminDate(u.created_at)"></td>
-                <td class="px-4 py-3">
-                  <div class="flex gap-1.5 justify-end">
+                <td class="px-2 py-2.5 text-center">
+                  <button @click="incidentReporterFilter = u.id; incidentPage = 0; adminSubTab = 'incidents'; loadIncidents()"
+                    class="min-w-9 rounded-lg px-2 py-1 text-sm font-black transition-all"
+                    style="background:rgba(59,130,246,.10);border:1px solid rgba(59,130,246,.22);color:#60a5fa"
+                    title="Vezi toate incidentele acestui utilizator"
+                    @mouseenter="$el.style.opacity='.75'"
+                    @mouseleave="$el.style.opacity='1'"
+                    x-text="u.total_reports || 0"></button>
+                </td>
+                <td class="px-2 py-2.5 text-center">
+                  <span class="inline-flex min-w-9 justify-center rounded-lg px-2 py-1 text-sm font-black"
+                    style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.24);color:#10b981"
+                    x-text="u.confirmed_reports || 0"></span>
+                </td>
+                <td class="px-2 py-2.5 text-center">
+                  <span class="inline-flex min-w-9 justify-center rounded-lg px-2 py-1 text-sm font-black"
+                    style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.24);color:#f59e0b"
+                    x-text="u.pending_reports || 0"></span>
+                </td>
+                <td class="px-3 py-2.5 text-xs leading-tight" style="color:var(--tx-muted)"
+                    x-text="_fmtAdminDate(u.last_activity_at || u.created_at)"></td>
+                <td class="px-3 py-2.5">
+                  <div class="flex items-center gap-1 justify-end flex-nowrap whitespace-nowrap">
+                    <button @click="adminOpenEdit(u)"
+                      class="h-7 rounded-lg px-2 flex items-center gap-1 text-[11px] font-bold transition-all"
+                      :disabled="u.id===user?.id"
+                      :title="u.id===user?.id ? 'Nu poți modifica propriul cont din panou' : 'Editează numele și emailul'"
+                      :style="u.id===user?.id
+                        ? 'background:rgba(107,114,128,.08);border:1px solid rgba(107,114,128,.16);color:var(--tx-muted);cursor:not-allowed;opacity:.55'
+                        : 'background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.18);color:var(--tx-secondary)'"
+                      @mouseenter="$el.style.opacity='.75'"
+                      @mouseleave="$el.style.opacity='1'">
+                      <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                      <span>Edit</span>
+                    </button>
                     <button @click="incidentReporterFilter = u.id; incidentPage = 0; adminSubTab = 'incidents'; loadIncidents()"
-                      class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                      class="h-7 rounded-lg px-2 flex items-center gap-1 text-[11px] font-bold transition-all"
                       title="Vezi incidentele acestui utilizator"
                       style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:#34d399"
                       @mouseenter="$el.style.opacity='.75'"
                       @mouseleave="$el.style.opacity='1'">
                       <i data-lucide="file-search" class="w-3.5 h-3.5"></i>
+                      <span>Inc.</span>
                     </button>
                     <button @click="adminToggleRole(u.id, u.role)"
-                      class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-                      :title="u.role==='admin' ? 'Retrogradează' : 'Promovează admin'"
-                      :style="u.role==='admin'
-                        ? ('background:rgba(107,114,128,.08);border:1px solid rgba(107,114,128,.2);color:'+(darkMode?'#9ca3af':'#64748b'))
+                      class="h-7 rounded-lg px-2 flex items-center gap-1 text-[11px] font-bold transition-all"
+                      :disabled="u.id===user?.id"
+                      :title="u.id===user?.id ? 'Rolul propriului cont este blocat' : (u.role==='admin' ? 'Schimbă în utilizator' : 'Schimbă în administrator')"
+                      :style="u.id===user?.id
+                        ? ('background:rgba(99,102,241,.10);border:1px solid rgba(99,102,241,.22);color:'+(darkMode?'#818cf8':'#4f46e5')+';cursor:not-allowed;opacity:.8')
                         : ('background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);color:'+(darkMode?'#818cf8':'#4f46e5'))"
                       @mouseenter="$el.style.opacity='.75'"
                       @mouseleave="$el.style.opacity='1'">
                       <i :data-lucide="u.role==='admin' ? 'user' : 'shield'" class="w-3.5 h-3.5"></i>
+                      <span x-text="u.id===user?.id ? 'Admin' : (u.role==='admin' ? 'User' : 'Rol')"></span>
                     </button>
                     <button @click="adminAskDelete(u)"
-                      class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
-                      title="Șterge cont"
-                      style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#f87171"
-                      @mouseenter="$el.style.background='rgba(239,68,68,.18)'"
-                      @mouseleave="$el.style.background='rgba(239,68,68,.08)'">
+                      class="h-7 rounded-lg px-2 flex items-center gap-1 text-[11px] font-bold transition-all"
+                      :disabled="u.id===user?.id"
+                      :title="u.id===user?.id ? 'Nu poți șterge propriul cont' : 'Șterge utilizator'"
+                      :style="u.id===user?.id
+                        ? 'background:rgba(107,114,128,.08);border:1px solid rgba(107,114,128,.16);color:var(--tx-muted);cursor:not-allowed;opacity:.55'
+                        : 'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#f87171'"
+                      @mouseenter="if(u.id!==user?.id)$el.style.background='rgba(239,68,68,.18)'"
+                      @mouseleave="if(u.id!==user?.id)$el.style.background='rgba(239,68,68,.08)'">
                       <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                      <span>Șterge</span>
                     </button>
                   </div>
                 </td>
@@ -503,6 +617,15 @@
               </div>
               <p class="text-xs font-semibold mb-0.5" style="color:var(--tx-primary)"
                 x-text="new Date((ev.detected_at||'').replace(' ','T')+(ev.detected_at&&!ev.detected_at.endsWith('Z')?'Z':'')).toLocaleString('ro-RO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})"></p>
+              <p class="text-[11px] mb-1 flex items-center gap-1.5" style="color:var(--tx-muted)">
+                <template x-if="ev.source==='upload'"><i data-lucide="upload" class="w-3 h-3 shrink-0"></i></template>
+                <template x-if="ev.source!=='upload'"><i data-lucide="radio" class="w-3 h-3 shrink-0"></i></template>
+                <span class="font-semibold" style="color:var(--tx-secondary)"
+                  x-text="ev.source==='upload' ? 'Video încărcat' : 'Monitor live'"></span>
+                <template x-if="ev.det_score>0">
+                  <span x-text="'· Încredere: ' + (ev.det_score*100).toFixed(0) + '%'"></span>
+                </template>
+              </p>
               <p class="text-[11px] mb-1" style="color:var(--tx-muted)">
                 Utilizator:
                 <span class="font-semibold" style="color:var(--tx-secondary)"
@@ -545,6 +668,11 @@
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
               style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:#60a5fa">
               <i data-lucide="archive" class="w-3.5 h-3.5"></i> Arhivează
+            </button>
+            <button x-show="ev.status==='forwarded'" @click="restoreIncident(ev.id)"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
+              style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:#10b981">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Restabilește
             </button>
             <button x-show="ev.status!=='dismissed'" @click="dismissIncident(ev.id)"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"

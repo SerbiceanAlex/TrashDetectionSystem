@@ -20,7 +20,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, We
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -1125,12 +1125,19 @@ async def admin_list_users(
     result = await session.execute(
         select(
             db.User,
-            func.count(db.LitteringEvent.id).label("total_reports")
+            func.count(db.LitteringEvent.id).label("total_reports"),
+            func.coalesce(
+                func.sum(case((db.LitteringEvent.status == "reviewed", 1), else_=0)), 0
+            ).label("confirmed_reports"),
+            func.coalesce(
+                func.sum(case((db.LitteringEvent.status == "pending", 1), else_=0)), 0
+            ).label("pending_reports"),
+            func.max(db.LitteringEvent.detected_at).label("last_incident_at"),
         )
         .outerjoin(db.LitteringEvent, db.LitteringEvent.reporter_id == db.User.id)
         .where(db.or_(db.User.organization_id == org_id, db.User.organization_id.is_(None)))
         .group_by(db.User.id)
-        .order_by(db.User.points.desc())
+        .order_by(db.User.points.desc(), db.User.created_at.asc(), db.User.id.asc())
     )
     rows = result.all()
     return [
@@ -1140,10 +1147,13 @@ async def admin_list_users(
             "email": u.email,
             "role": u.role,
             "points": u.points,
-            "total_reports": total,
+            "total_reports": int(total or 0),
+            "confirmed_reports": int(confirmed or 0),
+            "pending_reports": int(pending or 0),
             "created_at": u.created_at.isoformat() if u.created_at else None,
+            "last_activity_at": (last_incident_at or u.created_at).isoformat() if (last_incident_at or u.created_at) else None,
         }
-        for u, total in rows
+        for u, total, confirmed, pending, last_incident_at in rows
     ]
 
 
@@ -1162,6 +1172,31 @@ async def admin_update_user(
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=404, detail="Utilizatorul nu a fost găsit.")
+    if (user.organization_id or 1) != (current_user.organization_id or 1):
+        raise HTTPException(status_code=403, detail="Utilizatorul aparține altei organizații.")
+
+    if "username" in body:
+        username = str(body.get("username") or "").strip()
+        if not username:
+            raise HTTPException(status_code=422, detail="Numele de utilizator este obligatoriu.")
+        duplicate = await session.scalar(
+            select(db.User).where(db.User.username == username, db.User.id != user_id)
+        )
+        if duplicate is not None:
+            raise HTTPException(status_code=400, detail="Numele de utilizator este deja folosit.")
+        user.username = username
+
+    if "email" in body:
+        email = str(body.get("email") or "").strip()
+        if not email:
+            raise HTTPException(status_code=422, detail="Emailul este obligatoriu.")
+        duplicate = await session.scalar(
+            select(db.User).where(db.User.email == email, db.User.id != user_id)
+        )
+        if duplicate is not None:
+            raise HTTPException(status_code=400, detail="Emailul este deja folosit.")
+        user.email = email
+
     allowed_roles = {"user", "admin"}
     if "role" in body and body["role"] in allowed_roles:
         user.role = body["role"]
@@ -1169,7 +1204,7 @@ async def admin_update_user(
         user.points = max(0, body["points"])
     await session.commit()
     await session.refresh(user)
-    return {"id": user.id, "username": user.username, "role": user.role, "points": user.points}
+    return {"id": user.id, "username": user.username, "email": user.email, "role": user.role, "points": user.points}
 
 
 @app.post("/api/admin/users/invite", summary="[Admin] Invită un utilizator nou în organizație")
@@ -1245,6 +1280,8 @@ async def admin_delete_user(
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=404, detail="Utilizatorul nu a fost găsit.")
+    if (user.organization_id or 1) != (current_user.organization_id or 1):
+        raise HTTPException(status_code=403, detail="Utilizatorul aparține altei organizații.")
     await session.delete(user)
     await session.commit()
     return {"detail": f"Utilizatorul '{user.username}' a fost șters."}
@@ -1478,6 +1515,34 @@ async def mark_all_notifications_read(
     return {"ok": True}
 
 
+def _delete_video_session_files(vs: db.VideoSession) -> None:
+    for path_str in (vs.video_path, vs.annotated_video_path):
+        if path_str:
+            p = Path(path_str)
+            if p.exists():
+                p.unlink()
+
+
+@app.delete("/api/video/sessions", response_model=schemas.DetailResponse, summary="Curăță istoricul procesărilor video")
+async def clear_video_sessions(
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    org_id = current_user.organization_id or 1
+    query = select(db.VideoSession).where(db.VideoSession.status.notin_(["running", "processing"]))
+    if current_user.role == "admin":
+        query = query.where(db.or_(db.VideoSession.organization_id == org_id, db.VideoSession.organization_id.is_(None)))
+    else:
+        query = query.where(db.VideoSession.user_id == current_user.id)
+
+    rows = (await session.execute(query)).scalars().all()
+    for vs in rows:
+        _delete_video_session_files(vs)
+        await session.delete(vs)
+    await session.commit()
+    return {"detail": f"Istoricul video a fost curățat: {len(rows)} sesiune(i) șterse."}
+
+
 @app.delete("/api/video/sessions/{session_id}", response_model=schemas.DetailResponse, summary="Șterge o sesiune video și fișierele ei")
 async def delete_video_session(
     session_id: int,
@@ -1494,12 +1559,7 @@ async def delete_video_session(
     if not ((is_admin and same_org) or is_owner):
         raise HTTPException(status_code=403, detail="Nu poți șterge o sesiune care nu îți aparține.")
 
-    for path_str in (vs.video_path, vs.annotated_video_path):
-        if path_str:
-            p = Path(path_str)
-            if p.exists():
-                p.unlink()
-
+    _delete_video_session_files(vs)
     await session.delete(vs)
     await session.commit()
     return {"detail": f"Sesiunea video {session_id} a fost ștearsă."}
