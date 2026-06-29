@@ -172,7 +172,7 @@ def _process_video_sync(
             ]
             display_trash = [
                 st["det"] for st in _trash_tracks.values()
-                if st["seen"] >= _TRASH_STABLE_SEEN and st["miss"] <= _TRASH_DISPLAY_GRACE_MISSES
+                if st["seen"] >= _TRASH_DISPLAY_SEEN and st["miss"] <= _TRASH_DISPLAY_GRACE_MISSES
             ]
 
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
@@ -557,9 +557,10 @@ _MIN_TRASH_AREA_FRAC = 0.00015  # ignoră zgomotul foarte mic
 _MAX_TRASH_AREA_FRAC = 0.18     # ignoră regiuni prea mari de fundal, de ex. pat/podea
 _TRASH_TRACK_IMGSZ = settings.MONITOR_TRASH_IMGSZ
 _PERSON_FILTER_SHRINK = 0.85     # micșorează boxurile persoanelor doar pentru filtrarea suprapunerii
-_TRASH_STABLE_SEEN = 2           # boxul apare după 2 detecții (nu 4) — continuitate la distanță
+_TRASH_STABLE_SEEN = 2           # pentru logica incidentului: cere stabilitate, nu un singur cadru
+_TRASH_DISPLAY_SEEN = 1          # pentru UI: desenează imediat prima detecție validă
 _TRASH_GRACE_MISSES = 8          # ține boxul ~8 cadre ratate — netezește contorul (fără 0/1/0/1)
-_TRASH_DISPLAY_GRACE_MISSES = 1  # pentru UI: nu desena boxuri fantomă după ce au dispărut
+_TRASH_DISPLAY_GRACE_MISSES = 2  # pentru UI: acoperă ratări scurte fără boxuri fantomă lungi
 _MONITOR_PREWARMED = False
 
 
@@ -941,7 +942,7 @@ async def handle_monitor_ws(
             display_trash_dets = [
                 st["det"]
                 for st in _trash_tracks.values()
-                if st["seen"] >= _TRASH_STABLE_SEEN and st["miss"] <= _TRASH_DISPLAY_GRACE_MISSES
+                if st["seen"] >= _TRASH_DISPLAY_SEEN and st["miss"] <= _TRASH_DISPLAY_GRACE_MISSES
             ]
 
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
