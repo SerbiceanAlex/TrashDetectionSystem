@@ -377,14 +377,14 @@
       <div x-show="!adminUsersLoading && adminUsers.length > 0" class="overflow-hidden">
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px">
           <colgroup>
-            <col style="width:16%">
-            <col style="width:17%">
+            <col style="width:15%">
+            <col style="width:15%">
             <col style="width:10%">
             <col style="width:9%">
             <col style="width:9%">
-            <col style="width:8%">
+            <col style="width:9%">
             <col style="width:12%">
-            <col style="width:19%">
+            <col style="width:21%">
           </colgroup>
           <thead>
             <tr style="background:var(--bg-raised);border-bottom:1px solid var(--bg-border)">
@@ -400,10 +400,10 @@
           </thead>
           <tbody>
             <template x-for="(u, idx) in adminUsers" :key="u.id">
-              <tr style="border-bottom:1px solid var(--bg-border)">
-                <td class="px-3 py-2.5">
-                  <div class="flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0"
+              <tr style="border-bottom:1px solid var(--bg-border);height:62px">
+                <td class="px-3 py-3">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-lg flex items-center justify-center text-xs font-black shrink-0"
                          style="background:rgba(99,102,241,.1);color:#818cf8"
                          x-text="u.username.slice(0,2).toUpperCase()"></div>
                     <span class="font-semibold text-sm truncate" style="color:var(--tx-primary)" x-text="u.username"></span>
@@ -441,7 +441,7 @@
                 <td class="px-3 py-2.5">
                   <div class="flex items-center gap-1 justify-end flex-nowrap whitespace-nowrap">
                     <button @click="adminOpenEdit(u)"
-                      class="h-7 rounded-lg px-2 flex items-center gap-1 text-[11px] font-bold transition-all"
+                      class="h-8 rounded-lg px-2.5 flex items-center gap-1 text-[11px] font-bold transition-all"
                       :disabled="u.id===user?.id"
                       :title="u.id===user?.id ? 'Nu poți modifica propriul cont din panou' : 'Editează numele și emailul'"
                       :style="u.id===user?.id
@@ -452,17 +452,8 @@
                       <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
                       <span>Edit</span>
                     </button>
-                    <button @click="incidentReporterFilter = u.id; incidentPage = 0; adminSubTab = 'incidents'; loadIncidents()"
-                      class="h-7 rounded-lg px-2 flex items-center gap-1 text-[11px] font-bold transition-all"
-                      title="Vezi incidentele acestui utilizator"
-                      style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:#34d399"
-                      @mouseenter="$el.style.opacity='.75'"
-                      @mouseleave="$el.style.opacity='1'">
-                      <i data-lucide="file-search" class="w-3.5 h-3.5"></i>
-                      <span>Inc.</span>
-                    </button>
                     <button @click="adminToggleRole(u.id, u.role)"
-                      class="h-7 rounded-lg px-2 flex items-center gap-1 text-[11px] font-bold transition-all"
+                      class="h-8 rounded-lg px-2.5 flex items-center gap-1 text-[11px] font-bold transition-all"
                       :disabled="u.id===user?.id"
                       :title="u.id===user?.id ? 'Rolul propriului cont este blocat' : (u.role==='admin' ? 'Schimbă în utilizator' : 'Schimbă în administrator')"
                       :style="u.id===user?.id
@@ -471,10 +462,10 @@
                       @mouseenter="$el.style.opacity='.75'"
                       @mouseleave="$el.style.opacity='1'">
                       <i :data-lucide="u.role==='admin' ? 'user' : 'shield'" class="w-3.5 h-3.5"></i>
-                      <span x-text="u.id===user?.id ? 'Admin' : (u.role==='admin' ? 'User' : 'Rol')"></span>
+                      <span x-text="u.id===user?.id ? 'Admin' : (u.role==='admin' ? 'User' : 'Admin')"></span>
                     </button>
                     <button @click="adminAskDelete(u)"
-                      class="h-7 rounded-lg px-2 flex items-center gap-1 text-[11px] font-bold transition-all"
+                      class="h-8 rounded-lg px-2.5 flex items-center gap-1 text-[11px] font-bold transition-all"
                       :disabled="u.id===user?.id"
                       :title="u.id===user?.id ? 'Nu poți șterge propriul cont' : 'Șterge utilizator'"
                       :style="u.id===user?.id
