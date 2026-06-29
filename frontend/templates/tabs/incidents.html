@@ -298,9 +298,8 @@
           <div class="flex-1 min-w-0 self-center">
             <!-- Titlu + ID -->
             <div class="flex items-start gap-2 mb-0.5">
-              <p class="text-sm font-bold leading-tight" style="color:var(--tx-primary)">Incident posibil detectat</p>
-              <span class="text-[10px] font-mono ml-auto shrink-0 mt-0.5" style="color:var(--tx-muted)"
-                x-text="'#'+ev.id"></span>
+              <p class="text-sm font-bold leading-tight truncate" style="color:var(--tx-primary)"
+                x-text="'#' + ev.id + ' · Incident posibil detectat'"></p>
             </div>
             <!-- Data -->
             <p class="text-xs mb-2" style="color:var(--tx-muted)"
@@ -372,6 +371,16 @@
               <i data-lucide="archive" class="w-4 h-4"></i>
               <span>Arhivă</span>
             </button>
+            <button x-show="ev.status==='forwarded'"
+              @click="restoreIncident(ev.id)"
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+              style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.2)"
+              title="Restabilește în lista confirmată"
+              @mouseenter="$el.style.background='rgba(16,185,129,.2)'"
+              @mouseleave="$el.style.background='rgba(16,185,129,.1)'">
+              <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+              <span>Restabilește</span>
+            </button>
           </div>
         </div>
 
@@ -431,7 +440,7 @@
           </div>
           <div class="min-w-0">
             <p class="incident-detail-name"
-               x-text="'Incident #' + (incidentModal?.id ?? '')"></p>
+               x-text="'#' + (incidentModal?.id ?? '') + ' · Incident posibil detectat'"></p>
             <p class="incident-detail-date"
                x-text="new Date(((incidentModal?.detected_at||'').replace(' ','T')+(incidentModal?.detected_at&&!incidentModal.detected_at.endsWith('Z')?'Z':''))).toLocaleString('ro-RO',{dateStyle:'long',timeStyle:'short'})"></p>
           </div>
@@ -644,6 +653,13 @@
               class="incident-action-btn incident-action-btn--archive">
               <i data-lucide="archive" class="w-4 h-4"></i>
               <span>Arhivează</span>
+            </button>
+
+            <button x-show="isAdmin && incidentModal?.status==='forwarded'"
+              @click="restoreIncident(incidentModal.id).then(ok => { if (ok) incidentModal.status='reviewed' })"
+              class="incident-action-btn incident-action-btn--confirm">
+              <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+              <span>Restabilește</span>
             </button>
 
             <button x-show="isAdmin && incidentModal?.status!=='dismissed'"

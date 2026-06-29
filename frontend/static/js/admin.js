@@ -11,6 +11,10 @@ function adminApp() {
     // Confirm delete modal
     adminConfirmUser: null,
     adminConfirmOpen: false,
+    adminEditOpen: false,
+    adminEditUser: null,
+    adminEditForm: { username: '', email: '' },
+    adminEditSaving: false,
 
     // Team invite (org-scoped)
     inviteModalOpen: false,
@@ -93,6 +97,10 @@ function adminApp() {
 
     /* ── Toggle user role admin ↔ user ────────────────────────────────── */
     async adminToggleRole(userId, currentRole) {
+      if (userId === this.user?.id) {
+        showToast('Nu poți schimba rolul propriului cont.', 'error');
+        return;
+      }
       const newRole = currentRole === 'admin' ? 'user' : 'admin';
       try {
         await fetchAPI(`/api/admin/users/${userId}`, {
@@ -110,8 +118,55 @@ function adminApp() {
 
     /* ── Delete user (with confirm) ────────────────────────────────────── */
     adminAskDelete(user) {
+      if (user?.id === this.user?.id) {
+        showToast('Nu poți șterge propriul cont.', 'error');
+        return;
+      }
       this.adminConfirmUser = user;
       this.adminConfirmOpen = true;
+    },
+
+    adminOpenEdit(user) {
+      if (user?.id === this.user?.id) {
+        showToast('Nu poți modifica propriul cont din panou.', 'error');
+        return;
+      }
+      this.adminEditUser = user;
+      this.adminEditForm = {
+        username: user?.username || '',
+        email: user?.email || '',
+      };
+      this.adminEditOpen = true;
+      this._refreshAdminIcons();
+    },
+
+    async adminSaveUser() {
+      if (!this.adminEditUser) return;
+      const username = this.adminEditForm.username.trim();
+      const email = this.adminEditForm.email.trim();
+      if (!username || !email) {
+        return showToast('Numele și emailul sunt obligatorii', 'error');
+      }
+      this.adminEditSaving = true;
+      try {
+        const updated = await fetchAPI(`/api/admin/users/${this.adminEditUser.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, email }),
+        });
+        const idx = this.adminUsers.findIndex(u => u.id === updated.id);
+        if (idx !== -1) {
+          this.adminUsers[idx] = { ...this.adminUsers[idx], ...updated };
+        }
+        this.adminEditOpen = false;
+        this.adminEditUser = null;
+        showToast('Utilizator actualizat');
+        this._refreshAdminIcons();
+      } catch (e) {
+        showToast(e.message, 'error');
+      } finally {
+        this.adminEditSaving = false;
+      }
     },
 
     openInviteModal() {
@@ -354,6 +409,19 @@ function adminApp() {
       this._refreshAdminIcons();
     },
 
+    _syncIncidentAfterStatusUpdate(id, updated) {
+      const idx = this.incidents.findIndex(e => e.id === id);
+      if (idx === -1) return null;
+      const oldStatus = this.incidents[idx].status;
+      if (this.incidentStatusFilter && updated.status !== this.incidentStatusFilter) {
+        this.incidents.splice(idx, 1);
+        this.incidentTotal = Math.max(0, this.incidentTotal - 1);
+      } else {
+        this.incidents[idx] = updated;
+      }
+      return oldStatus;
+    },
+
     async markIncidentReviewed(id) {
       const ok = await this.showConfirm(
         'Confirmă incident',
@@ -367,10 +435,8 @@ function adminApp() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'reviewed' }),
         });
-        const idx = this.incidents.findIndex(e => e.id === id);
-        if (idx !== -1) {
-          const oldStatus = this.incidents[idx].status;
-          this.incidents[idx] = updated;
+        const oldStatus = this._syncIncidentAfterStatusUpdate(id, updated);
+        if (oldStatus) {
           if (oldStatus === 'pending') this.incidentPending = Math.max(0, this.incidentPending - 1);
           if (oldStatus === 'forwarded') this.incidentForwarded = Math.max(0, this.incidentForwarded - 1);
           if (oldStatus !== 'reviewed') this.incidentReviewed += 1;
@@ -400,10 +466,8 @@ function adminApp() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'forwarded' }),
         });
-        const idx = this.incidents.findIndex(e => e.id === id);
-        if (idx !== -1) {
-          const oldStatus = this.incidents[idx].status;
-          this.incidents[idx] = updated;
+        const oldStatus = this._syncIncidentAfterStatusUpdate(id, updated);
+        if (oldStatus) {
           if (oldStatus === 'reviewed') this.incidentReviewed = Math.max(0, this.incidentReviewed - 1);
           if (oldStatus === 'pending') this.incidentPending = Math.max(0, this.incidentPending - 1);
           if (oldStatus !== 'forwarded') this.incidentForwarded += 1;
@@ -420,6 +484,34 @@ function adminApp() {
       }
     },
 
+    async restoreIncident(id) {
+      const ok = await this.showConfirm(
+        'Restabilește incidentul',
+        'Incidentul va ieși din arhivă și va reveni în lista incidentelor confirmate.',
+        { confirmText: 'Restabilește', confirmColor: '#10b981', iconColor: '#10b981', icon: 'rotate-ccw' }
+      );
+      if (!ok) return false;
+      try {
+        const updated = await fetchAPI(`/api/littering/events/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'reviewed' }),
+        });
+        const oldStatus = this._syncIncidentAfterStatusUpdate(id, updated);
+        if (oldStatus) {
+          if (oldStatus === 'forwarded') this.incidentForwarded = Math.max(0, this.incidentForwarded - 1);
+          if (oldStatus !== 'reviewed') this.incidentReviewed += 1;
+        }
+        showToast('Incident restabilit în lista confirmată.');
+        await this.loadStorage();
+        this._refreshAdminIcons();
+        return true;
+      } catch (e) {
+        showToast('Eroare: ' + e.message, 'error');
+        return false;
+      }
+    },
+
     async dismissIncident(id) {
       const ok = await this.showConfirm(
         'Marchează fals pozitiv',
@@ -433,10 +525,8 @@ function adminApp() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'dismissed' }),
         });
-        const idx = this.incidents.findIndex(e => e.id === id);
-        if (idx !== -1) {
-          const oldStatus = this.incidents[idx].status;
-          this.incidents[idx] = updated;
+        const oldStatus = this._syncIncidentAfterStatusUpdate(id, updated);
+        if (oldStatus) {
           if (oldStatus === 'pending') this.incidentPending = Math.max(0, this.incidentPending - 1);
           if (oldStatus === 'reviewed') this.incidentReviewed = Math.max(0, this.incidentReviewed - 1);
           if (oldStatus === 'forwarded') this.incidentForwarded = Math.max(0, this.incidentForwarded - 1);
@@ -507,8 +597,12 @@ function adminApp() {
             await fetchAPI(`/api/littering/events/${id}`, { method: 'DELETE' });
             deleted += 1;
           } catch (e) {
-            failed += 1;
-            console.warn('deleteSelectedIncidents', id, e);
+            if (String(e.message || '').includes('nu a fost găsit')) {
+              deleted += 1; // era deja șters; pentru utilizator rezultatul este același
+            } else {
+              failed += 1;
+              console.warn('deleteSelectedIncidents', id, e);
+            }
           }
         }
         this.incidentSelectedIds = [];
@@ -553,14 +647,14 @@ function adminApp() {
     _fmtAdminDate(iso) {
       if (!iso) return '—';
       const d = new Date(iso);
-      return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString('ro-RO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
     },
 
     _fmtAdminTimeAgo(iso) {
       if (!iso) return '';
       const diff = Date.now() - new Date(iso).getTime();
       const mins = Math.floor(diff / 60000);
-      if (mins < 1) return 'now';
+      if (mins < 1) return 'acum';
       if (mins < 60) return `${mins} min`;
       const hrs = Math.floor(mins / 60);
       if (hrs < 24) return `${hrs}h`;
