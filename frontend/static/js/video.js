@@ -312,7 +312,7 @@ function videoApp() {
       const runtime = this.systemInfo?.runtime || {};
       this.detConf = Number(runtime.monitor_min_det_conf || 0.25);
       this.monitorPersonConf = Number(runtime.monitor_person_conf || 0.25);
-      this.monitorSendFps = 12;  // rată moderată pentru stream IP
+      this.monitorSendFps = 20;  // rată pentru stream IP (sursele bune: telefon/HLS)
 
       this._monitorCanvas = canvas;
       this._monitorVideo = this.$refs.monitorVideo;
