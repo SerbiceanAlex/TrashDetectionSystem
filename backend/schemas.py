@@ -123,6 +123,7 @@ class LitteringEventOut(BaseModel):
     owner_person_id: Optional[int] = None
     distance_at_abandonment: Optional[float] = None
     detection_method: str = "zone"
+    source: str = "live"
 
 
 class LitteringEventsPage(BaseModel):

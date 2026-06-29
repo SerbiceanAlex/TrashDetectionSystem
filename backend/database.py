@@ -154,6 +154,7 @@ class LitteringEvent(Base):
     owner_person_id         = Column(Integer, nullable=True)   # ByteTrack ID al persoanei
     distance_at_abandonment = Column(Float, nullable=True)     # distanța estimată în metri la momentul ABANDONED
     detection_method        = Column(String(32), default="zone")  # "zone" | "distance"
+    source                  = Column(String(16), default="live")  # "live" (monitor) | "upload" (video încărcat)
 
     # ── Workflow ─────────────────────────────────────────────────────────────
     status          = Column(String(16), default="pending", index=True)
@@ -294,6 +295,7 @@ async def create_littering_event(
     owner_person_id: int | None = None,
     distance_at_abandonment: float | None = None,
     detection_method: str = "zone",
+    source: str = "live",
     reporter_id: int | None = None,
     organization_id: int | None = None,
 ) -> "LitteringEvent":
@@ -315,6 +317,7 @@ async def create_littering_event(
         owner_person_id=owner_person_id,
         distance_at_abandonment=round(distance_at_abandonment, 3) if distance_at_abandonment is not None else None,
         detection_method=detection_method,
+        source=source,
         reporter_id=reporter_id,
         organization_id=organization_id,
     )

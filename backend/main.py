@@ -102,6 +102,7 @@ async def _migrate_schema():
         "ALTER TABLE littering_events ADD COLUMN owner_person_id INTEGER",
         "ALTER TABLE littering_events ADD COLUMN distance_at_abandonment REAL",
         "ALTER TABLE littering_events ADD COLUMN detection_method VARCHAR(32) DEFAULT 'zone'",
+        "ALTER TABLE littering_events ADD COLUMN source VARCHAR(16) DEFAULT 'live'",
         "ALTER TABLE littering_events ADD COLUMN reporter_id INTEGER REFERENCES users(id)",
         # Izolare pe organizație
         "ALTER TABLE users ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",

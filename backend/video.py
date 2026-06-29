@@ -337,6 +337,7 @@ async def process_uploaded_video(
                         person_count=1,
                         thumbnail_path=thumb_rel,
                         detection_method="zone",
+                        source="upload",
                         reporter_id=owner_user_id,
                         organization_id=owner_org_id,
                     )
@@ -943,6 +944,7 @@ async def handle_monitor_ws(
                     owner_person_id=event.owner_person_id,
                     distance_at_abandonment=event.distance_at_abandonment,
                     detection_method=event.detection_method,
+                    source="live",
                     reporter_id=user_id,
                     organization_id=organization_id or 1,
                 )

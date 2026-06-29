@@ -475,6 +475,12 @@
                   :'background:var(--bg-raised);color:var(--tx-muted);border-color:var(--bg-border)'"
                 x-text="incidentModal?.material==='paper'?'Hârtie':incidentModal?.material==='glass'?'Sticlă':incidentModal?.material==='plastic'?'Plastic':incidentModal?.material==='metal'?'Metal':incidentModal?.material==='other'?'Altele':'Neconfirmat'">
               </span>
+              <span class="incident-chip"
+                :style="incidentModal?.source==='upload'
+                  ? ('background:rgba(139,92,246,.14);color:'+(darkMode?'#a78bfa':'#6d28d9')+';border-color:rgba(139,92,246,.26)')
+                  : ('background:rgba(16,185,129,.14);color:'+(darkMode?'#34d399':'#047857')+';border-color:rgba(16,185,129,.26)')"
+                x-text="incidentModal?.source==='upload' ? 'Video încărcat' : 'Monitor live'">
+              </span>
             </div>
 
             <div x-show="isAdmin"
