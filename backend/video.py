@@ -801,6 +801,12 @@ async def handle_monitor_ws(
                         except Exception:
                             pass
                         break
+                # Camerele IP publice sunt adesea hi-res (ex. 3072px lățime) — micșorăm
+                # la max 1280px ca procesarea + encodarea să nu prăbușească FPS-ul.
+                _hh, _ww = frame.shape[:2]
+                if _ww > 1280:
+                    _sc = 1280.0 / _ww
+                    frame = cv2.resize(frame, (1280, int(_hh * _sc)), interpolation=cv2.INTER_AREA)
                 # Limităm rata de procesare ca să nu saturăm CPU/rețeaua.
                 await asyncio.sleep(max(0.0, 1.0 / analysis_fps))
             else:
