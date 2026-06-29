@@ -48,7 +48,7 @@ function videoApp() {
         return;
       }
       this.videoProcessing = true;
-      this.videoProcessingMsg = 'Uploading...';
+      this.videoProcessingMsg = 'Se încarcă...';
       this.videoProgress = 0;
 
       try {
@@ -59,12 +59,12 @@ function videoApp() {
           body: fd,
         });
         this.uploadSessionId = data.session_id;
-        this.videoProcessingMsg = 'Processing...';
+        this.videoProcessingMsg = 'Se procesează...';
 
         // Poll for completion
         this._pollUploadStatus(data.session_id);
       } catch (e) {
-        this.videoProcessingMsg = 'Error: ' + e.message;
+        this.videoProcessingMsg = 'Eroare: ' + e.message;
         this.videoProcessing = false;
       }
     },
@@ -77,7 +77,7 @@ function videoApp() {
           // Update progress bar
           if (vs.total_frames_expected > 0) {
             this.videoProgress = Math.round((vs.frames_processed / vs.total_frames_expected) * 100);
-            this.videoProcessingMsg = `Processing... ${this.videoProgress}% (${vs.frames_processed}/${vs.total_frames_expected} frames)`;
+            this.videoProcessingMsg = `Se procesează... ${this.videoProgress}% (${vs.frames_processed}/${vs.total_frames_expected} cadre)`;
           }
 
           if (vs.status === 'completed') {
@@ -221,6 +221,7 @@ function videoApp() {
     monitorPersons: 0,
     monitorTrash: 0,
     monitorAlerts: [],
+    monitorBannerAlert: null,
     monitorPersonConf: 0.25,
     monitorSendFps: 24,
     monitorCameraWidth: 1280,
@@ -240,8 +241,12 @@ function videoApp() {
     _monitorFramesInFlight: 0,
     _monitorMaxInFlight: 3,
     _monitorFpsLastDisplayAt: 0,
+    _monitorBannerTimer: null,
 
     async startMonitor() {
+      this.monitorAlerts = [];
+      this.monitorBannerAlert = null;
+      clearTimeout(this._monitorBannerTimer);
       // Cameră IP/RTSP: flux separat — serverul deschide stream-ul, nu browserul.
       if (this.monitorSourceMode === 'ip') {
         return this._startMonitorIp();
@@ -269,7 +274,7 @@ function videoApp() {
         try {
           this.monitorStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         } catch (e2) {
-          showToast('Camera access error: ' + e2.message, 'error');
+          showToast('Eroare la accesarea camerei: ' + e2.message, 'error');
           return;
         }
       }
@@ -277,7 +282,7 @@ function videoApp() {
       const video = this.$refs.monitorVideo;
       const canvas = this.$refs.monitorCanvas;
       if (!video || !canvas) {
-        showToast('Camera elements missing — reload the page.', 'error');
+        showToast('Elementele camerei lipsesc — reîncarcă pagina.', 'error');
         return;
       }
 
@@ -304,6 +309,9 @@ function videoApp() {
 
     // ── Cameră IP/RTSP: serverul deschide stream-ul și trimite cadrele adnotate ──
     async _startMonitorIp() {
+      this.monitorAlerts = [];
+      this.monitorBannerAlert = null;
+      clearTimeout(this._monitorBannerTimer);
       const url = (this.monitorIpUrl || '').trim();
       if (!url) { showToast('Introdu URL-ul camerei IP (rtsp://… sau http://…).', 'error'); return; }
       const canvas = this.$refs.monitorCanvas;
@@ -371,9 +379,16 @@ function videoApp() {
             return;
           }
           if (msg.type === 'alert') {
+            this._lastMonitorMsg = null;
+            this._clearMonitorOverlay();
             this.monitorAlerts.push(msg);
+            this.monitorBannerAlert = msg;
+            clearTimeout(this._monitorBannerTimer);
+            this._monitorBannerTimer = setTimeout(() => {
+              this.monitorBannerAlert = null;
+            }, 4500);
             const material = msg.material || 'unknown';
-            showToast(`⚠ Incident detectat! Material: ${material}`, 'error');
+            showToast(`Incident detectat! Material: ${material}`, 'error');
             // Vibrate on mobile
             if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
             // Browser push notification
@@ -409,7 +424,7 @@ function videoApp() {
             this._updateMonitorFps(nextFps, targetFps);
             this.monitorPersons = msg.persons || 0;
             this.monitorTrash = msg.trash || 0;
-            // Store msg — overlay is drawn in the RAF loop to avoid accumulation
+            // Păstrează mesajul curent — overlay-ul se desenează în RAF ca să nu se acumuleze.
             msg._receivedAt = performance.now();
             this._lastMonitorMsg = msg;
           }
@@ -423,6 +438,8 @@ function videoApp() {
       this.monitorWs.onclose = (ev) => {
         // Oprește bucla de captură curentă (nu mai trimite spre un WS închis).
         if (this._monitorAnimFrame) { cancelAnimationFrame(this._monitorAnimFrame); this._monitorAnimFrame = null; }
+        this._lastMonitorMsg = null;
+        this._clearMonitorOverlay();
         // Închidere intenționată (user a apăsat stop) — nu reconecta.
         if (this._monitorUserStopped || ev.code === 1000) return;
         // Deconectare neașteptată (WiFi/timeout) — reconectează automat, păstrând camera.
@@ -471,7 +488,7 @@ function videoApp() {
         if (overlayCanvas.height !== vh) overlayCanvas.height = vh;
         const ctx = overlayCanvas.getContext('2d');
         ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-        if (this._lastMonitorMsg && (performance.now() - (this._lastMonitorMsg._receivedAt || 0)) < 900) {
+        if (this._isMonitorMsgFresh(this._lastMonitorMsg)) {
           this._drawMonitorOverlay(overlayCanvas, this._lastMonitorMsg);
         }
 
@@ -479,15 +496,14 @@ function videoApp() {
           const now = performance.now();
           const sendIntervalMs = 1000 / Math.max(this.monitorSendFps || 12, 1);
 
-          // Keep a tiny pipeline of frames in flight. Waiting for a full
-          // browser-network-server round trip caps phones around 10-12 FPS,
-          // even when the GPU can process faster.
+          // Ține o coadă mică de cadre în zbor. Dacă așteptăm un ciclu complet
+          // browser-rețea-server, telefoanele se blochează ușor la 10-12 FPS,
+          // chiar când GPU-ul poate procesa mai repede.
           const maxInFlight = Math.max(1, Math.min(Number(this._monitorMaxInFlight || 2), 3));
           if (!this._monitorSending && this._monitorFramesInFlight < maxInFlight && (now - this._monitorLastSendAt) >= sendIntervalMs) {
             if (this.monitorWs.bufferedAmount < 500000) {
-              // Build the JPEG only when a frame is actually due. The preview
-              // canvas still renders every animation frame, but encoding is
-              // throttled to the AI rhythm.
+              // Construiește JPEG-ul doar când chiar trebuie trimis un cadru.
+              // Preview-ul rămâne fluid, iar encodarea este limitată separat.
               const maxDim = Math.max(416, Math.min(Number(this.monitorCaptureMaxDim || 896), 896));
               const scale = Math.min(1, maxDim / Math.max(vw, vh));
               cc.width = Math.round(vw * scale);
@@ -532,6 +548,26 @@ function videoApp() {
       this._monitorFrameInFlight = this._monitorFramesInFlight > 0;
     },
 
+    _monitorOverlayFreshMs() {
+      const target = Math.max(1, Number(this.monitorFpsRaw || this.monitorSendFps || 15));
+      return Math.max(160, Math.min(300, (1000 / target) * 3));
+    },
+
+    _isMonitorMsgFresh(msg) {
+      if (!msg || msg.type !== 'frame') return false;
+      const age = performance.now() - (msg._receivedAt || 0);
+      return age <= this._monitorOverlayFreshMs();
+    },
+
+    _clearMonitorOverlay() {
+      if (this._monitorIpMode && this.monitorActive) return;
+      const c = this._monitorCanvas || this.$refs?.monitorCanvas;
+      if (!c) return;
+      try {
+        c.getContext('2d').clearRect(0, 0, c.width, c.height);
+      } catch (_) {}
+    },
+
     _updateMonitorFps(rawFps, targetFps) {
       const target = Math.max(1, Number(targetFps || this.monitorSendFps || 15));
       const raw = Math.max(0, Math.min(Number(rawFps || 0), target));
@@ -569,7 +605,7 @@ function videoApp() {
       // Zona monitorizată NU se mai desenează: la distanțe mai mari de 2-3 m
       // poziția ei devine imprecisă și induce utilizatorul în eroare.
 
-      // Draw person boxes (orange solid)
+      // Desenează persoanele (portocaliu)
       if (msg.person_boxes) {
         ctx.strokeStyle = 'rgba(251,191,36,0.9)';
         ctx.lineWidth = 2 * ui;
@@ -583,7 +619,7 @@ function videoApp() {
         }
       }
 
-      // Draw trash boxes (red)
+      // Desenează deșeurile (roșu)
       if (msg.trash_boxes) {
         ctx.strokeStyle = 'rgba(239,68,68,0.9)';
         ctx.lineWidth = 2 * ui;
@@ -644,6 +680,9 @@ function videoApp() {
       this.monitorTrash = 0;
       this.monitorProgress = 0;
       this._lastMonitorMsg = null;
+      this.monitorBannerAlert = null;
+      clearTimeout(this._monitorBannerTimer);
+      this._clearMonitorOverlay();
       this._monitorLastSendAt = 0;
       this._monitorSending = false;
       this._monitorFrameInFlight = false;

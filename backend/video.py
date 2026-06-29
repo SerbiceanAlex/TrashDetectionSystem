@@ -172,7 +172,7 @@ def _process_video_sync(
             ]
             display_trash = [
                 st["det"] for st in _trash_tracks.values()
-                if st["seen"] >= _TRASH_STABLE_SEEN and st["miss"] <= _TRASH_GRACE_MISSES
+                if st["seen"] >= _TRASH_STABLE_SEEN and st["miss"] <= _TRASH_DISPLAY_GRACE_MISSES
             ]
 
             elapsed_ms = (time.perf_counter() - t0) * 1000.0
@@ -508,16 +508,38 @@ def _iou_overlap(tb, pb) -> float:
     return inter / trash_area
 
 
-def _dedup_trash_overlap(dets: list, thresh: float = 0.6) -> list:
+def _box_center(box: tuple[int, int, int, int]) -> tuple[float, float]:
+    """Întoarce centrul unei casete."""
+    return ((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
+
+
+def _center_distance(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
+    """Distanța în pixeli dintre centrele a două casete."""
+    ax, ay = _box_center(a)
+    bx, by = _box_center(b)
+    return float(((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5)
+
+
+def _dedup_trash_overlap(dets: list, thresh: float = 0.45) -> list:
     """Elimină casetele de deșeu DUPLICATE — același obiect căruia tracker-ul
     (ByteTrack) i-a dat 2 track_id-uri, deci 2 casete suprapuse pe ecran. Păstrează
-    caseta cu încrederea cea mai mare din fiecare grup care se suprapune > thresh."""
+    caseta cu încrederea cea mai mare din fiecare grup apropiat/suprapus."""
     if len(dets) < 2:
         return dets
     kept: list = []
     for d in sorted(dets, key=lambda x: x["det_score"], reverse=True):
-        if any(max(_iou_overlap(d["box"], k["box"]),
-                   _iou_overlap(k["box"], d["box"])) > thresh for k in kept):
+        db = d["box"]
+        dw = max(db[2] - db[0], 1)
+        dh = max(db[3] - db[1], 1)
+        duplicate = False
+        for k in kept:
+            kb = k["box"]
+            iou_like = max(_iou_overlap(db, kb), _iou_overlap(kb, db))
+            center_limit = 0.45 * max(dw, dh, kb[2] - kb[0], kb[3] - kb[1], 1)
+            if iou_like > thresh or _center_distance(db, kb) <= center_limit:
+                duplicate = True
+                break
+        if duplicate:
             continue
         kept.append(d)
     return kept
@@ -529,13 +551,15 @@ _OVERLAP_THRESH = 0.30
 # ...dar dacă încrederea detecției e cel puțin atât, e un obiect real ținut în
 # mână (cutie/sticlă/ambalaj) și se păstrează. Sub prag = fals pe corp → suprimat.
 _OVERLAP_KEEP_CONF = 0.45
+_OVERLAP_TINY_KEEP_CONF = 0.65
 _OVERLAP_TINY_PERSON_RATIO = 0.018
 _MIN_TRASH_AREA_FRAC = 0.00015  # ignoră zgomotul foarte mic
 _MAX_TRASH_AREA_FRAC = 0.18     # ignoră regiuni prea mari de fundal, de ex. pat/podea
 _TRASH_TRACK_IMGSZ = settings.MONITOR_TRASH_IMGSZ
-_PERSON_FILTER_SHRINK = 0.72     # micșorează boxurile persoanelor doar pentru filtrarea suprapunerii
+_PERSON_FILTER_SHRINK = 0.85     # micșorează boxurile persoanelor doar pentru filtrarea suprapunerii
 _TRASH_STABLE_SEEN = 2           # boxul apare după 2 detecții (nu 4) — continuitate la distanță
 _TRASH_GRACE_MISSES = 8          # ține boxul ~8 cadre ratate — netezește contorul (fără 0/1/0/1)
+_TRASH_DISPLAY_GRACE_MISSES = 1  # pentru UI: nu desena boxuri fantomă după ce au dispărut
 _MONITOR_PREWARMED = False
 
 
@@ -633,7 +657,7 @@ def _should_suppress_overlapped_trash(
         px1, py1, px2, py2 = best_person_box
         trash_area = max((tx2 - tx1) * (ty2 - ty1), 1)
         person_area = max((px2 - px1) * (py2 - py1), 1)
-        if trash_area / person_area < _OVERLAP_TINY_PERSON_RATIO:
+        if trash_area / person_area < _OVERLAP_TINY_PERSON_RATIO and det_score < _OVERLAP_TINY_KEEP_CONF:
             return True
 
     return det_score < _OVERLAP_KEEP_CONF
@@ -917,7 +941,7 @@ async def handle_monitor_ws(
             display_trash_dets = [
                 st["det"]
                 for st in _trash_tracks.values()
-                if st["seen"] >= _TRASH_STABLE_SEEN and st["miss"] <= _TRASH_GRACE_MISSES
+                if st["seen"] >= _TRASH_STABLE_SEEN and st["miss"] <= _TRASH_DISPLAY_GRACE_MISSES
             ]
 
             elapsed_ms = (time.perf_counter() - t0) * 1000.0

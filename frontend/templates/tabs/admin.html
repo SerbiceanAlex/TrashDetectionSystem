@@ -377,14 +377,14 @@
       <div x-show="!adminUsersLoading && adminUsers.length > 0" class="overflow-hidden">
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px">
           <colgroup>
-            <col style="width:15%">
-            <col style="width:15%">
+            <col style="width:17%">
+            <col style="width:20%">
             <col style="width:10%">
             <col style="width:9%">
             <col style="width:9%">
             <col style="width:9%">
-            <col style="width:12%">
-            <col style="width:21%">
+            <col style="width:13%">
+            <col style="width:13%">
           </colgroup>
           <thead>
             <tr style="background:var(--bg-raised);border-bottom:1px solid var(--bg-border)">
@@ -439,22 +439,32 @@
                 <td class="px-3 py-2.5 text-xs leading-tight" style="color:var(--tx-muted)"
                     x-text="_fmtAdminDate(u.last_activity_at || u.created_at)"></td>
                 <td class="px-3 py-2.5">
-                  <div class="flex items-center gap-1 justify-end flex-nowrap whitespace-nowrap">
+                  <div class="flex items-center gap-1.5 justify-end flex-nowrap whitespace-nowrap">
                     <button @click="adminOpenEdit(u)"
-                      class="h-8 rounded-lg px-2.5 flex items-center gap-1 text-[11px] font-bold transition-all"
+                      class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
                       :disabled="u.id===user?.id"
-                      :title="u.id===user?.id ? 'Nu poți modifica propriul cont din panou' : 'Editează numele și emailul'"
+                      :aria-label="u.id===user?.id ? 'Editare blocată pentru propriul cont' : 'Editează utilizator'"
+                      :title="u.id===user?.id ? 'Nu poți modifica propriul cont din panou' : 'Editează'"
                       :style="u.id===user?.id
                         ? 'background:rgba(107,114,128,.08);border:1px solid rgba(107,114,128,.16);color:var(--tx-muted);cursor:not-allowed;opacity:.55'
                         : 'background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.18);color:var(--tx-secondary)'"
                       @mouseenter="$el.style.opacity='.75'"
                       @mouseleave="$el.style.opacity='1'">
                       <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-                      <span>Edit</span>
+                    </button>
+                    <button @click="incidentReporterFilter = u.id; incidentPage = 0; adminSubTab = 'incidents'; loadIncidents()"
+                      class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                      style="background:rgba(16,185,129,.10);border:1px solid rgba(16,185,129,.22);color:#10b981"
+                      title="Incidente"
+                      aria-label="Vezi incidentele utilizatorului"
+                      @mouseenter="$el.style.opacity='.75'"
+                      @mouseleave="$el.style.opacity='1'">
+                      <i data-lucide="file-search" class="w-3.5 h-3.5"></i>
                     </button>
                     <button @click="adminToggleRole(u.id, u.role)"
-                      class="h-8 rounded-lg px-2.5 flex items-center gap-1 text-[11px] font-bold transition-all"
+                      class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
                       :disabled="u.id===user?.id"
+                      :aria-label="u.id===user?.id ? 'Rol blocat pentru propriul cont' : 'Schimbă rol'"
                       :title="u.id===user?.id ? 'Rolul propriului cont este blocat' : (u.role==='admin' ? 'Schimbă în utilizator' : 'Schimbă în administrator')"
                       :style="u.role==='admin'
                         ? ('background:rgba(99,102,241,.10);border:1px solid rgba(99,102,241,.22);color:'+(darkMode?'#818cf8':'#4f46e5')+(u.id===user?.id?';cursor:not-allowed;opacity:.7':''))
@@ -462,19 +472,18 @@
                       @mouseenter="if(u.id!==user?.id)$el.style.opacity='.75'"
                       @mouseleave="if(u.id!==user?.id)$el.style.opacity='1'">
                       <i :data-lucide="u.role==='admin' ? 'shield' : 'user'" class="w-3.5 h-3.5"></i>
-                      <span x-text="u.role==='admin' ? 'Admin' : 'User'"></span>
                     </button>
                     <button @click="adminAskDelete(u)"
-                      class="h-8 rounded-lg px-2.5 flex items-center gap-1 text-[11px] font-bold transition-all"
+                      class="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
                       :disabled="u.id===user?.id"
-                      :title="u.id===user?.id ? 'Nu poți șterge propriul cont' : 'Șterge utilizator'"
+                      :aria-label="u.id===user?.id ? 'Ștergere blocată pentru propriul cont' : 'Șterge utilizator'"
+                      :title="u.id===user?.id ? 'Nu poți șterge propriul cont' : 'Șterge'"
                       :style="u.id===user?.id
                         ? 'background:rgba(107,114,128,.08);border:1px solid rgba(107,114,128,.16);color:var(--tx-muted);cursor:not-allowed;opacity:.55'
                         : 'background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#f87171'"
                       @mouseenter="if(u.id!==user?.id)$el.style.background='rgba(239,68,68,.18)'"
                       @mouseleave="if(u.id!==user?.id)$el.style.background='rgba(239,68,68,.08)'">
                       <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                      <span>Șterge</span>
                     </button>
                   </div>
                 </td>

@@ -83,6 +83,14 @@ async def test_littering_event_detail_not_found_for_admin(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_delete_littering_event_is_idempotent_for_admin(client: AsyncClient):
+    _override_admin()
+    resp = await client.delete("/api/littering/events/99999")
+    assert resp.status_code == 200
+    assert "deja șters" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_littering_media_is_authenticated_and_owner_scoped(client: AsyncClient, session):
     async def _override_get_db_same_session():
         yield session

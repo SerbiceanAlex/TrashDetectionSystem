@@ -389,13 +389,13 @@
   <!-- ── BOTTOM BAR ── -->
   <div class="fs-bottom-bar">
 
-    <!-- Alert banner (apare când există alerte) -->
-    <template x-if="monitorAlerts.length > 0">
+    <!-- Alert banner (apare doar câteva secunde după alerta curentă) -->
+    <template x-if="monitorBannerAlert">
       <div class="fs-alert-banner" @click="stopMonitor(); $nextTick(()=>goTo('incidents'))">
         <span class="w-2.5 h-2.5 rounded-full shrink-0 cctv-rec-dot" style="background:#fff"></span>
         <div style="flex:1;min-width:0">
-          <p style="font-size:13px;font-weight:800;color:#fff">INCIDENT DETECTAT!</p>
-          <p style="font-size:11px;color:rgba(255,255,255,.8)" x-text="(monitorAlerts[monitorAlerts.length-1]?.material||'unknown').toUpperCase()+' · Apasă să vezi'"></p>
+          <p style="font-size:13px;font-weight:800;color:#fff">INCIDENT SALVAT</p>
+          <p style="font-size:11px;color:rgba(255,255,255,.8)" x-text="(monitorBannerAlert?.material||'unknown').toUpperCase()+' · Apasă să vezi'"></p>
         </div>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
       </div>
@@ -701,7 +701,7 @@
           </div>
           <div class="flex gap-3">
             <button @click="goTo('incidents')" class="text-xs font-semibold" :style="darkMode?'color:#818cf8':'color:#4f46e5'">Toate incidentele</button>
-            <button @click="monitorAlerts=[]" class="text-xs" style="color:var(--tx-muted)">Sterge</button>
+            <button @click="monitorAlerts=[]; monitorBannerAlert=null" class="text-xs" style="color:var(--tx-muted)">Șterge</button>
           </div>
         </div>
         <template x-for="alert in monitorAlerts.slice().reverse()" :key="alert.event_id">

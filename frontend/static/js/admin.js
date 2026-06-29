@@ -103,13 +103,16 @@ function adminApp() {
       }
       const newRole = currentRole === 'admin' ? 'user' : 'admin';
       try {
-        await fetchAPI(`/api/admin/users/${userId}`, {
+        const updated = await fetchAPI(`/api/admin/users/${userId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ role: newRole }),
         });
-        const u = this.adminUsers.find(x => x.id === userId);
-        if (u) u.role = newRole;
+        const idx = this.adminUsers.findIndex(x => x.id === userId);
+        if (idx !== -1) {
+          this.adminUsers[idx] = { ...this.adminUsers[idx], ...updated };
+        }
+        await this.loadAdminUsers();
         showToast(`Rol schimbat: ${this.roleLabel(newRole)}`);
       } catch (e) {
         showToast(e.message, 'error');

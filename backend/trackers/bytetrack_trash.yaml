@@ -1,12 +1,12 @@
 # ByteTrack reglat pentru deșeuri — continuitate (anti pâlpâire/churn).
-# track_buffer mare = ține track-ul pierdut viu prin ratări scurte (re-achiziție
-# cu ACELAȘI id, nu unul nou → contorul nu mai sare 0/1/2). new_track_thresh mai
-# mare = nu porni track nou pe o detecție slabă (anti-fundal). conf-ul (0.25) lasă
-# detecțiile slabe să CONTINUE un track existent, dar nu să creeze unul nou.
+# track_buffer moderat = permite re-achiziții scurte, dar nu ține boxuri fantomă
+# mult timp în urmă când obiectul/camera se mișcă. new_track_thresh mai mare =
+# nu porni track nou pe o detecție slabă (anti-fundal). conf-ul (0.25) lasă
+# detecțiile slabe să continue un track existent, dar nu să creeze unul nou.
 tracker_type: bytetrack
 track_high_thresh: 0.30
 track_low_thresh: 0.10
 new_track_thresh: 0.35
-track_buffer: 60
+track_buffer: 15
 match_thresh: 0.85
 fuse_score: True

@@ -448,7 +448,7 @@ async def delete_littering_event(
         raise HTTPException(status_code=403, detail="Acces restricționat.")
     evt = await db.get_littering_event_by_id(session, event_id)
     if evt is None:
-        raise HTTPException(status_code=404, detail="Eveniment negăsit.")
+        return schemas.DetailResponse(detail="Incidentul era deja șters.")
     if not _same_org(current_user, evt):
         raise HTTPException(status_code=403, detail="Acces restricționat.")
     # Șterge dovezile de pe disc (clip + miniatură) înainte de rândul din DB.
