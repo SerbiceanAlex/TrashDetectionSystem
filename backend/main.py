@@ -430,6 +430,36 @@ async def get_littering_event(
     return evt
 
 
+@app.delete(
+    "/api/littering/events/{event_id}",
+    response_model=schemas.DetailResponse,
+    summary="[Admin] Șterge un incident și dovezile lui",
+)
+async def delete_littering_event(
+    event_id: int,
+    current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+    evt = await db.get_littering_event_by_id(session, event_id)
+    if evt is None:
+        raise HTTPException(status_code=404, detail="Eveniment negăsit.")
+    if not _same_org(current_user, evt):
+        raise HTTPException(status_code=403, detail="Acces restricționat.")
+    # Șterge dovezile de pe disc (clip + miniatură) înainte de rândul din DB.
+    for rel in (evt.clip_path, evt.thumbnail_path):
+        if rel:
+            try:
+                (LITTERING_DIR / rel).unlink(missing_ok=True)
+            except Exception:
+                logger.warning("Nu am putut șterge fișierul de dovadă: %s", rel)
+    await session.delete(evt)
+    await session.commit()
+    logger.info("Incident #%d șters de %s.", event_id, current_user.username)
+    return schemas.DetailResponse(detail="Incident șters.")
+
+
 @app.patch(
     "/api/littering/events/{event_id}/status",
     response_model=schemas.LitteringEventOut,
