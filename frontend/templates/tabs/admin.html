@@ -456,13 +456,13 @@
                       class="h-8 rounded-lg px-2.5 flex items-center gap-1 text-[11px] font-bold transition-all"
                       :disabled="u.id===user?.id"
                       :title="u.id===user?.id ? 'Rolul propriului cont este blocat' : (u.role==='admin' ? 'Schimbă în utilizator' : 'Schimbă în administrator')"
-                      :style="u.id===user?.id
-                        ? ('background:rgba(99,102,241,.10);border:1px solid rgba(99,102,241,.22);color:'+(darkMode?'#818cf8':'#4f46e5')+';cursor:not-allowed;opacity:.8')
-                        : ('background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);color:'+(darkMode?'#818cf8':'#4f46e5'))"
-                      @mouseenter="$el.style.opacity='.75'"
-                      @mouseleave="$el.style.opacity='1'">
-                      <i :data-lucide="u.role==='admin' ? 'user' : 'shield'" class="w-3.5 h-3.5"></i>
-                      <span x-text="u.id===user?.id ? 'Admin' : (u.role==='admin' ? 'User' : 'Admin')"></span>
+                      :style="u.role==='admin'
+                        ? ('background:rgba(99,102,241,.10);border:1px solid rgba(99,102,241,.22);color:'+(darkMode?'#818cf8':'#4f46e5')+(u.id===user?.id?';cursor:not-allowed;opacity:.7':''))
+                        : ('background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.2);color:'+(darkMode?'#94a3b8':'#64748b'))"
+                      @mouseenter="if(u.id!==user?.id)$el.style.opacity='.75'"
+                      @mouseleave="if(u.id!==user?.id)$el.style.opacity='1'">
+                      <i :data-lucide="u.role==='admin' ? 'shield' : 'user'" class="w-3.5 h-3.5"></i>
+                      <span x-text="u.role==='admin' ? 'Admin' : 'User'"></span>
                     </button>
                     <button @click="adminAskDelete(u)"
                       class="h-8 rounded-lg px-2.5 flex items-center gap-1 text-[11px] font-bold transition-all"
