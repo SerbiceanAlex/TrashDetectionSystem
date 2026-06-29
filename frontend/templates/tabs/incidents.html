@@ -252,10 +252,10 @@
       <div class="rounded-2xl overflow-hidden cursor-pointer transition-all duration-200"
         :style="isIncidentSelected(ev.id)
           ?
-           'background:var(--bg-surface);border:1px solid rgba(239,68,68,.55);box-shadow:0 0 0 2px rgba(239,68,68,.12)'
+           'background:var(--bg-surface);border:1px solid rgba(16,185,129,.55);box-shadow:0 0 0 2px rgba(16,185,129,.12)'
           : 'background:var(--bg-surface);border:1px solid var(--bg-border)'"
         @click="incidentModal = ev"
-        @mouseenter="$el.style.boxShadow='0 4px 20px rgba(239,68,68,.1)';$el.style.borderColor='rgba(239,68,68,.3)'"
+        @mouseenter="$el.style.boxShadow='0 4px 18px rgba(0,0,0,.14)';$el.style.borderColor='rgba(148,163,184,.5)'"
         @mouseleave="if(!isIncidentSelected(ev.id)){$el.style.boxShadow='';$el.style.borderColor='var(--bg-border)'}">
 
         <div class="flex gap-3 p-4 items-start">
@@ -268,15 +268,15 @@
             :title="isIncidentSelected(ev.id) ? 'Deselectează incident' : 'Selectează incident'"
             :style="isIncidentSelected(ev.id)
               ?
-               'background:#ef4444;color:#fff;border:1px solid #ef4444'
+               'background:#10b981;color:#fff;border:1px solid #10b981'
               : 'background:var(--bg-raised);color:var(--tx-muted);border:1px solid var(--bg-border)'">
             <i x-show="isIncidentSelected(ev.id)" data-lucide="check" class="w-4 h-4"></i>
             <span x-show="!isIncidentSelected(ev.id)" class="w-3.5 h-3.5 rounded-md" style="border:1.5px solid currentColor"></span>
           </button>
 
           <!-- Thumbnail -->
-          <div class="relative shrink-0 rounded-xl overflow-hidden"
-               style="width:140px;height:100px;background:var(--bg-raised);border:1px solid var(--bg-border)">
+          <div class="relative shrink-0 overflow-hidden self-center"
+               style="width:210px;height:120px;border-radius:14px;background:var(--bg-raised);border:1px solid var(--bg-border)">
             <template x-if="ev.thumbnail_path">
               <img :src="eventMediaUrl(ev, 'thumbnail')"
                    class="w-full h-full object-cover"/>
@@ -296,10 +296,39 @@
           </div>
 
           <!-- Info -->
-          <div class="flex-1 min-w-0">
-            <!-- Badges row -->
-            <div class="flex items-center gap-1.5 flex-wrap mb-2">
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+          <div class="flex-1 min-w-0 self-center">
+            <!-- Titlu + ID -->
+            <div class="flex items-start gap-2 mb-0.5">
+              <p class="text-sm font-bold leading-tight" style="color:var(--tx-primary)">Incident posibil detectat</p>
+              <span class="text-[10px] font-mono ml-auto shrink-0 mt-0.5" style="color:var(--tx-muted)"
+                x-text="'#'+ev.id"></span>
+            </div>
+            <!-- Data -->
+            <p class="text-xs mb-2" style="color:var(--tx-muted)"
+              x-text="new Date((ev.detected_at||'').replace(' ','T')+(ev.detected_at&&!ev.detected_at.endsWith('Z')?'Z':'')).toLocaleString('ro-RO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})">
+            </p>
+            <!-- Sursă + încredere -->
+            <p class="text-xs flex items-center gap-1.5 mb-2" style="color:var(--tx-secondary)">
+              <template x-if="ev.source==='upload'"><i data-lucide="upload" class="w-3.5 h-3.5 shrink-0"></i></template>
+              <template x-if="ev.source!=='upload'"><i data-lucide="radio" class="w-3.5 h-3.5 shrink-0"></i></template>
+              <span x-text="ev.source==='upload'?'Video încărcat':'Monitor live'"></span>
+              <template x-if="ev.det_score>0">
+                <span class="flex items-center gap-1.5">
+                  <span style="color:var(--tx-muted)">·</span>
+                  <span x-text="'Încredere: '+(ev.det_score*100).toFixed(0)+'%'"></span>
+                </span>
+              </template>
+            </p>
+            <!-- Adresă (opțional) -->
+            <template x-if="ev.address">
+              <p class="text-xs flex items-center gap-1 truncate mb-2" style="color:var(--tx-muted)">
+                <i data-lucide="map-pin" class="w-3 h-3 shrink-0"></i>
+                <span class="truncate" x-text="ev.address"></span>
+              </p>
+            </template>
+            <!-- Badges -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-[11px] font-bold px-2.5 py-1 rounded-full"
                 :style="ev.status==='pending'
                   ?
                    'background:rgba(245,158,11,.18);color:'+(darkMode?'#fbbf24':'#d97706')
@@ -310,52 +339,39 @@
                     ?
                     'background:rgba(59,130,246,.18);color:'+(darkMode?'#60a5fa':'#1d4ed8')
                   : 'background:rgba(107,114,128,.18);color:'+(darkMode?'#9ca3af':'#64748b')"
-                x-text="ev.status==='pending'?'Așteptare':ev.status==='reviewed'?'Confirmat':ev.status==='forwarded'?'Arhivat':'Fals pozitiv'">
+                x-text="ev.status==='pending'?'În așteptare':ev.status==='reviewed'?'Confirmat':ev.status==='forwarded'?'Arhivat':'Fals pozitiv'">
               </span>
-              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize"
+              <span class="text-[11px] font-semibold px-2.5 py-1 rounded-full capitalize"
                 :style="ev.material==='plastic'?('background:rgba(59,130,246,.12);color:'+(darkMode?'#60a5fa':'#2563eb'))
                   :ev.material==='paper'?('background:rgba(245,158,11,.12);color:'+(darkMode?'#fbbf24':'#b45309'))
                   :ev.material==='glass'?('background:rgba(6,182,212,.12);color:'+(darkMode?'#22d3ee':'#0e7490'))
                   :ev.material==='metal'?('background:rgba(139,92,246,.12);color:'+(darkMode?'#a78bfa':'#6d28d9'))
                   :'background:var(--bg-raised);color:var(--tx-muted)'"
-                x-text="ev.material==='paper'?'Hârtie':ev.material==='glass'?'Sticlă':ev.material==='plastic'?'Plastic':ev.material==='metal'?'Metal':ev.material==='other'?'Altele':'Neconfirmat'">
+                x-text="ev.material==='paper'?'Hârtie':ev.material==='glass'?'Sticlă':ev.material==='plastic'?'Plastic':ev.material==='metal'?'Metal':ev.material==='other'?'Altele':'Necesită validare'">
               </span>
-              <span class="text-[10px]" style="color:var(--tx-muted)"
-                x-text="ev.det_score > 0 ? (ev.det_score*100).toFixed(0)+'% conf.' : ''"></span>
-              <span class="text-[10px] font-mono ml-auto shrink-0" style="color:var(--tx-muted)"
-                x-text="'#'+ev.id"></span>
             </div>
-            <!-- Date/time -->
-            <p class="text-sm font-semibold mb-1" style="color:var(--tx-primary)"
-              x-text="new Date((ev.detected_at||'').replace(' ','T')+(ev.detected_at&&!ev.detected_at.endsWith('Z')?'Z':'')).toLocaleString('ro-RO',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})">
-            </p>
-            <!-- Address -->
-            <template x-if="ev.address">
-              <p class="text-xs flex items-center gap-1 truncate" style="color:var(--tx-muted)">
-                <i data-lucide="map-pin" class="w-3 h-3 shrink-0"></i>
-                <span class="truncate" x-text="ev.address"></span>
-              </p>
-            </template>
           </div>
 
           <!-- Quick actions — admin only -->
-          <div x-show="isAdmin" class="flex flex-col gap-2 shrink-0" @click.stop>
+          <div x-show="isAdmin" class="flex flex-col gap-2 shrink-0 self-center" @click.stop>
             <button x-show="ev.status==='pending'" @click="markIncidentReviewed(ev.id)"
-              class="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
               style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.2)"
               title="Confirmă incident"
               @mouseenter="$el.style.background='rgba(16,185,129,.2)'"
               @mouseleave="$el.style.background='rgba(16,185,129,.1)'">
               <i data-lucide="check" class="w-4 h-4"></i>
+              <span>Confirmă</span>
             </button>
             <button x-show="ev.status!=='forwarded' && ev.status!=='dismissed'"
               @click="forwardIncident(ev.id)"
-              class="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
               style="background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.2)"
               title="Arhivează dovada"
               @mouseenter="$el.style.background='rgba(59,130,246,.2)'"
               @mouseleave="$el.style.background='rgba(59,130,246,.1)'">
               <i data-lucide="archive" class="w-4 h-4"></i>
+              <span>Arhivă</span>
             </button>
           </div>
         </div>
