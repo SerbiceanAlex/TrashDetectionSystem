@@ -135,7 +135,7 @@ operator / Operator1234!  rol: utilizator
 
 ```powershell
 # Suita automată (API, securitate, izolare pe organizație, DB)
-.\.venv\Scripts\python.exe -m pytest tests/ -q          # 31 teste
+.\.venv\Scripts\python.exe -m pytest tests/ -q          # 35 teste
 
 # Test E2E pe server pornit (necesită un clip prin SMOKE_CLIP)
 $env:SMOKE_CLIP="D:/cale/catre/clip_aruncare.mp4"
