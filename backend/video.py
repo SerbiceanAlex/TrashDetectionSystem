@@ -328,6 +328,13 @@ async def process_uploaded_video(
                         _save_thumbnail, event.thumbnail, tmp_id
                     )
 
+                # Hash SHA-256 al dovezii (miniatura) — integritate, ca la monitorul live.
+                img_hash = (
+                    _sha256_frame(event.thumbnail)
+                    if event.thumbnail is not None
+                    else None
+                )
+
                 async with db.AsyncSessionLocal() as s:
                     db_event = await db.create_littering_event(
                         s,
@@ -336,6 +343,7 @@ async def process_uploaded_video(
                         person_present=event.person_present,
                         person_count=1,
                         thumbnail_path=thumb_rel,
+                        image_hash=img_hash,
                         detection_method="zone",
                         source="upload",
                         reporter_id=owner_user_id,
