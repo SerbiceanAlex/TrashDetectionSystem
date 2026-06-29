@@ -40,7 +40,12 @@ LOST_TIMEOUT_S        = 5.0    # secunde cât poate lipsi persoana înainte de A
 # abandonare, chiar dacă persoana nu se îndepărtează 2 m (cazul wide-shot:
 # aruncă și zăbovește în cadru). Dacă obiectul e ridicat înapoi, se mișcă și
 # urmărirea se resetează — anularea cerută de teză rămâne validă.
-ABANDON_STATIC_S      = 1.2    # secunde de stat nemișcat în starea DROPPED → ABANDONED
+ABANDON_STATIC_S      = 0.7    # secunde de stat nemișcat în starea DROPPED → ABANDONED.
+                                # Scăzut de la 1.2s: la filmările de aproape tracker-ul
+                                # reatribuie id-uri obiectului (instabilitate), iar progresul
+                                # de abandonare se pierde înainte de prag. 0.7s prinde aruncarea
+                                # în fereastra stabilă, fără a slăbi protecția (obiect ținut nu
+                                # ajunge în DROPPED).
 TRASH_MISS_GRACE      = 12     # cadre de detecție lipsă tolerate înainte de a uita obiectul urmărit (clipire)
 PICKUP_MOVE_PX        = 55.0   # deplasare mare a obiectului lângă persoană = ridicat înapoi (anulare)
 # Raza în care un obiect NOU apărut lângă o persoană este asociat acelei
@@ -436,10 +441,16 @@ class LitteringDetector:
             is_static = move_px < JITTER_THRESHOLD_PX
             # Obiectul e încă ținut în mână / în fața corpului? Atunci NU e lăsat
             # pe jos și nu trebuie să acumuleze progres de abandonare. „Ținut" =
-            # se suprapune cu corpul SAU e foarte aproape (braț întins, sub ~0.9m).
+            # se suprapune cu corpul SAU e aproape ȘI la înălțimea corpului/mâinii.
+            # Un obiect aflat JOS (în zona tălpilor sau sub ele) NU e ținut, chiar
+            # dacă persoana e aproape — altfel, la filmările de aproape (persoana
+            # umple cadrul), distanța estimată e mereu sub prag și nicio aruncare
+            # n-ar declanșa vreodată.
+            obj_cy = (tb[1] + tb[3]) / 2.0
+            at_body_height = obj_cy < nearest_pb[3] - 0.20 * (nearest_pb[3] - nearest_pb[1])
             is_held = (
                 self._trash_in_person_frac(tb, nearest_pb) > HELD_IN_PERSON_FRAC
-                or dist_m <= HELD_DISTANCE_M
+                or (dist_m <= HELD_DISTANCE_M and at_body_height)
             )
             tracker.last_trash_cx = tcx
             tracker.last_trash_cy = tcy
