@@ -64,7 +64,7 @@
   <!-- ── Sub-tab navigation ────────────────────────────────────────────── -->
   <div class="flex gap-1 p-1 rounded-xl overflow-x-auto" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
     <template x-for="st in [
-      {id:'overview',    label:'Prezentare', icon:'bar-chart-3'},
+      {id:'overview',    label:'Dashboard', icon:'bar-chart-3'},
       {id:'users',       label:'Utilizatori',icon:'users'},
       {id:'incidents',   label:'Incidente',  icon:'alert-triangle'}
     ]" :key="st.id">
@@ -327,9 +327,9 @@
             </tr>
           </thead>
           <tbody>
-            <template x-for="u in adminUsers" :key="u.id">
+            <template x-for="(u, idx) in adminUsers" :key="u.id">
               <tr style="border-bottom:1px solid var(--bg-border)">
-                <td class="px-4 py-3 font-mono text-xs" style="color:var(--tx-muted)" x-text="u.id"></td>
+                <td class="px-4 py-3 font-mono text-xs" style="color:var(--tx-muted)" x-text="idx + 1"></td>
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-2">
                     <div class="w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0"
