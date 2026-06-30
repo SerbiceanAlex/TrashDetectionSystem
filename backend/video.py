@@ -346,6 +346,7 @@ async def process_uploaded_video(
                         image_hash=img_hash,
                         detection_method="zone",
                         source="upload",
+                        video_session_id=session_id,
                         reporter_id=owner_user_id,
                         organization_id=owner_org_id,
                     )

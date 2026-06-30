@@ -103,6 +103,7 @@ async def _migrate_schema():
         "ALTER TABLE littering_events ADD COLUMN distance_at_abandonment REAL",
         "ALTER TABLE littering_events ADD COLUMN detection_method VARCHAR(32) DEFAULT 'zone'",
         "ALTER TABLE littering_events ADD COLUMN source VARCHAR(16) DEFAULT 'live'",
+        "ALTER TABLE littering_events ADD COLUMN video_session_id INTEGER",
         "ALTER TABLE littering_events ADD COLUMN reporter_id INTEGER REFERENCES users(id)",
         # Izolare pe organizație
         "ALTER TABLE users ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
@@ -451,6 +452,7 @@ async def delete_littering_event(
         return schemas.DetailResponse(detail="Incidentul era deja șters.")
     if not _same_org(current_user, evt):
         raise HTTPException(status_code=403, detail="Acces restricționat.")
+    vsid = evt.video_session_id  # reține sesiunea upload sursă înainte de ștergere
     # Șterge dovezile de pe disc (clip + miniatură) înainte de rândul din DB.
     for rel in (evt.clip_path, evt.thumbnail_path):
         if rel:
@@ -460,6 +462,22 @@ async def delete_littering_event(
                 logger.warning("Nu am putut șterge fișierul de dovadă: %s", rel)
     await session.delete(evt)
     await session.commit()
+
+    # Dacă incidentul venea dintr-un upload și a fost ULTIMUL incident al acelei
+    # sesiuni, curăță și intrarea din „Procesări recente" (+ fișierul adnotat) —
+    # ștergerea din Incidente îl face să dispară și din zona de upload, fără să
+    # afecteze alte incidente (dacă sesiunea mai are incidente, rămâne în istoric).
+    if vsid is not None:
+        remaining = (await session.execute(
+            select(func.count(db.LitteringEvent.id)).where(db.LitteringEvent.video_session_id == vsid)
+        )).scalar() or 0
+        if remaining == 0:
+            vs = await db.get_video_session_by_id(session, vsid)
+            if vs is not None:
+                _delete_video_session_files(vs)
+                await session.delete(vs)
+                await session.commit()
+
     logger.info("Incident #%d șters de %s.", event_id, current_user.username)
     return schemas.DetailResponse(detail="Incident șters.")
 

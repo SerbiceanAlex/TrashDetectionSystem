@@ -155,6 +155,7 @@ class LitteringEvent(Base):
     distance_at_abandonment = Column(Float, nullable=True)     # distanța estimată în metri la momentul ABANDONED
     detection_method        = Column(String(32), default="zone")  # "zone" | "distance"
     source                  = Column(String(16), default="live")  # "live" (monitor) | "upload" (video încărcat)
+    video_session_id        = Column(Integer, nullable=True, index=True)  # sesiunea upload care a produs incidentul (None la live)
 
     # ── Workflow ─────────────────────────────────────────────────────────────
     status          = Column(String(16), default="pending", index=True)
@@ -296,6 +297,7 @@ async def create_littering_event(
     distance_at_abandonment: float | None = None,
     detection_method: str = "zone",
     source: str = "live",
+    video_session_id: int | None = None,
     reporter_id: int | None = None,
     organization_id: int | None = None,
 ) -> "LitteringEvent":
@@ -318,6 +320,7 @@ async def create_littering_event(
         distance_at_abandonment=round(distance_at_abandonment, 3) if distance_at_abandonment is not None else None,
         detection_method=detection_method,
         source=source,
+        video_session_id=video_session_id,
         reporter_id=reporter_id,
         organization_id=organization_id,
     )
