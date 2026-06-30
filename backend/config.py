@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     MAX_IMAGE_DIM: int = 1920          # latura maximă la care se redimensionează un cadru
     LIVE_IMGSZ: int = 640              # imgsz implicit pentru scanarea de imagini
     DEFAULT_DET_CONF: float = 0.30     # prag de încredere implicit (upload/scanare)
-    MONITOR_MIN_DET_CONF: float = 0.25 # prag MINIM pe monitorul live (prinde și obiecte la distanță)
+    MONITOR_MIN_DET_CONF: float = 0.15 # prag MINIM pe monitorul live (prinde și obiecte la distanță)
     MONITOR_PERSON_CONF: float = 0.25  # prag pentru detecția persoanelor pe monitor
     # Țintă 120 = plafon larg, NU throttle. Lecție din teste: o țintă mică
     # (ex. 60) se sincronizează prost cu refresh-ul ecranului și gâtuiește
