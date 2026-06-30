@@ -626,9 +626,11 @@
                 style="background:var(--bg-surface);border:1px solid var(--bg-border);color:var(--tx-primary)"
                 @focus="$el.style.borderColor='#6366f1';$el.style.boxShadow='0 0 0 3px rgba(99,102,241,.15)'"
                 @blur="$el.style.borderColor='var(--bg-border)';$el.style.boxShadow='none'"/>
-              <p class="text-[10px] leading-snug" style="color:var(--tx-muted)">
-                Stream RTSP/HTTP al unei camere IP. Poți folosi și telefonul ca «IP Webcam».
-              </p>
+              <div class="text-[10px] leading-relaxed" style="color:var(--tx-muted)">
+                <p class="mb-1">Stream RTSP/HTTP al unei camere IP (telefon + PC pe <b>același WiFi</b>). Exemple:</p>
+                <p>· Cameră supraveghere: <span class="font-mono" style="color:var(--tx-secondary)">rtsp://user:parola@192.168.1.50:554/stream</span></p>
+                <p>· Telefon («IP Webcam» / «IP Camera»): <span class="font-mono" style="color:var(--tx-secondary)">http://192.168.1.50:8080/video</span></p>
+              </div>
             </div>
           </div>
 
