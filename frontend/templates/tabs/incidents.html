@@ -299,7 +299,7 @@
             <!-- Titlu + ID -->
             <div class="flex items-start gap-2 mb-0.5">
               <p class="text-sm font-bold leading-tight truncate" style="color:var(--tx-primary)"
-                x-text="'#' + ev.id + ' · Incident posibil detectat'"></p>
+                x-text="'#' + ev.id + ' · ' + (ev.status==='reviewed'?'Incident confirmat':ev.status==='forwarded'?'Incident arhivat':ev.status==='dismissed'?'Fals pozitiv':'Incident posibil detectat')"></p>
             </div>
             <!-- Data -->
             <p class="text-xs mb-2" style="color:var(--tx-muted)"
@@ -369,7 +369,7 @@
               @mouseenter="$el.style.background='rgba(59,130,246,.2)'"
               @mouseleave="$el.style.background='rgba(59,130,246,.1)'">
               <i data-lucide="archive" class="w-4 h-4"></i>
-              <span>Arhivă</span>
+              <span>Arhivează</span>
             </button>
             <button x-show="ev.status==='forwarded'"
               @click="restoreIncident(ev.id)"
@@ -439,7 +439,7 @@
           </div>
           <div class="min-w-0">
             <p class="incident-detail-name"
-               x-text="'#' + (incidentModal?.id ?? '') + ' · Incident posibil detectat'"></p>
+               x-text="'#' + (incidentModal?.id ?? '') + ' · ' + (incidentModal?.status==='reviewed'?'Incident confirmat':incidentModal?.status==='forwarded'?'Incident arhivat':incidentModal?.status==='dismissed'?'Fals pozitiv':'Incident posibil detectat')"></p>
             <p class="incident-detail-date"
                x-text="new Date(((incidentModal?.detected_at||'').replace(' ','T')+(incidentModal?.detected_at&&!incidentModal.detected_at.endsWith('Z')?'Z':''))).toLocaleString('ro-RO',{dateStyle:'long',timeStyle:'short'})"></p>
           </div>
