@@ -584,9 +584,22 @@
 
     <div x-show="!incidentsLoading && incidents.length > 0" class="space-y-2">
       <template x-for="ev in incidents" :key="ev.id">
-        <div class="rounded-2xl overflow-hidden" style="background:var(--bg-surface);border:1px solid var(--bg-border)">
+        <div class="rounded-2xl overflow-hidden transition-all duration-200"
+             style="background:var(--bg-surface);border:1px solid var(--bg-border)"
+             @mouseenter="$el.style.borderColor='rgba(148,163,184,.45)';$el.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'"
+             @mouseleave="$el.style.borderColor='var(--bg-border)';$el.style.boxShadow=''">
           <div class="flex gap-3 p-3 items-start">
-            <div class="rounded-xl overflow-hidden shrink-0" style="width:80px;height:60px;background:var(--bg-raised);border:1px solid var(--bg-border)">
+            <div class="relative rounded-xl overflow-hidden shrink-0 self-center" style="width:140px;height:95px;background:var(--bg-raised);border:1px solid var(--bg-border)">
+              <!-- Checkbox selecție bulk — overlay discret pe thumbnail -->
+              <button @click.stop="toggleIncidentSelection(ev.id)"
+                class="absolute top-1.5 left-1.5 z-10 w-6 h-6 rounded-lg flex items-center justify-center transition-all"
+                :title="isIncidentSelected(ev.id) ? 'Deselectează' : 'Selectează'"
+                :style="isIncidentSelected(ev.id)
+                  ? 'background:#10b981;color:#fff;border:1px solid #10b981;box-shadow:0 1px 4px rgba(0,0,0,.4)'
+                  : 'background:rgba(0,0,0,.5);color:#fff;border:1px solid rgba(255,255,255,.45);box-shadow:0 1px 4px rgba(0,0,0,.4)'">
+                <i x-show="isIncidentSelected(ev.id)" data-lucide="check" class="w-3.5 h-3.5"></i>
+                <span x-show="!isIncidentSelected(ev.id)" class="w-3 h-3 rounded" style="border:1.5px solid currentColor"></span>
+              </button>
               <template x-if="ev.thumbnail_path">
                 <a :href="eventMediaUrl(ev, 'thumbnail')" target="_blank">
                   <img :src="eventMediaUrl(ev, 'thumbnail')" class="w-full h-full object-cover"/>
@@ -594,7 +607,7 @@
               </template>
               <template x-if="!ev.thumbnail_path">
                 <div class="w-full h-full flex items-center justify-center">
-                  <i data-lucide="image-off" class="w-4 h-4" style="color:var(--tx-muted);opacity:.4"></i>
+                  <i data-lucide="image-off" class="w-5 h-5" style="color:var(--tx-muted);opacity:.4"></i>
                 </div>
               </template>
             </div>
@@ -646,15 +659,7 @@
             </div>
           </div>
           <!-- Actions -->
-          <div class="flex gap-2 px-3 pb-3 flex-wrap">
-            <button @click="toggleIncidentSelection(ev.id)"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
-              :style="isIncidentSelected(ev.id)
-                ? 'background:rgba(99,102,241,.16);border:1px solid rgba(99,102,241,.35);color:#818cf8'
-                : 'background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-muted)'">
-              <i :data-lucide="isIncidentSelected(ev.id) ? 'check-square' : 'square'" class="w-3.5 h-3.5"></i>
-              <span x-text="isIncidentSelected(ev.id) ? 'Selectat' : 'Selectează'"></span>
-            </button>
+          <div class="flex gap-2 px-3 pb-3 flex-wrap items-center">
             <template x-if="ev.clip_path">
               <a :href="eventMediaUrl(ev, 'clip')" target="_blank"
                 class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
@@ -683,8 +688,11 @@
               <i data-lucide="x" class="w-3.5 h-3.5"></i> Fals pozitiv
             </button>
             <button @click="deleteIncident(ev.id)"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all"
-              style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#f87171">
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ml-auto"
+              style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#f87171"
+              title="Ștergere definitivă (ireversibilă)"
+              @mouseenter="$el.style.background='rgba(239,68,68,.18)'"
+              @mouseleave="$el.style.background='rgba(239,68,68,.08)'">
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Șterge definitiv
             </button>
           </div>
