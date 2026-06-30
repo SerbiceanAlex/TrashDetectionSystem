@@ -589,7 +589,7 @@
              @mouseenter="$el.style.borderColor='rgba(148,163,184,.45)';$el.style.boxShadow='0 4px 18px rgba(0,0,0,.12)'"
              @mouseleave="$el.style.borderColor='var(--bg-border)';$el.style.boxShadow=''">
           <div class="flex gap-3 p-3 items-start">
-            <div class="relative rounded-xl overflow-hidden shrink-0 self-center" style="width:140px;height:95px;background:var(--bg-raised);border:1px solid var(--bg-border)">
+            <div class="relative rounded-xl overflow-hidden shrink-0 self-start" style="width:150px;height:100px;background:var(--bg-raised);border:1px solid var(--bg-border)">
               <!-- Checkbox selecție bulk — overlay discret pe thumbnail -->
               <button @click.stop="toggleIncidentSelection(ev.id)"
                 class="absolute top-1.5 left-1.5 z-10 w-6 h-6 rounded-lg flex items-center justify-center transition-all"
@@ -601,7 +601,8 @@
                 <span x-show="!isIncidentSelected(ev.id)" class="w-3 h-3 rounded" style="border:1.5px solid currentColor"></span>
               </button>
               <template x-if="ev.thumbnail_path">
-                <a :href="eventMediaUrl(ev, 'thumbnail')" target="_blank">
+                <a :href="eventMediaUrl(ev, ev.clip_path ? 'clip' : 'thumbnail')" target="_blank"
+                   :title="ev.clip_path ? 'Deschide clipul' : 'Deschide imaginea'" class="block w-full h-full">
                   <img :src="eventMediaUrl(ev, 'thumbnail')" class="w-full h-full object-cover"/>
                 </a>
               </template>
@@ -640,11 +641,14 @@
                 <span class="font-semibold" style="color:var(--tx-secondary)"
                   x-text="ev.reporter_username || (ev.reporter_id ? ('utilizator #' + ev.reporter_id) : 'legacy / neatribuit')"></span>
               </p>
-              <p class="text-[11px] mb-1" style="color:var(--tx-muted)">
-                Locație:
-                <span class="font-semibold" style="color:var(--tx-secondary)"
-                  x-text="ev.address || (ev.latitude && ev.longitude ? (Number(ev.latitude).toFixed(5)+', '+Number(ev.longitude).toFixed(5)) : 'Fără locație setată')"></span>
-              </p>
+              <template x-if="ev.image_hash">
+                <p class="text-[10px] mb-1 flex items-center gap-1.5 min-w-0" style="color:var(--tx-muted)"
+                   title="Amprentă SHA-256 a dovezii — integritate / chain of custody">
+                  <i data-lucide="shield-check" class="w-3 h-3 shrink-0" style="color:#10b981"></i>
+                  <span class="font-semibold shrink-0">SHA-256:</span>
+                  <span class="font-mono truncate" :title="ev.image_hash" x-text="ev.image_hash"></span>
+                </p>
+              </template>
               <template x-if="ev.notes">
                 <p class="text-[11px] px-2 py-1 rounded-lg" style="background:rgba(99,102,241,.08);color:#818cf8;border-left:2px solid #6366f1"
                    x-text="ev.notes"></p>
