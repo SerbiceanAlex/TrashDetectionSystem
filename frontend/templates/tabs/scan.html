@@ -805,15 +805,11 @@
             <div class="flex-1 min-w-0">
               <p class="text-sm font-semibold truncate mb-0.5" style="color:var(--tx-primary)" x-text="s.filename"></p>
               <div class="flex items-center gap-2 text-[10px]" style="color:var(--tx-muted)">
-                <span x-text="(s.total_objects||0) + ' obj.'"></span>
-                <span>·</span>
-                <span x-text="(s.total_frames||0) + ' fr'"></span>
-                <span>·</span>
+                <span x-show="s.start_time"
+                      x-text="new Date((s.start_time||'').replace(' ','T')+(s.start_time&&!String(s.start_time).endsWith('Z')?'Z':'')).toLocaleString('ro-RO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})"></span>
+                <span x-show="s.start_time">·</span>
                 <span :style="(s.littering_count||0)>0 ? 'color:#ef4444;font-weight:700' : ''"
                       x-text="(s.littering_count||0) + ' incidente'"></span>
-                <template x-if="s.upload_time">
-                  <span x-text="'· ' + new Date(s.upload_time).toLocaleDateString('ro-RO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})"></span>
-                </template>
               </div>
             </div>
 
