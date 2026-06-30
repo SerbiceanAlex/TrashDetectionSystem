@@ -612,6 +612,8 @@
               </template>
             </div>
             <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold mb-1 leading-tight" style="color:var(--tx-primary)"
+                x-text="'#'+ev.id+' · '+(ev.status==='reviewed'?'Incident confirmat':ev.status==='forwarded'?'Incident arhivat':ev.status==='dismissed'?'Fals pozitiv':ev.status==='pending'?'Incident în așteptare':'Incident')"></p>
               <div class="flex items-center gap-1.5 flex-wrap mb-1">
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
                   :style="ev.status==='pending'?'background:rgba(245,158,11,.18);color:'+(darkMode?'#fbbf24':'#d97706'):ev.status==='reviewed'?'background:rgba(16,185,129,.18);color:'+(darkMode?'#10b981':'#047857'):ev.status==='forwarded'?'background:rgba(59,130,246,.18);color:'+(darkMode?'#60a5fa':'#1d4ed8'):'background:rgba(107,114,128,.18);color:'+(darkMode?'#9ca3af':'#64748b')"
@@ -621,7 +623,6 @@
                   style="background:var(--bg-raised);color:var(--tx-muted);border:1px solid var(--bg-border)"
                   x-text="ev.material==='paper'?'Hârtie':ev.material==='glass'?'Sticlă':ev.material==='plastic'?'Plastic':ev.material==='metal'?'Metal':ev.material==='other'?'Altele':ev.material||'—'">
                 </span>
-                <span class="text-[10px] font-mono ml-auto" style="color:var(--tx-muted)" x-text="'#'+ev.id"></span>
               </div>
               <p class="text-xs font-semibold mb-0.5" style="color:var(--tx-primary)"
                 x-text="new Date((ev.detected_at||'').replace(' ','T')+(ev.detected_at&&!ev.detected_at.endsWith('Z')?'Z':'')).toLocaleString('ro-RO',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})"></p>
@@ -640,18 +641,10 @@
                   x-text="ev.reporter_username || (ev.reporter_id ? ('utilizator #' + ev.reporter_id) : 'legacy / neatribuit')"></span>
               </p>
               <p class="text-[11px] mb-1" style="color:var(--tx-muted)">
-                Locatie:
+                Locație:
                 <span class="font-semibold" style="color:var(--tx-secondary)"
-                  x-text="ev.address || (ev.latitude && ev.longitude ? (Number(ev.latitude).toFixed(5)+', '+Number(ev.longitude).toFixed(5)) : 'nespecificată')"></span>
+                  x-text="ev.address || (ev.latitude && ev.longitude ? (Number(ev.latitude).toFixed(5)+', '+Number(ev.longitude).toFixed(5)) : 'Fără locație setată')"></span>
               </p>
-              <template x-if="ev.image_hash">
-                <p class="text-[10px] mb-1 flex items-center gap-1.5 min-w-0" style="color:var(--tx-muted)"
-                   title="Amprentă SHA-256 a dovezii — integritate / chain of custody">
-                  <i data-lucide="shield-check" class="w-3 h-3 shrink-0" style="color:#10b981"></i>
-                  <span class="font-semibold shrink-0">SHA-256:</span>
-                  <span class="font-mono truncate" :title="ev.image_hash" x-text="ev.image_hash"></span>
-                </p>
-              </template>
               <template x-if="ev.notes">
                 <p class="text-[11px] px-2 py-1 rounded-lg" style="background:rgba(99,102,241,.08);color:#818cf8;border-left:2px solid #6366f1"
                    x-text="ev.notes"></p>
