@@ -632,9 +632,6 @@
                 <template x-if="ev.source!=='upload'"><i data-lucide="radio" class="w-3 h-3 shrink-0"></i></template>
                 <span class="font-semibold" style="color:var(--tx-secondary)"
                   x-text="ev.source==='upload' ? 'Video încărcat' : 'Monitor live'"></span>
-                <template x-if="ev.det_score>0">
-                  <span x-text="'· Încredere: ' + (ev.det_score*100).toFixed(0) + '%'"></span>
-                </template>
               </p>
               <p class="text-[11px] mb-1" style="color:var(--tx-muted)">
                 Utilizator:
@@ -654,31 +651,43 @@
                    x-text="ev.notes"></p>
               </template>
             </div>
+
+            <!-- Rail dreapta: încredere mare + acțiuni principale -->
+            <div class="shrink-0 flex flex-col gap-1.5 self-stretch" style="width:118px">
+              <div class="rounded-xl text-center py-2" style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+                <p class="text-lg font-extrabold leading-none" :style="ev.det_score>=0.7?'color:#10b981':'color:var(--tx-primary)'"
+                   x-text="ev.det_score>0 ? (ev.det_score*100).toFixed(0)+'%' : '—'"></p>
+                <p class="text-[9px] uppercase tracking-wide mt-0.5" style="color:var(--tx-muted)">încredere</p>
+              </div>
+              <a x-show="ev.clip_path" :href="eventMediaUrl(ev, 'clip')" target="_blank"
+                class="flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-bold transition-all"
+                style="background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.3);color:#818cf8">
+                <i data-lucide="play" class="w-3.5 h-3.5"></i> Deschide
+              </a>
+              <button x-show="ev.status==='pending'" @click="markIncidentReviewed(ev.id)"
+                class="flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-bold transition-all"
+                style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#10b981">
+                <i data-lucide="check" class="w-3.5 h-3.5"></i> Confirmă
+              </button>
+              <button x-show="ev.status==='reviewed'" @click="forwardIncident(ev.id)"
+                class="flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-bold transition-all"
+                style="background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);color:#60a5fa">
+                <i data-lucide="archive" class="w-3.5 h-3.5"></i> Arhivează
+              </button>
+              <button x-show="ev.status==='forwarded'" @click="restoreIncident(ev.id)"
+                class="flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-bold transition-all"
+                style="background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#10b981">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Restabilește
+              </button>
+            </div>
           </div>
           <!-- Actions -->
           <div class="flex gap-2 px-3 pb-3 flex-wrap items-center">
-            <template x-if="ev.clip_path">
-              <a :href="eventMediaUrl(ev, 'clip')" target="_blank"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
-                style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-secondary)">
-                <i data-lucide="download" class="w-3.5 h-3.5"></i> Clip
-              </a>
-            </template>
-            <button x-show="ev.status==='pending'" @click="markIncidentReviewed(ev.id)"
+            <a x-show="ev.clip_path" :href="eventMediaUrl(ev, 'clip')" target="_blank"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
-              style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:#10b981">
-              <i data-lucide="check" class="w-3.5 h-3.5"></i> Confirmă
-            </button>
-            <button x-show="ev.status!=='forwarded' && ev.status!=='dismissed'" @click="forwardIncident(ev.id)"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
-              style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:#60a5fa">
-              <i data-lucide="archive" class="w-3.5 h-3.5"></i> Arhivează
-            </button>
-            <button x-show="ev.status==='forwarded'" @click="restoreIncident(ev.id)"
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
-              style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);color:#10b981">
-              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Restabilește
-            </button>
+              style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-secondary)">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i> Descarcă clip
+            </a>
             <button x-show="ev.status!=='dismissed'" @click="dismissIncident(ev.id)"
               class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all"
               style="background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-muted)">
