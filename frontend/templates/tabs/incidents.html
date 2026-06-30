@@ -384,10 +384,9 @@
           </div>
         </div>
 
-        <!-- Bottom accent bar pentru pending -->
-        <template x-if="ev.status==='pending'">
-          <div style="height:2px;background:linear-gradient(90deg,#f59e0b,transparent)"></div>
-        </template>
+        <!-- Bară de status pe jos: verde=confirmat/verificat · galben=așteptare ·
+             albastru=arhivat · gri=fals pozitiv -->
+        <div :style="'height:3px;background:linear-gradient(90deg,'+(ev.status==='reviewed'?'#10b981':ev.status==='pending'?'#f59e0b':ev.status==='forwarded'?'#3b82f6':'#6b7280')+',transparent)'"></div>
       </div>
     </template>
   </div>

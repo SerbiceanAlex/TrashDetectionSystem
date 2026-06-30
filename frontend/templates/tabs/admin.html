@@ -631,6 +631,14 @@
                 <span class="font-semibold" style="color:var(--tx-secondary)"
                   x-text="ev.address || (ev.latitude && ev.longitude ? (Number(ev.latitude).toFixed(5)+', '+Number(ev.longitude).toFixed(5)) : 'nespecificată')"></span>
               </p>
+              <template x-if="ev.image_hash">
+                <p class="text-[10px] mb-1 flex items-center gap-1.5 min-w-0" style="color:var(--tx-muted)"
+                   title="Amprentă SHA-256 a dovezii — integritate / chain of custody">
+                  <i data-lucide="shield-check" class="w-3 h-3 shrink-0" style="color:#10b981"></i>
+                  <span class="font-semibold shrink-0">SHA-256:</span>
+                  <span class="font-mono truncate" :title="ev.image_hash" x-text="ev.image_hash"></span>
+                </p>
+              </template>
               <template x-if="ev.notes">
                 <p class="text-[11px] px-2 py-1 rounded-lg" style="background:rgba(99,102,241,.08);color:#818cf8;border-left:2px solid #6366f1"
                    x-text="ev.notes"></p>
@@ -680,9 +688,9 @@
               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Șterge definitiv
             </button>
           </div>
-          <template x-if="ev.status==='pending'">
-            <div style="height:2px;background:linear-gradient(90deg,#f59e0b,transparent)"></div>
-          </template>
+          <!-- Bară de status: verde=confirmat/verificat · galben=așteptare ·
+               albastru=arhivat · gri=fals pozitiv -->
+          <div :style="'height:3px;background:linear-gradient(90deg,'+(ev.status==='reviewed'?'#10b981':ev.status==='pending'?'#f59e0b':ev.status==='forwarded'?'#3b82f6':'#6b7280')+',transparent)'"></div>
         </div>
       </template>
     </div>
