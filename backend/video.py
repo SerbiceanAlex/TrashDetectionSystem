@@ -535,7 +535,10 @@ def _dedup_trash_overlap(dets: list, thresh: float = 0.45) -> list:
         for k in kept:
             kb = k["box"]
             iou_like = max(_iou_overlap(db, kb), _iou_overlap(kb, db))
-            center_limit = 0.45 * max(dw, dh, kb[2] - kb[0], kb[3] - kb[1], 1)
+            # Doar DUPLICATE reale (același obiect, 2 track_id-uri): centre foarte
+            # apropiate raportat la cea mai MICĂ casetă. Prea larg ar uni 2 obiecte
+            # distincte aflate aproape (ex. 2 sticle) — exact ce nu vrem.
+            center_limit = 0.22 * min(dw, dh, kb[2] - kb[0], kb[3] - kb[1], 1)
             if iou_like > thresh or _center_distance(db, kb) <= center_limit:
                 duplicate = True
                 break
@@ -556,7 +559,7 @@ _OVERLAP_TINY_PERSON_RATIO = 0.018
 _MIN_TRASH_AREA_FRAC = 0.00015  # ignoră zgomotul foarte mic
 _MAX_TRASH_AREA_FRAC = 0.18     # ignoră regiuni prea mari de fundal, de ex. pat/podea
 _TRASH_TRACK_IMGSZ = settings.MONITOR_TRASH_IMGSZ
-_PERSON_FILTER_SHRINK = 0.85     # micșorează boxurile persoanelor doar pentru filtrarea suprapunerii
+_PERSON_FILTER_SHRINK = 0.78     # micșorează boxurile persoanelor doar pentru filtrarea suprapunerii
 _TRASH_STABLE_SEEN = 2           # pentru logica incidentului: cere stabilitate, nu un singur cadru
 _TRASH_DISPLAY_SEEN = 1          # pentru UI: desenează imediat prima detecție validă
 _TRASH_GRACE_MISSES = 8          # ține boxul ~8 cadre ratate — netezește contorul (fără 0/1/0/1)
@@ -759,7 +762,10 @@ async def handle_monitor_ws(
     # Netezire temporală: cere N cadre consecutive pentru confirmare/ștergere.
     _PERSON_CONFIRM = max(2, int(round(0.15 * logic_fps)))
     _PERSON_CLEAR   = max(4, int(round(0.45 * logic_fps)))
-    _TRASH_DETECT_STRIDE = 2 if analysis_fps >= 20 else 1
+    # Cameră IP (fps efectiv mic): detectează FIECARE cadru ca boxurile să fie
+    # smooth (la 10fps, a sări cadre face boxul saccadat). Modul local (fps mare)
+    # poate sări fiecare al doilea cadru fără să se vadă.
+    _TRASH_DETECT_STRIDE = 1 if cap is not None else (2 if analysis_fps >= 20 else 1)
     _PERSON_DETECT_STRIDE = 3 if analysis_fps >= 20 else 2
     _person_streak  = 0   # >0 = văzut consecutiv, <0 = absent consecutiv
     _person_stable  = False  # ultima stare stabilă a persoanei
