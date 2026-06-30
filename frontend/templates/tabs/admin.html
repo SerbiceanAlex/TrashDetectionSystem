@@ -601,22 +601,14 @@
                 <span x-show="!isIncidentSelected(ev.id)" class="w-3 h-3 rounded" style="border:1.5px solid currentColor"></span>
               </button>
               <template x-if="ev.thumbnail_path">
-                <a :href="eventMediaUrl(ev, ev.clip_path ? 'clip' : 'thumbnail')" target="_blank"
-                   :title="ev.clip_path ? 'Deschide clipul' : 'Deschide imaginea'" class="block w-full h-full">
+                <a :href="eventMediaUrl(ev, 'thumbnail')" target="_blank"
+                   title="Deschide imaginea" class="block w-full h-full">
                   <img :src="eventMediaUrl(ev, 'thumbnail')" class="w-full h-full object-cover"/>
                 </a>
               </template>
               <template x-if="!ev.thumbnail_path">
                 <div class="w-full h-full flex items-center justify-center">
                   <i data-lucide="image-off" class="w-5 h-5" style="color:var(--tx-muted);opacity:.4"></i>
-                </div>
-              </template>
-              <!-- Play overlay — semnalează că la click vezi clipul -->
-              <template x-if="ev.clip_path">
-                <div class="absolute inset-0 flex items-center justify-center pointer-events-none" style="background:rgba(0,0,0,.18)">
-                  <div class="w-9 h-9 rounded-full flex items-center justify-center" style="background:rgba(0,0,0,.6)">
-                    <i data-lucide="play" class="w-4 h-4" style="color:#fff;margin-left:1px"></i>
-                  </div>
                 </div>
               </template>
             </div>
