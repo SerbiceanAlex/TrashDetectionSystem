@@ -345,7 +345,7 @@
                   :ev.material==='glass'?('background:rgba(6,182,212,.12);color:'+(darkMode?'#22d3ee':'#0e7490'))
                   :ev.material==='metal'?('background:rgba(139,92,246,.12);color:'+(darkMode?'#a78bfa':'#6d28d9'))
                   :'background:var(--bg-raised);color:var(--tx-muted)'"
-                x-text="ev.material==='paper'?'Hârtie':ev.material==='glass'?'Sticlă':ev.material==='plastic'?'Plastic':ev.material==='metal'?'Metal':ev.material==='other'?'Altele':'Necesită validare'">
+                x-text="ev.material==='paper'?'Hârtie':ev.material==='glass'?'Sticlă':ev.material==='plastic'?'Plastic':ev.material==='metal'?'Metal':ev.material==='other'?'Altele':'Necunoscut'">
               </span>
             </div>
           </div>
@@ -497,7 +497,7 @@
                   :incidentModal?.material==='glass'?('background:rgba(6,182,212,.12);color:'+(darkMode?'#22d3ee':'#0e7490')+';border-color:rgba(6,182,212,.24)')
                   :incidentModal?.material==='metal'?('background:rgba(139,92,246,.12);color:'+(darkMode?'#a78bfa':'#6d28d9')+';border-color:rgba(139,92,246,.24)')
                   :'background:var(--bg-raised);color:var(--tx-muted);border-color:var(--bg-border)'"
-                x-text="incidentModal?.material==='paper'?'Hârtie':incidentModal?.material==='glass'?'Sticlă':incidentModal?.material==='plastic'?'Plastic':incidentModal?.material==='metal'?'Metal':incidentModal?.material==='other'?'Altele':'Neconfirmat'">
+                x-text="incidentModal?.material==='paper'?'Hârtie':incidentModal?.material==='glass'?'Sticlă':incidentModal?.material==='plastic'?'Plastic':incidentModal?.material==='metal'?'Metal':incidentModal?.material==='other'?'Altele':'Necunoscut'">
               </span>
               <span class="incident-chip"
                 :style="incidentModal?.source==='upload'
@@ -519,7 +519,7 @@
                 <select x-model="materialDraft"
                         class="input flex-1"
                         style="height:38px;background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-primary);border-radius:12px;padding:0 10px;font-size:13px">
-                  <option value="unknown">Neconfirmat</option>
+                  <option value="unknown">Necunoscut</option>
                   <option value="plastic">Plastic</option>
                   <option value="paper">Hârtie</option>
                   <option value="glass">Sticlă</option>
