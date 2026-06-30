@@ -58,6 +58,9 @@ THROW_RANGE_M         = 3.0
 # obiectul e ȚINUT în mână / în față, NU lăsat pe jos. Cât e ținut nu acumulăm
 # progres de abandonare (altfel un obiect ținut nemișcat ar declanșa fals).
 HELD_IN_PERSON_FRAC   = 0.50
+HELD_NOT_FLOOR_FRAC   = 0.66   # la filmări de aproape: obiect deasupra acestei fracțiuni
+                               # din înălțimea cadrului = ridicat/ținut (NU pe podea) —
+                               # robust la persoane filmate doar bust (fără picioare)
 HELD_DISTANCE_M       = 1.50   # „ținut/lângă persoană" = mai aproape decât distanța de
                                 # separare. Sub atât, obiectul e considerat în mână (braț
                                 # întins) și NU acumulează abandonare — abia când persoana
@@ -448,9 +451,15 @@ class LitteringDetector:
             # n-ar declanșa vreodată.
             obj_cy = (tb[1] + tb[3]) / 2.0
             at_body_height = obj_cy < nearest_pb[3] - 0.20 * (nearest_pb[3] - nearest_pb[1])
+            # Robust și la filmări „bust" (persoana umple cadrul, fără picioare):
+            # un obiect care NU e în partea de jos a CADRULUI (zona podelei) e
+            # ridicat → ținut, chiar dacă caseta persoanei se termină la brâu și
+            # at_body_height eșuează. Se aplică doar când persoana e aproape.
+            not_near_floor = obj_cy < HELD_NOT_FLOOR_FRAC * frame.shape[0]
             is_held = (
                 self._trash_in_person_frac(tb, nearest_pb) > HELD_IN_PERSON_FRAC
                 or (dist_m <= HELD_DISTANCE_M and at_body_height)
+                or (dist_m <= HELD_DISTANCE_M and not_near_floor)
             )
             tracker.last_trash_cx = tcx
             tracker.last_trash_cy = tcy
