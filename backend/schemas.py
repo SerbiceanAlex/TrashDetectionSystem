@@ -119,6 +119,7 @@ class LitteringEventOut(BaseModel):
     reviewed_at: Optional[datetime] = None
     forwarded_at: Optional[datetime] = None
     notes: Optional[str] = None
+    user_notes: Optional[str] = None
     incident_uid: Optional[str] = None
     owner_person_id: Optional[int] = None
     distance_at_abandonment: Optional[float] = None

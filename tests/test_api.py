@@ -5,6 +5,8 @@ Aceste teste evită intenționat inferența ML și se concentrează pe comportam
 shell-ul aplicației, dashboard, export rapoarte, sesiuni video și listarea incidentelor.
 """
 
+import csv
+
 import pytest
 from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
@@ -88,6 +90,47 @@ async def test_delete_littering_event_is_idempotent_for_admin(client: AsyncClien
     resp = await client.delete("/api/littering/events/99999")
     assert resp.status_code == 200
     assert "deja șters" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_admin_can_move_incident_between_all_review_states(client: AsyncClient, session):
+    async def _override_get_db_same_session():
+        yield session
+
+    app.dependency_overrides[db.get_db] = _override_get_db_same_session
+
+    org = db.Organization(name="Status workflow org")
+    admin = db.User(username="status_admin", email="status_admin@test.local", hashed_password="x", role="admin", organization=org)
+    session.add_all([org, admin])
+    await session.flush()
+    event = db.LitteringEvent(material="plastic", det_score=0.86, status="pending", organization_id=org.id)
+    session.add(event)
+    await session.flush()
+
+    app.dependency_overrides[get_current_active_user] = lambda: SimpleNamespace(
+        id=admin.id,
+        username=admin.username,
+        email=admin.email,
+        role="admin",
+        organization_id=org.id,
+    )
+
+    try:
+        for status in ["reviewed", "forwarded", "dismissed", "pending"]:
+            resp = await client.patch(f"/api/littering/events/{event.id}/status", json={"status": status})
+            assert resp.status_code == 200
+            assert resp.json()["status"] == status
+
+        await session.refresh(event)
+        assert event.status == "pending"
+        assert event.reviewed_by is None
+        assert event.reviewed_at is None
+        assert event.forwarded_at is None
+    finally:
+        await session.delete(event)
+        await session.delete(admin)
+        await session.delete(org)
+        await session.commit()
 
 
 @pytest.mark.asyncio
@@ -352,6 +395,267 @@ async def test_reports_export_csv_for_admin(client: AsyncClient):
     resp = await client.get("/api/reports/export?format=csv")
     assert resp.status_code == 200
     assert "text/csv" in resp.headers.get("content-type", "")
+
+
+@pytest.mark.asyncio
+async def test_operator_can_manage_own_incident_metadata_only(client: AsyncClient, session):
+    async def _override_get_db_same_session():
+        yield session
+
+    app.dependency_overrides[db.get_db] = _override_get_db_same_session
+
+    org = db.Organization(name="User own incident management org")
+    operator = db.User(
+        username="own_operator",
+        email="own_operator@test.local",
+        hashed_password="x",
+        role="user",
+        organization=org,
+    )
+    other_operator = db.User(
+        username="other_operator",
+        email="other_operator@test.local",
+        hashed_password="x",
+        role="user",
+        organization=org,
+    )
+    session.add_all([org, operator, other_operator])
+    await session.flush()
+
+    event = db.LitteringEvent(
+        material="metal",
+        det_score=0.74,
+        status="pending",
+        reporter_id=operator.id,
+        notes="admin note",
+        organization_id=org.id,
+    )
+    other_event = db.LitteringEvent(
+        material="glass",
+        det_score=0.67,
+        status="pending",
+        reporter_id=other_operator.id,
+        notes="private note",
+        organization_id=org.id,
+    )
+    session.add_all([event, other_event])
+    await session.flush()
+
+    app.dependency_overrides[get_current_active_user] = lambda: SimpleNamespace(
+        id=operator.id,
+        username=operator.username,
+        email=operator.email,
+        role="user",
+        organization_id=org.id,
+    )
+
+    try:
+        view_resp = await client.get(f"/api/littering/events/{event.id}")
+        assert view_resp.status_code == 200
+        assert view_resp.json()["notes"] == "admin note"
+
+        material_resp = await client.patch(
+            f"/api/littering/events/{event.id}/material",
+            json={"material": "plastic"},
+        )
+        assert material_resp.status_code == 200
+        assert material_resp.json()["material"] == "plastic"
+
+        status_resp = await client.patch(
+            f"/api/littering/events/{event.id}/status",
+            json={"status": "reviewed"},
+        )
+        assert status_resp.status_code == 200
+        assert status_resp.json()["status"] == "reviewed"
+
+        note_resp = await client.patch(
+            f"/api/littering/events/{event.id}/notes",
+            json={"notes": "user edited note"},
+        )
+        assert note_resp.status_code == 200
+        assert note_resp.json()["notes"] == "admin note"
+        assert note_resp.json()["user_notes"] == "user edited note"
+
+        await session.refresh(event)
+        assert event.material == "plastic"
+        assert event.status == "reviewed"
+        assert event.notes == "admin note"
+        assert event.user_notes == "user edited note"
+
+        for endpoint, payload in [
+            ("material", {"material": "paper"}),
+            ("status", {"status": "reviewed"}),
+            ("notes", {"notes": "changed"}),
+        ]:
+            blocked = await client.patch(f"/api/littering/events/{other_event.id}/{endpoint}", json=payload)
+            assert blocked.status_code == 403
+
+        await session.refresh(other_event)
+        assert other_event.material == "glass"
+        assert other_event.status == "pending"
+        assert other_event.notes == "private note"
+        assert other_event.user_notes is None
+    finally:
+        for obj in [event, other_event, operator, other_operator, org]:
+            await session.delete(obj)
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_notifications_are_scoped_per_user(client: AsyncClient, session):
+    async def _override_get_db_same_session():
+        yield session
+
+    app.dependency_overrides[db.get_db] = _override_get_db_same_session
+
+    org = db.Organization(name="Notifications scoped org")
+    admin = db.User(username="notif_admin", email="notif_admin@test.local", hashed_password="x", role="admin", organization=org)
+    operator = db.User(username="notif_operator", email="notif_operator@test.local", hashed_password="x", role="user", organization=org)
+    session.add_all([org, admin, operator])
+    await session.flush()
+    admin_notif = db.Notification(user_id=admin.id, message="admin only", category="incident")
+    operator_notif = db.Notification(user_id=operator.id, message="operator only", category="incident")
+    session.add_all([admin_notif, operator_notif])
+    await session.commit()
+
+    try:
+        app.dependency_overrides[get_current_active_user] = lambda: SimpleNamespace(
+            id=operator.id,
+            username=operator.username,
+            email=operator.email,
+            role="user",
+            organization_id=org.id,
+        )
+        operator_resp = await client.get("/api/me/notifications")
+        assert operator_resp.status_code == 200
+        assert [n["message"] for n in operator_resp.json()["notifications"]] == ["operator only"]
+
+        await client.post("/api/me/notifications/read-all")
+        await session.refresh(admin_notif)
+        await session.refresh(operator_notif)
+        assert operator_notif.is_read == 1
+        assert admin_notif.is_read == 0
+
+        app.dependency_overrides[get_current_active_user] = lambda: SimpleNamespace(
+            id=admin.id,
+            username=admin.username,
+            email=admin.email,
+            role="admin",
+            organization_id=org.id,
+        )
+        admin_resp = await client.get("/api/me/notifications")
+        assert admin_resp.status_code == 200
+        assert [n["message"] for n in admin_resp.json()["notifications"]] == ["admin only"]
+    finally:
+        for obj in [admin_notif, operator_notif, admin, operator, org]:
+            await session.delete(obj)
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_admin_can_set_global_and_user_detection_sensitivity(client: AsyncClient, session):
+    async def _override_get_db_same_session():
+        yield session
+
+    app.dependency_overrides[db.get_db] = _override_get_db_same_session
+
+    org = db.Organization(name="Sensitivity org")
+    admin = db.User(username="sensitivity_admin", email="sensitivity_admin@test.local", hashed_password="x", role="admin", organization=org)
+    operator = db.User(username="sensitivity_operator", email="sensitivity_operator@test.local", hashed_password="x", role="user", organization=org)
+    session.add_all([org, admin, operator])
+    await session.flush()
+
+    try:
+        app.dependency_overrides[get_current_active_user] = lambda: SimpleNamespace(
+            id=admin.id,
+            username=admin.username,
+            email=admin.email,
+            role="admin",
+            organization_id=org.id,
+        )
+        global_resp = await client.patch(
+            "/api/admin/detection-settings/global",
+            json={"det_conf": 0.22, "person_conf": 0.31, "analysis_fps": 45},
+        )
+        assert global_resp.status_code == 200
+        assert global_resp.json()["global"]["analysis_fps"] == 45
+
+        user_resp = await client.patch(
+            f"/api/admin/detection-settings/users/{operator.id}",
+            json={"det_conf": 0.18, "person_conf": None, "analysis_fps": 30},
+        )
+        assert user_resp.status_code == 200
+        assert user_resp.json()["effective"]["det_conf"] == 0.18
+        assert user_resp.json()["effective"]["person_conf"] == 0.31
+        assert user_resp.json()["effective"]["analysis_fps"] == 30
+
+        app.dependency_overrides[get_current_active_user] = lambda: SimpleNamespace(
+            id=operator.id,
+            username=operator.username,
+            email=operator.email,
+            role="user",
+            organization_id=org.id,
+        )
+        own_resp = await client.get("/api/me/detection-settings")
+        assert own_resp.status_code == 200
+        assert own_resp.json()["effective"] == {
+            "det_conf": 0.18,
+            "person_conf": 0.31,
+            "analysis_fps": 30,
+        }
+    finally:
+        for obj in [admin, operator, org]:
+            await session.delete(obj)
+        await session.commit()
+
+
+@pytest.mark.asyncio
+async def test_admin_users_export_uses_sequential_numbers(client: AsyncClient, session):
+    async def _override_get_db_same_session():
+        yield session
+
+    app.dependency_overrides[db.get_db] = _override_get_db_same_session
+
+    org = db.Organization(name="CSV users org")
+    admin = db.User(
+        id=901,
+        username="csv_admin",
+        email="csv_admin@test.local",
+        hashed_password="x",
+        role="admin",
+        organization=org,
+        created_at=datetime(2026, 4, 8, 10, 25, tzinfo=timezone.utc),
+    )
+    operator = db.User(
+        id=912,
+        username="csv_operator",
+        email="csv_operator@test.local",
+        hashed_password="x",
+        role="user",
+        organization=org,
+        created_at=datetime(2026, 5, 28, 11, 54, tzinfo=timezone.utc),
+    )
+    operator_new = db.User(
+        id=914,
+        username="csv_operator_new",
+        email="csv_operator_new@test.local",
+        hashed_password="x",
+        role="user",
+        organization=org,
+        created_at=datetime(2026, 6, 27, 18, 55, tzinfo=timezone.utc),
+    )
+    session.add_all([org, admin, operator, operator_new])
+    await session.flush()
+
+    token = auth.create_access_token({"username": admin.username, "role": admin.role, "id": admin.id})
+    resp = await client.get("/api/admin/export/users", params={"token": token})
+
+    assert resp.status_code == 200
+    assert "text/csv" in resp.headers.get("content-type", "")
+    rows = list(csv.reader(resp.text.splitlines()))
+    assert rows[0][:3] == ["Nr.", "Utilizator", "Email"]
+    assert [row[0] for row in rows[1:]] == ["1", "2", "3"]
+    assert [row[1] for row in rows[1:]] == ["csv_admin", "csv_operator", "csv_operator_new"]
 
 
 @pytest.mark.asyncio

@@ -17,13 +17,13 @@ function showToast(message, type = 'success', duration = 3500) {
 
 /* ── Auth token storage ────────────────────────────────────────────────────── */
 function getAuthToken() {
-  return localStorage.getItem(AUTH_TOKEN_KEY) || sessionStorage.getItem(AUTH_TOKEN_KEY) || '';
+  return sessionStorage.getItem(AUTH_TOKEN_KEY) || '';
 }
 
 function setAuthToken(token) {
   if (token) {
     sessionStorage.setItem(AUTH_TOKEN_KEY, token);
-    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    localStorage.removeItem(AUTH_TOKEN_KEY);
   } else {
     sessionStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem(AUTH_TOKEN_KEY);

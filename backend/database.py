@@ -46,6 +46,9 @@ class Organization(Base):
     id           = Column(Integer, primary_key=True, index=True)
     name         = Column(String(200), nullable=False)
     created_at   = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    det_conf     = Column(Float, nullable=True)
+    person_conf  = Column(Float, nullable=True)
+    analysis_fps = Column(Integer, nullable=True)
 
     users = relationship("User", back_populates="organization")
 
@@ -63,6 +66,9 @@ class User(Base):
     points = Column(Integer, default=0)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    det_conf_override = Column(Float, nullable=True)
+    person_conf_override = Column(Float, nullable=True)
+    analysis_fps_override = Column(Integer, nullable=True)
 
     # Relații
     organization = relationship("Organization", back_populates="users")
@@ -165,6 +171,7 @@ class LitteringEvent(Base):
     reviewed_at     = Column(DateTime, nullable=True)
     forwarded_at    = Column(DateTime, nullable=True)
     notes           = Column(Text, nullable=True)
+    user_notes      = Column(Text, nullable=True)
     organization_id = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
     # ── Relationships ────────────────────────────────────────────────────────
@@ -382,11 +389,17 @@ async def update_littering_event_status(
     if evt is None:
         return None
     evt.status = status
-    if reviewed_by is not None:
+    if status == "pending":
+        evt.reviewed_by = None
+        evt.reviewed_at = None
+        evt.forwarded_at = None
+    elif reviewed_by is not None:
         evt.reviewed_by = reviewed_by
         evt.reviewed_at = datetime.now(timezone.utc)
     if status == "forwarded":
         evt.forwarded_at = datetime.now(timezone.utc)
+    elif status != "pending":
+        evt.forwarded_at = None
     if notes is not None:
         evt.notes = notes
     await db.commit()

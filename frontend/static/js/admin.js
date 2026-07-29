@@ -24,6 +24,7 @@ function adminApp() {
 
     // Sub-tab navigation inside admin panel
     adminSubTab: 'overview',  // 'overview' | 'users' | 'incidents'
+    adminIncidentModal: null,
 
     // Charts
     adminCharts: {
@@ -34,6 +35,13 @@ function adminApp() {
     },
     adminChartsLoading: false,
     _adminChartInstances: {},
+
+    // Detection sensitivity
+    adminDetectionSettings: null,
+    adminDetectionLoading: false,
+    adminDetectionSaving: false,
+    adminDetectionGlobalDraft: { det_conf: 0.15, person_conf: 0.25, analysis_fps: 120 },
+    adminDetectionUserDrafts: {},
 
     // Storage
     adminStorage: null,
@@ -263,6 +271,71 @@ function adminApp() {
         : 'Necunoscut';
     },
 
+    _pct(value) {
+      const n = Number(value || 0);
+      return Math.round(n * 100) + '%';
+    },
+
+    _settingsDraftFrom(values = {}) {
+      return {
+        det_conf: values.det_conf ?? '',
+        person_conf: values.person_conf ?? '',
+        analysis_fps: values.analysis_fps ?? '',
+      };
+    },
+
+    async loadAdminDetectionSettings() {
+      if (!this.token || this.user?.role !== 'admin') return;
+      this.adminDetectionLoading = true;
+      try {
+        const data = await fetchAPI('/api/admin/detection-settings');
+        this.adminDetectionSettings = data;
+        this.adminDetectionGlobalDraft = this._settingsDraftFrom(data.global || {});
+        this.adminDetectionUserDrafts = {};
+        (data.users || []).forEach(u => {
+          this.adminDetectionUserDrafts[u.id] = this._settingsDraftFrom(u.overrides || {});
+        });
+      } catch (e) {
+        showToast('Nu pot încărca setările AI: ' + e.message, 'error');
+      } finally {
+        this.adminDetectionLoading = false;
+        this._refreshAdminIcons();
+      }
+    },
+
+    async saveAdminDetectionGlobal() {
+      this.adminDetectionSaving = true;
+      try {
+        await fetchAPI('/api/admin/detection-settings/global', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.adminDetectionGlobalDraft),
+        });
+        await this.loadAdminDetectionSettings();
+        if (typeof this.loadDetectionSettings === 'function') await this.loadDetectionSettings();
+        showToast('Setări AI globale salvate.');
+      } catch (e) {
+        showToast('Eroare setări AI: ' + e.message, 'error');
+      } finally {
+        this.adminDetectionSaving = false;
+      }
+    },
+
+    async saveAdminDetectionUser(userId) {
+      const draft = this.adminDetectionUserDrafts[userId] || {};
+      try {
+        await fetchAPI(`/api/admin/detection-settings/users/${userId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(draft),
+        });
+        await this.loadAdminDetectionSettings();
+        showToast('Setări AI utilizator salvate.');
+      } catch (e) {
+        showToast('Eroare setări utilizator: ' + e.message, 'error');
+      }
+    },
+
     /* ── Export users CSV ─────────────────────────────────────────────── */
     adminExportUsersCSV() {
       const token = getAuthToken();
@@ -425,6 +498,136 @@ function adminApp() {
       return oldStatus;
     },
 
+    _mergeIncidentUpdate(updated) {
+      if (!updated?.id) return;
+      const idx = this.incidents.findIndex(e => e.id === updated.id);
+      if (idx !== -1) {
+        this.incidents[idx] = { ...this.incidents[idx], ...updated };
+      }
+      if (this.adminIncidentModal?.id === updated.id) {
+        this.adminIncidentModal = { ...this.adminIncidentModal, ...updated };
+      }
+      if (typeof this.incidentModal !== 'undefined' && this.incidentModal?.id === updated.id) {
+        this.incidentModal = { ...this.incidentModal, ...updated };
+      }
+    },
+
+    _statusLabel(status) {
+      return status === 'pending' ? 'În așteptare'
+        : status === 'reviewed' ? 'Confirmat'
+        : status === 'forwarded' ? 'Arhivat'
+        : status === 'dismissed' ? 'Fals pozitiv'
+        : status || '';
+    },
+
+    _statusActionLabel(current, target) {
+      if (!target || current === target) return 'OK';
+      if (current === 'forwarded' && target === 'reviewed') return 'Dezarhivează';
+      return target === 'pending' ? 'Trimite la verificare'
+        : target === 'reviewed' ? 'Confirmă'
+        : target === 'forwarded' ? 'Arhivează'
+        : target === 'dismissed' ? 'Fals pozitiv'
+        : 'Actualizează';
+    },
+
+    async adminSetIncidentStatus(id, status) {
+      const current = this.adminIncidentModal?.id === id
+        ? this.adminIncidentModal.status
+        : this.incidentModal?.id === id
+          ? this.incidentModal.status
+        : this.incidents.find(e => e.id === id)?.status;
+      if (!id || !status || current === status) return false;
+      const isUnarchive = current === 'forwarded' && status === 'reviewed';
+      const actionLabel = this._statusActionLabel(current, status);
+      const actionColor = status === 'dismissed' ? '#6b7280'
+        : status === 'forwarded' ? '#2563eb'
+        : status === 'pending' ? '#f59e0b'
+        : '#10b981';
+
+      const ok = await this.showConfirm(
+        actionLabel,
+        isUnarchive
+          ? `Incidentul #${id} va fi scos din arhivă și marcat ca „Confirmat”.`
+          : `Setezi incidentul #${id} ca „${this._statusLabel(status)}”?`,
+        {
+          confirmText: actionLabel,
+          confirmColor: actionColor,
+          iconColor: actionColor,
+          icon: isUnarchive ? 'rotate-ccw' : status === 'dismissed' ? 'x-circle' : status === 'forwarded' ? 'archive' : status === 'pending' ? 'clock' : 'check-circle',
+        }
+      );
+      if (!ok) return false;
+
+      try {
+        const updated = await fetchAPI(`/api/littering/events/${id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        this._mergeIncidentUpdate(updated);
+        await Promise.all([
+          this.loadIncidents(),
+          this.loadStorage(),
+          this.loadDashboard?.(),
+        ]);
+        this._mergeIncidentUpdate(updated);
+        showToast(isUnarchive ? 'Incident dezarhivat.' : `Stare actualizată: ${this._statusLabel(status)}`);
+        this._refreshAdminIcons();
+        return true;
+      } catch (e) {
+        showToast('Eroare: ' + e.message, 'error');
+        return false;
+      }
+    },
+
+    async adminSaveIncidentMaterial(id, material) {
+      if (!id) return false;
+      try {
+        const updated = await fetchAPI(`/api/littering/events/${id}/material`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ material }),
+        });
+        this._mergeIncidentUpdate(updated);
+        showToast('Material actualizat');
+        this._refreshAdminIcons();
+        return true;
+      } catch (e) {
+        showToast('Eroare la actualizarea materialului: ' + e.message, 'error');
+        return false;
+      }
+    },
+
+    async adminSaveIncidentNotes(id, notes) {
+      if (!id) return false;
+      try {
+        const updated = await fetchAPI(`/api/littering/events/${id}/notes`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes: notes || '' }),
+        });
+        this._mergeIncidentUpdate(updated);
+        showToast('Notă salvată');
+        this._refreshAdminIcons();
+        return true;
+      } catch (e) {
+        showToast('Eroare la salvarea notei: ' + e.message, 'error');
+        return false;
+      }
+    },
+
+    async saveIncidentStatus(id, status) {
+      return this.adminSetIncidentStatus(id, status);
+    },
+
+    async saveIncidentMaterial(id, material) {
+      return this.adminSaveIncidentMaterial(id, material);
+    },
+
+    async saveIncidentNotes(id, notes) {
+      return this.adminSaveIncidentNotes(id, notes);
+    },
+
     async markIncidentReviewed(id) {
       const ok = await this.showConfirm(
         'Confirmă incident',
@@ -489,9 +692,9 @@ function adminApp() {
 
     async restoreIncident(id) {
       const ok = await this.showConfirm(
-        'Restabilește incidentul',
+        'Dezarhivează incidentul',
         'Incidentul va ieși din arhivă și va reveni în lista incidentelor confirmate.',
-        { confirmText: 'Restabilește', confirmColor: '#10b981', iconColor: '#10b981', icon: 'rotate-ccw' }
+        { confirmText: 'Dezarhivează', confirmColor: '#10b981', iconColor: '#10b981', icon: 'rotate-ccw' }
       );
       if (!ok) return false;
       try {
@@ -505,7 +708,7 @@ function adminApp() {
           if (oldStatus === 'forwarded') this.incidentForwarded = Math.max(0, this.incidentForwarded - 1);
           if (oldStatus !== 'reviewed') this.incidentReviewed += 1;
         }
-        showToast('Incident restabilit în lista confirmată.');
+        showToast('Incident dezarhivat.');
         await this.loadStorage();
         this._refreshAdminIcons();
         return true;
@@ -571,6 +774,9 @@ function adminApp() {
         if (typeof this.incidentModal !== 'undefined' && this.incidentModal?.id === id) {
            this.incidentModal = null;
         }
+        if (this.adminIncidentModal?.id === id) {
+          this.adminIncidentModal = null;
+        }
 
         showToast('Incident șters definitiv.');
         await this.loadStorage();
@@ -628,6 +834,8 @@ function adminApp() {
         this.loadStorage();
       } else if (tab === 'users') {
         this.loadAdminUsers();
+      } else if (tab === 'sensitivity') {
+        this.loadAdminDetectionSettings();
       } else if (tab === 'incidents') {
         if (this.adminUsers.length === 0) this.loadAdminUsers();
         this.loadIncidents();

@@ -105,9 +105,17 @@ async def _migrate_schema():
         "ALTER TABLE littering_events ADD COLUMN source VARCHAR(16) DEFAULT 'live'",
         "ALTER TABLE littering_events ADD COLUMN video_session_id INTEGER",
         "ALTER TABLE littering_events ADD COLUMN reporter_id INTEGER REFERENCES users(id)",
+        "ALTER TABLE littering_events ADD COLUMN user_notes TEXT",
         # Izolare pe organizație
         "ALTER TABLE users ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
         "ALTER TABLE littering_events ADD COLUMN organization_id INTEGER REFERENCES organizations(id)",
+        # Praguri AI globale / per utilizator
+        "ALTER TABLE organizations ADD COLUMN det_conf REAL",
+        "ALTER TABLE organizations ADD COLUMN person_conf REAL",
+        "ALTER TABLE organizations ADD COLUMN analysis_fps INTEGER",
+        "ALTER TABLE users ADD COLUMN det_conf_override REAL",
+        "ALTER TABLE users ADD COLUMN person_conf_override REAL",
+        "ALTER TABLE users ADD COLUMN analysis_fps_override INTEGER",
         # Izolarea sesiunilor video
         "ALTER TABLE video_sessions ADD COLUMN littering_count INTEGER DEFAULT 0",
         "ALTER TABLE video_sessions ADD COLUMN user_id INTEGER REFERENCES users(id)",
@@ -385,6 +393,12 @@ def _can_view_littering_event(user: db.User, event: db.LitteringEvent) -> bool:
     return _same_org(user, event) and event.reporter_id == user.id
 
 
+def _can_manage_littering_event(user: db.User, event: db.LitteringEvent) -> bool:
+    if user.role == "admin":
+        return _same_org(user, event)
+    return _same_org(user, event) and event.reporter_id == user.id
+
+
 def _same_video_org(user: db.User, video_session: db.VideoSession) -> bool:
     return (video_session.organization_id or 1) == (user.organization_id or 1)
 
@@ -485,7 +499,7 @@ async def delete_littering_event(
 @app.patch(
     "/api/littering/events/{event_id}/status",
     response_model=schemas.LitteringEventOut,
-    summary="[Admin] Actualizează statusul unui incident",
+    summary="Actualizează statusul unui incident",
 )
 async def update_littering_event_status(
     event_id: int,
@@ -493,14 +507,12 @@ async def update_littering_event_status(
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricționat.")
     evt_current = await db.get_littering_event_by_id(session, event_id)
     if evt_current is None:
         raise HTTPException(status_code=404, detail="Eveniment negăsit.")
-    if not _same_org(current_user, evt_current):
+    if not _can_manage_littering_event(current_user, evt_current):
         raise HTTPException(status_code=403, detail="Acces restricționat.")
-    allowed_statuses = {"reviewed", "forwarded", "dismissed"}
+    allowed_statuses = {"pending", "reviewed", "forwarded", "dismissed"}
     if body.status not in allowed_statuses:
         raise HTTPException(
             status_code=400,
@@ -526,7 +538,7 @@ async def update_littering_event_status(
 @app.patch(
     "/api/littering/events/{event_id}/notes",
     response_model=schemas.LitteringEventOut,
-    summary="[Admin] Actualizează notele unui incident",
+    summary="Actualizează notele unui incident",
 )
 async def update_littering_event_notes(
     event_id: int,
@@ -537,9 +549,12 @@ async def update_littering_event_notes(
     evt = await db.get_littering_event_by_id(session, event_id)
     if evt is None:
         raise HTTPException(status_code=404, detail="Eveniment negăsit.")
-    if not _can_view_littering_event(current_user, evt):
+    if not _can_manage_littering_event(current_user, evt):
         raise HTTPException(status_code=403, detail="Acces restricționat.")
-    evt.notes = body.notes
+    if current_user.role == "admin":
+        evt.notes = body.notes
+    else:
+        evt.user_notes = body.notes
     await session.commit()
     await session.refresh(evt)
     return evt
@@ -548,7 +563,7 @@ async def update_littering_event_notes(
 @app.patch(
     "/api/littering/events/{event_id}/material",
     response_model=schemas.LitteringEventOut,
-    summary="[Admin] Corectează materialul estimat al unui incident",
+    summary="Corectează materialul estimat al unui incident",
 )
 async def update_littering_event_material(
     event_id: int,
@@ -556,12 +571,10 @@ async def update_littering_event_material(
     current_user: Annotated[db.User, Depends(get_current_active_user)] = None,
     session: AsyncSession = Depends(db.get_db),
 ):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Acces restricționat.")
     evt = await db.get_littering_event_by_id(session, event_id)
     if evt is None:
         raise HTTPException(status_code=404, detail="Eveniment negăsit.")
-    if not _same_org(current_user, evt):
+    if not _can_manage_littering_event(current_user, evt):
         raise HTTPException(status_code=403, detail="Acces restricționat.")
 
     material = (body.material or "").strip().lower()
@@ -833,7 +846,8 @@ async def reports_export(
             "Persoane",
             "Hash SHA-256",
             "Clip",
-            "Note",
+            "Note admin",
+            "Note utilizator",
         ])
         for e in rows:
             w.writerow([
@@ -852,6 +866,7 @@ async def reports_export(
                 _csv_value(e.image_hash),
                 _csv_value(e.clip_path),
                 _csv_value(e.notes, ""),
+                _csv_value(e.user_notes, ""),
             ])
         return PlainTextResponse(
             "\ufeff" + buf.getvalue(),
@@ -1339,6 +1354,137 @@ async def admin_stats(
     }
 
 
+def _clamp_optional_float(value, *, lo: float, hi: float) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Valoare numerică invalidă.")
+    return max(lo, min(hi, n))
+
+
+def _clamp_optional_int(value, *, lo: int, hi: int) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Valoare numerică invalidă.")
+    return max(lo, min(hi, n))
+
+
+def _detection_global_payload(org: db.Organization | None) -> dict:
+    return {
+        "det_conf": org.det_conf if org and org.det_conf is not None else settings.MONITOR_MIN_DET_CONF,
+        "person_conf": org.person_conf if org and org.person_conf is not None else settings.MONITOR_PERSON_CONF,
+        "analysis_fps": org.analysis_fps if org and org.analysis_fps is not None else settings.MONITOR_TARGET_FPS,
+    }
+
+
+def _detection_user_payload(user: db.User, global_payload: dict) -> dict:
+    overrides = {
+        "det_conf": user.det_conf_override,
+        "person_conf": user.person_conf_override,
+        "analysis_fps": user.analysis_fps_override,
+    }
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "overrides": overrides,
+        "effective": {
+            "det_conf": overrides["det_conf"] if overrides["det_conf"] is not None else global_payload["det_conf"],
+            "person_conf": overrides["person_conf"] if overrides["person_conf"] is not None else global_payload["person_conf"],
+            "analysis_fps": overrides["analysis_fps"] if overrides["analysis_fps"] is not None else global_payload["analysis_fps"],
+        },
+    }
+
+
+async def _get_org_for_user(session: AsyncSession, user: db.User) -> db.Organization | None:
+    org_id = user.organization_id or 1
+    return await session.get(db.Organization, org_id)
+
+
+@app.get("/api/me/detection-settings", summary="Setările AI efective pentru utilizatorul curent")
+async def get_my_detection_settings(
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    org = await _get_org_for_user(session, current_user)
+    db_user = await session.get(db.User, current_user.id)
+    if db_user is None:
+        db_user = current_user
+    global_payload = _detection_global_payload(org)
+    return {
+        "global": global_payload,
+        "user": _detection_user_payload(db_user, global_payload),
+        "effective": _detection_user_payload(db_user, global_payload)["effective"],
+    }
+
+
+@app.get("/api/admin/detection-settings", summary="[Admin] Setări AI globale și pe utilizator")
+async def admin_get_detection_settings(
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+    org = await _get_org_for_user(session, current_user)
+    global_payload = _detection_global_payload(org)
+    rows = await session.execute(
+        select(db.User)
+        .where(db.or_(db.User.organization_id == (current_user.organization_id or 1), db.User.organization_id.is_(None)))
+        .order_by(db.User.created_at.asc(), db.User.id.asc())
+    )
+    users = [_detection_user_payload(u, global_payload) for u in rows.scalars().all()]
+    return {"global": global_payload, "users": users}
+
+
+@app.patch("/api/admin/detection-settings/global", summary="[Admin] Actualizează setările AI globale")
+async def admin_update_detection_global(
+    body: dict,
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+    org = await _get_org_for_user(session, current_user)
+    if org is None:
+        org = await db.get_or_create_default_org(session)
+    org.det_conf = _clamp_optional_float(body.get("det_conf"), lo=0.05, hi=0.95)
+    org.person_conf = _clamp_optional_float(body.get("person_conf"), lo=0.10, hi=0.95)
+    org.analysis_fps = _clamp_optional_int(body.get("analysis_fps"), lo=5, hi=120)
+    await session.commit()
+    await session.refresh(org)
+    return {"global": _detection_global_payload(org)}
+
+
+@app.patch("/api/admin/detection-settings/users/{user_id}", summary="[Admin] Actualizează override AI pe utilizator")
+async def admin_update_detection_user(
+    user_id: int,
+    body: dict,
+    current_user: Annotated[db.User, Depends(get_current_active_user)],
+    session: AsyncSession = Depends(db.get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Acces restricționat — doar pentru administratori.")
+    user = await session.get(db.User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="Utilizatorul nu a fost găsit.")
+    if (user.organization_id or 1) != (current_user.organization_id or 1):
+        raise HTTPException(status_code=403, detail="Utilizatorul aparține altei organizații.")
+    user.det_conf_override = _clamp_optional_float(body.get("det_conf"), lo=0.05, hi=0.95)
+    user.person_conf_override = _clamp_optional_float(body.get("person_conf"), lo=0.10, hi=0.95)
+    user.analysis_fps_override = _clamp_optional_int(body.get("analysis_fps"), lo=5, hi=120)
+    await session.commit()
+    await session.refresh(user)
+    org = await _get_org_for_user(session, current_user)
+    global_payload = _detection_global_payload(org)
+    return _detection_user_payload(user, global_payload)
+
+
 # ── Admin: date pentru grafice (înregistrări/lună, rapoarte/zi, materiale) ──
 
 @app.get("/api/admin/charts", summary="[Admin] Date pentru graficele din dashboard")
@@ -1451,17 +1597,17 @@ async def admin_export_users_csv(
     import io
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["ID", "Utilizator", "Email", "Rol", "Puncte", "Incidente", "Creat"])
+    writer.writerow(["Nr.", "Utilizator", "Email", "Rol", "Puncte", "Incidente", "Creat"])
     org_id = user.organization_id or 1
     result = await session.execute(
         select(db.User, func.count(db.LitteringEvent.id).label("total_reports"))
         .outerjoin(db.LitteringEvent, db.LitteringEvent.reporter_id == db.User.id)
         .where(db.or_(db.User.organization_id == org_id, db.User.organization_id.is_(None)))
         .group_by(db.User.id)
-        .order_by(db.User.id)
+        .order_by(db.User.created_at.asc(), db.User.id.asc())
     )
-    for u, total in result:
-        writer.writerow([u.id, u.username, u.email, u.role, u.points, total,
+    for row_number, (u, total) in enumerate(result, start=1):
+        writer.writerow([row_number, u.username, u.email, u.role, u.points, total,
                          u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else ""])
     return Response(
         content=buf.getvalue(),

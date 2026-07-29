@@ -1771,6 +1771,105 @@ input[type="range"].slider::-webkit-slider-thumb:active {
   border-bottom-color: #4ade80;
 }
 
+.admin-incident-card__body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+}
+
+.admin-incident-thumb {
+  position: relative;
+  flex: 0 0 clamp(178px, 22vw, 220px);
+  aspect-ratio: 16 / 9;
+  align-self: center;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--bg-border);
+}
+
+.admin-incident-thumb__button {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.admin-incident-thumb__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-incident-thumb__empty {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--tx-muted);
+  opacity: .45;
+}
+
+.admin-incident-thumb__shade {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.42));
+  transition: background .18s;
+}
+.admin-incident-thumb__button:hover .admin-incident-thumb__shade {
+  background: linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.55));
+}
+.admin-incident-thumb__shade--soft {
+  background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.22));
+}
+
+.admin-incident-play {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(15, 23, 42, .72);
+  border: 1px solid rgba(255, 255, 255, .28);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .38);
+  transform: scale(1);
+  transition: transform .18s, background .18s;
+}
+.admin-incident-play svg {
+  margin-left: 2px;
+}
+.admin-incident-play--small {
+  width: 36px;
+  height: 36px;
+}
+.admin-incident-play--small svg {
+  margin-left: 0;
+}
+.admin-incident-thumb__button:hover .admin-incident-play {
+  transform: scale(1.06);
+  background: rgba(15, 23, 42, .86);
+}
+
+@media (max-width: 760px) {
+  .admin-incident-card__body {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+  .admin-incident-thumb {
+    flex-basis: 100%;
+    width: 100%;
+  }
+}
+
 /* Admin tab sidebar badge */
 .td-sidebar__item[data-admin] .td-sidebar__badge,
 .td-sidebar__badge--admin {
@@ -2521,6 +2620,21 @@ select { color-scheme: light; }
   padding-right: 30px !important;
 }
 
+/* Input-uri numerice curate — ascunde săgețile native „boxate", aspect identic pe toate casetele */
+input.num-clean::-webkit-outer-spin-button,
+input.num-clean::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input.num-clean {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input.num-clean::placeholder {
+  font-style: italic;
+  opacity: .75;
+}
+
 .incident-metric-card,
 .incident-evidence-card,
 .incident-note-card {
@@ -2675,6 +2789,11 @@ select { color-scheme: light; }
 }
 .incident-action-btn:hover {
   transform: translateY(-1px);
+}
+.incident-action-btn:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+  transform: none;
 }
 .incident-action-btn--neutral {
   color: var(--tx-primary);

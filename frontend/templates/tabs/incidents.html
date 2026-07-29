@@ -17,7 +17,9 @@
     </div>
     <div class="flex-1 min-w-0">
       <p class="text-base font-bold" style="color:#fff">Incidente detectate</p>
-      <p class="text-sm mt-0.5" style="color:rgba(255,255,255,.65)">Acte de aruncare ilegală · revizuire, arhivare, descărcare dovezi</p>
+      <p class="text-sm mt-0.5"
+         style="color:rgba(255,255,255,.65)"
+         x-text="isAdmin ? 'Acte de aruncare ilegală · revizuire, arhivare, descărcare dovezi' : 'Incidentele tale detectate · vizualizare dovezi, status și descărcare clipuri'"></p>
     </div>
     <div class="flex gap-2">
       <button @click="exportIncidentsCSV()"
@@ -52,7 +54,9 @@
       <p class="text-3xl font-extrabold leading-none"
          :style="darkMode ? 'color:#fbbf24' : 'color:#f59e0b'"
          x-text="incidentPending ?? 0"></p>
-      <p class="text-[10px] mt-1.5" :style="darkMode ? 'color:#fbbf24;opacity:.7' : 'color:#d97706;opacity:.7'">de revizuit</p>
+      <p class="text-[10px] mt-1.5"
+         :style="darkMode ? 'color:#fbbf24;opacity:.7' : 'color:#d97706;opacity:.7'"
+         x-text="isAdmin ? 'de revizuit' : 'în analiză'"></p>
     </div>
 
     <div @click="incidentStatusFilter='reviewed'; incidentMaterialFilter=''; loadIncidents()"
@@ -262,7 +266,7 @@
 
           <!-- Thumbnail (cu selector overlay discret) -->
           <div class="relative shrink-0 overflow-hidden self-center"
-               style="width:210px;height:120px;border-radius:14px;background:var(--bg-raised);border:1px solid var(--bg-border)">
+               style="width:clamp(240px,24vw,300px);height:168px;border-radius:14px;background:var(--bg-raised);border:1px solid var(--bg-border)">
             <!-- Selectare bulk — admin only, overlay pe thumbnail -->
             <button x-show="isAdmin"
               @click.stop="toggleIncidentSelection(ev.id)"
@@ -350,37 +354,52 @@
             </div>
           </div>
 
-          <!-- Quick actions — admin only -->
-          <div x-show="isAdmin" class="flex flex-col gap-2 shrink-0 self-center" @click.stop>
+          <!-- Acțiuni rapide: admin pe toate din org, user doar pe propriile incidente -->
+          <div class="flex flex-col gap-2 shrink-0 self-center" style="width:146px" @click.stop>
+            <div class="rounded-xl px-3 py-2 text-center"
+                 style="background:var(--bg-raised);border:1px solid var(--bg-border)">
+              <p class="text-xl font-black leading-none"
+                 style="color:#10b981"
+                 x-text="ev.det_score>0 ? (ev.det_score*100).toFixed(0)+'%' : '—'"></p>
+              <p class="text-[9px] uppercase tracking-wide mt-1" style="color:var(--tx-muted)">încredere</p>
+            </div>
+            <button @click="incidentModal = ev"
+              class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+              style="background:rgba(99,102,241,.12);color:#818cf8;border:1px solid rgba(99,102,241,.30)"
+              title="Deschide dovada">
+              <i data-lucide="play" class="w-4 h-4"></i>
+              <span>Deschide</span>
+            </button>
             <button x-show="ev.status==='pending'" @click="markIncidentReviewed(ev.id)"
-              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+              class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
               style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.2)"
-              title="Confirmă incident"
-              @mouseenter="$el.style.background='rgba(16,185,129,.2)'"
-              @mouseleave="$el.style.background='rgba(16,185,129,.1)'">
+              title="Confirmă incident">
               <i data-lucide="check" class="w-4 h-4"></i>
               <span>Confirmă</span>
             </button>
-            <button x-show="ev.status!=='forwarded' && ev.status!=='dismissed'"
+            <button x-show="ev.status==='reviewed'"
               @click="forwardIncident(ev.id)"
-              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+              class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
               style="background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.2)"
-              title="Arhivează dovada"
-              @mouseenter="$el.style.background='rgba(59,130,246,.2)'"
-              @mouseleave="$el.style.background='rgba(59,130,246,.1)'">
+              title="Arhivează dovada">
               <i data-lucide="archive" class="w-4 h-4"></i>
               <span>Arhivează</span>
             </button>
             <button x-show="ev.status==='forwarded'"
               @click="restoreIncident(ev.id)"
-              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+              class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
               style="background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.2)"
-              title="Restabilește în lista confirmată"
-              @mouseenter="$el.style.background='rgba(16,185,129,.2)'"
-              @mouseleave="$el.style.background='rgba(16,185,129,.1)'">
+              title="Dezarhivează în lista confirmată">
               <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-              <span>Restabilește</span>
+              <span>Dezarhivează</span>
             </button>
+            <a x-show="ev.clip_path" :href="eventMediaUrl(ev, 'clip')"
+              class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap"
+              style="background:var(--bg-raised);color:var(--tx-secondary);border:1px solid var(--bg-border)"
+              download>
+              <i data-lucide="download" class="w-4 h-4"></i>
+              <span>Descarcă</span>
+            </a>
           </div>
         </div>
 
@@ -506,13 +525,38 @@
               </span>
             </div>
 
-            <div x-show="isAdmin"
-                 x-data="{ materialSaving: false, materialDraft: '' }"
+            <div x-data="{ statusSaving: false, statusDraft: '' }"
+                 x-effect="statusDraft = incidentModal?.status || 'pending'"
+                 class="incident-evidence-card">
+              <div class="incident-evidence-label">
+                <i data-lucide="workflow" class="w-3.5 h-3.5"></i>
+                Stare incident
+              </div>
+              <div class="flex gap-2">
+                <select x-model="statusDraft"
+                        class="input flex-1"
+                        style="height:38px;background:var(--bg-raised);border:1px solid var(--bg-border);color:var(--tx-primary);border-radius:12px;padding:0 10px;font-size:13px">
+                  <option value="pending">În așteptare</option>
+                  <option value="reviewed">Confirmat</option>
+                  <option value="forwarded">Arhivat</option>
+                  <option value="dismissed">Fals pozitiv</option>
+                </select>
+                <button
+                  @click="statusSaving = true; saveIncidentStatus(incidentModal.id, statusDraft).finally(() => statusSaving = false)"
+                  :disabled="statusSaving || statusDraft === incidentModal?.status"
+                  class="incident-save-note"
+                  style="width:auto;padding:0 12px;margin-top:0">
+                  <span x-text="statusSaving ? '...' : _statusActionLabel(incidentModal?.status, statusDraft)"></span>
+                </button>
+              </div>
+            </div>
+
+            <div x-data="{ materialSaving: false, materialDraft: '' }"
                  x-effect="materialDraft = incidentModal?.material || 'unknown'"
                  class="incident-evidence-card">
               <div class="incident-evidence-label">
                 <i data-lucide="tag" class="w-3.5 h-3.5"></i>
-                Material validat
+                Material detectat
               </div>
               <div class="flex gap-2">
                 <select x-model="materialDraft"
@@ -526,26 +570,10 @@
                   <option value="other">Altele</option>
                 </select>
                 <button
-                  @click="
-                    materialSaving = true;
-                    fetch('/api/littering/events/' + incidentModal.id + '/material', {
-                      method: 'PATCH',
-                      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
-                      body: JSON.stringify({material: materialDraft})
-                    }).then(r => r.ok ? r.json() : Promise.reject(r))
-                      .then(updated => {
-                        incidentModal.material = updated.material;
-                        incidentModal.det_score = updated.det_score;
-                        const idx = incidents.findIndex(e => e.id === incidentModal.id);
-                        if (idx !== -1) incidents[idx] = updated;
-                        showToast('Material actualizat');
-                      })
-                      .catch(() => showToast('Eroare la actualizarea materialului', 'error'))
-                      .finally(() => materialSaving = false)
-                  "
-                  :disabled="materialSaving"
+                  @click="materialSaving = true; saveIncidentMaterial(incidentModal.id, materialDraft).finally(() => materialSaving = false)"
+                  :disabled="materialSaving || materialDraft === incidentModal?.material"
                   class="incident-save-note"
-                  style="width:auto;padding:0 12px">
+                  style="width:auto;padding:0 12px;margin-top:0">
                   <span x-text="materialSaving ? '...' : 'OK'"></span>
                 </button>
               </div>
@@ -586,45 +614,41 @@
             </template>
 
             <div x-data="{ noteSaving: false, noteDraft: '' }"
-                 x-effect="noteDraft = incidentModal?.notes || ''"
+                 x-effect="noteDraft = isAdmin ? (incidentModal?.notes || '') : (incidentModal?.user_notes || '')"
                  class="incident-note-card">
               <div class="incident-note-header">
-                <span>Notă investigator</span>
+                <span x-text="isAdmin ? 'Notă investigator' : 'Notă la video'"></span>
                 <span x-text="noteDraft.length + ' / 1000'"></span>
               </div>
               <textarea
                 x-model="noteDraft"
-                placeholder="Adaugă observații sau motivul confirmării/respingerii..."
+                :placeholder="isAdmin ? 'Adaugă observații sau motivul confirmării/respingerii...' : 'Adaugă observația ta despre acest incident...'"
                 rows="2"
                 maxlength="1000"
                 class="incident-note-input">
               </textarea>
               <button
-                @click="
-                  noteSaving = true;
-                  fetch('/api/littering/events/' + incidentModal.id + '/notes', {
-                    method: 'PATCH',
-                    headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
-                    body: JSON.stringify({notes: noteDraft})
-                  }).then(r => r.ok ? r.json() : Promise.reject(r))
-                    .then(updated => {
-                      incidentModal.notes = noteDraft;
-                      const idx = incidents.findIndex(e => e.id === incidentModal.id);
-                      if (idx !== -1) incidents[idx].notes = noteDraft;
-                      showToast('Notă salvată');
-                    })
-                    .catch(() => showToast('Eroare la salvare notă', 'error'))
-                    .finally(() => noteSaving = false)
-                "
-                :disabled="noteSaving"
+                @click="noteSaving = true; saveIncidentNotes(incidentModal.id, noteDraft).finally(() => noteSaving = false)"
+                :disabled="noteSaving || noteDraft === (isAdmin ? (incidentModal?.notes || '') : (incidentModal?.user_notes || ''))"
                 class="incident-save-note">
                 <i data-lucide="save" class="w-4 h-4"></i>
                 <span x-text="noteSaving ? 'Se salvează...' : 'Salvează nota'"></span>
               </button>
             </div>
+
+            <template x-if="isAdmin && incidentModal?.user_notes">
+              <div class="incident-evidence-card">
+                <div class="incident-evidence-label">
+                  <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+                  Notă utilizator
+                </div>
+                <p x-text="incidentModal.user_notes"></p>
+              </div>
+            </template>
           </div>
 
-          <div class="incident-detail-actions">
+          <div class="incident-detail-actions"
+               :style="!isAdmin ? 'grid-template-columns:1fr' : ''">
             <template x-if="incidentModal?.clip_path">
               <a :href="eventMediaUrl(incidentModal, 'clip')"
                  class="incident-action-btn incident-action-btn--neutral" download>
@@ -632,41 +656,6 @@
                 <span>Descarcă</span>
               </a>
             </template>
-
-            <template x-if="!isAdmin">
-              <div class="incident-readonly-note">
-                <i data-lucide="lock" class="w-4 h-4"></i>
-                Moderarea (confirmare, respingere, ștergere) este rezervată administratorului
-              </div>
-            </template>
-
-            <button x-show="isAdmin && incidentModal?.status==='pending'"
-              @click="markIncidentReviewed(incidentModal.id).then(ok => { if (ok) incidentModal.status='reviewed' })"
-              class="incident-action-btn incident-action-btn--confirm">
-              <i data-lucide="check" class="w-4 h-4"></i>
-              <span>Confirmă</span>
-            </button>
-
-            <button x-show="isAdmin && incidentModal?.status!=='forwarded' && incidentModal?.status!=='dismissed'"
-              @click="forwardIncident(incidentModal.id).then(ok => { if (ok) incidentModal.status='forwarded' })"
-              class="incident-action-btn incident-action-btn--archive">
-              <i data-lucide="archive" class="w-4 h-4"></i>
-              <span>Arhivează</span>
-            </button>
-
-            <button x-show="isAdmin && incidentModal?.status==='forwarded'"
-              @click="restoreIncident(incidentModal.id).then(ok => { if (ok) incidentModal.status='reviewed' })"
-              class="incident-action-btn incident-action-btn--confirm">
-              <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
-              <span>Restabilește</span>
-            </button>
-
-            <button x-show="isAdmin && incidentModal?.status!=='dismissed'"
-              @click="dismissIncident(incidentModal.id).then(ok => { if (ok) incidentModal.status='dismissed' })"
-              class="incident-action-btn incident-action-btn--muted">
-              <i data-lucide="x" class="w-4 h-4"></i>
-              <span>Fals pozitiv</span>
-            </button>
 
             <button x-show="isAdmin"
               @click="deleteIncident(incidentModal.id).then(ok => { if (ok) incidentModal = null })"

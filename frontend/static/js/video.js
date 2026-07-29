@@ -6,6 +6,7 @@ function videoApp() {
     // (>2.5 m). Falsele sunt ținute sub control de suprimarea pe corp, filtrul
     // geometric și logica temporală (un fals tranzitoriu nu creează incident).
     detConf: 0.25,
+    detectionSettings: null,
 
     // Upload state
     uploadFile: null,
@@ -26,7 +27,24 @@ function videoApp() {
     // ── Init ──────────────────────────────────────────────────────────────
     async initVideo() {
       if (this.token || getAuthToken()) {
+        await this.loadDetectionSettings();
         await this.loadVideoSessions();
+      }
+    },
+
+    async loadDetectionSettings() {
+      if (!this.token && !getAuthToken()) return null;
+      try {
+        const data = await fetchAPI('/api/me/detection-settings');
+        this.detectionSettings = data;
+        const effective = data?.effective || {};
+        if (effective.det_conf != null) this.detConf = Number(effective.det_conf);
+        if (effective.person_conf != null) this.monitorPersonConf = Number(effective.person_conf);
+        if (effective.analysis_fps != null) this.monitorSendFps = Number(effective.analysis_fps);
+        return data;
+      } catch (e) {
+        console.warn('loadDetectionSettings', e);
+        return null;
       }
     },
 
@@ -52,6 +70,7 @@ function videoApp() {
       this.videoProgress = 0;
 
       try {
+        await this.loadDetectionSettings();
         const fd = new FormData();
         fd.append('file', this.uploadFile);
         const data = await fetchAPI(`/api/video/upload?det_conf=${this.detConf}`, {
@@ -252,10 +271,12 @@ function videoApp() {
         return this._startMonitorIp();
       }
       try {
+        await this.loadDetectionSettings();
         const runtime = this.systemInfo?.runtime || {};
-        this.detConf = Number(runtime.monitor_min_det_conf || 0.25);
-        this.monitorPersonConf = Number(runtime.monitor_person_conf || 0.25);
-        const configuredTargetFps = Number(runtime.monitor_target_fps || 24);
+        const effective = this.detectionSettings?.effective || {};
+        this.detConf = Number(effective.det_conf ?? runtime.monitor_min_det_conf ?? 0.25);
+        this.monitorPersonConf = Number(effective.person_conf ?? runtime.monitor_person_conf ?? 0.25);
+        const configuredTargetFps = Number(effective.analysis_fps ?? runtime.monitor_target_fps ?? 24);
         // Adoptă mereu ținta din config (test de ceiling): clientul împinge cât
         // poate, iar contorul onest arată rata reală susținută.
         this.monitorSendFps = configuredTargetFps;
@@ -318,9 +339,11 @@ function videoApp() {
       if (!canvas) { showToast('Element canvas lipsă — reîncarcă pagina.', 'error'); return; }
 
       const runtime = this.systemInfo?.runtime || {};
-      this.detConf = Number(runtime.monitor_min_det_conf || 0.25);
-      this.monitorPersonConf = Number(runtime.monitor_person_conf || 0.25);
-      this.monitorSendFps = 20;  // rată pentru stream IP (sursele bune: telefon/HLS)
+      await this.loadDetectionSettings();
+      const effective = this.detectionSettings?.effective || {};
+      this.detConf = Number(effective.det_conf ?? runtime.monitor_min_det_conf ?? 0.25);
+      this.monitorPersonConf = Number(effective.person_conf ?? runtime.monitor_person_conf ?? 0.25);
+      this.monitorSendFps = Math.max(5, Math.min(Number(effective.analysis_fps ?? 20), 120));  // rată pentru stream IP
 
       this._monitorCanvas = canvas;
       this._monitorVideo = this.$refs.monitorVideo;
